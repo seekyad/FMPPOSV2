@@ -161,15 +161,15 @@ export const RingUpPad = forwardRef<
   /** Register display: entry while typing, otherwise the live money state —
    *  in cash tender it also carries TENDERED and CHANGE BACK / STILL DUE. */
   const displayPanel = (
-    <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 rounded-xl bg-navy px-5 py-3">
+    <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 rounded-xl bg-navy px-5 py-3 [container-type:inline-size]">
       <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
         <div>
           <div className="text-[11px] font-semibold tracking-[0.1em] text-white/50">SUBTOTAL</div>
-          <div className="text-[38px] leading-tight font-extrabold text-white/80">{formatCents(subtotalCents)}</div>
+          <div className="text-[clamp(17px,3.8cqw,38px)] leading-tight font-extrabold whitespace-nowrap text-white/80">{formatCents(subtotalCents)}</div>
         </div>
         <div>
           <div className="text-[11px] font-semibold tracking-[0.1em] text-white/50">TAX</div>
-          <div className="text-[38px] leading-tight font-extrabold text-white/80">{formatCents(taxCents)}</div>
+          <div className="text-[clamp(17px,3.8cqw,38px)] leading-tight font-extrabold whitespace-nowrap text-white/80">{formatCents(taxCents)}</div>
         </div>
         {(paidSoFar > 0 || (customer && (customer.storeCreditCents ?? 0) > 0)) && (
           <div className="space-y-0.5 text-[13px] leading-snug text-white/65">
@@ -190,14 +190,14 @@ export const RingUpPad = forwardRef<
         {cashTender && (
           <div className="text-right">
             <div className="text-[11px] font-semibold tracking-[0.1em] text-white/50">TENDERED</div>
-            <div className="text-[38px] leading-tight font-extrabold text-white">{formatCents(tendered)}</div>
+            <div className="text-[clamp(17px,3.8cqw,38px)] leading-tight font-extrabold whitespace-nowrap text-white">{formatCents(tendered)}</div>
           </div>
         )}
         <div className="text-right">
           <div className="text-[11px] font-semibold tracking-[0.1em] text-white/50">
             {showEntry ? 'ENTRY' : paidSoFar > 0 ? 'REMAINING DUE' : 'AMOUNT DUE'}
           </div>
-          <div className="text-[38px] leading-tight font-extrabold text-orange">
+          <div className="text-[clamp(17px,3.8cqw,38px)] leading-tight font-extrabold whitespace-nowrap text-orange">
             {formatCents(showEntry ? cents : mode === 'tender' ? remaining : totalCents)}
           </div>
         </div>
@@ -211,7 +211,7 @@ export const RingUpPad = forwardRef<
               {tendered >= remaining ? 'CHANGE BACK' : 'STILL DUE'}
             </div>
             <div
-              className={`text-[38px] leading-tight font-extrabold ${
+              className={`text-[clamp(17px,3.8cqw,38px)] leading-tight font-extrabold whitespace-nowrap ${
                 tendered >= remaining ? 'text-[#4ade80]' : 'text-[#fbbf24]'
               }`}
             >
