@@ -1,0 +1,25 @@
+{
+  "name": "fmp-pos",
+  "private": true,
+  "version": "2.0.0",
+  "workspaces": [
+    "packages/*",
+    "apps/*",
+    "server",
+    "bridge"
+  ],
+  "scripts": {
+    "dev": "npm-run-all --parallel dev:server dev:app",
+    "dev:server": "npm run dev -w server",
+    "dev:app": "npm run dev -w apps/repair-pos",
+    "build": "npm run build -w packages/shared && npm run build -w apps/repair-pos && npm run build -w server",
+    "start": "npm run start -w server",
+    "test": "npm run test -w packages/shared && npm run test -w server",
+    "typecheck": "tsc -b packages/shared server apps/repair-pos"
+  },
+  "devDependencies": {
+    "drizzle-orm": "^0.45.2",
+    "npm-run-all": "^4.1.5",
+    "typescript": "^5.6.0"
+  }
+}
