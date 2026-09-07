@@ -260,7 +260,20 @@ export function SalesScreen() {
                     <button onClick={() => setLines((p) => p.map((x) => (x.key === l.key ? { ...x, qty: x.qty + 1 } : x)))} style={{ border: 'none', background: 'none', padding: '3px 9px' }}>+</button>
                   </span>
                 )}
-                <button onClick={() => setLines((p) => p.filter((x) => x.key !== l.key))} style={{ border: 'none', background: 'none', color: 'var(--red)', fontSize: 12.5 }}>Remove</button>
+                <button
+                  onClick={() => setLines((p) => p.filter((x) => x.key !== l.key))}
+                  style={{
+                    marginLeft: 'auto',
+                    border: 'none',
+                    background: 'var(--red-bg)',
+                    color: 'var(--red)',
+                    borderRadius: 8,
+                    padding: '6px 14px',
+                    font: '600 13px Inter, sans-serif',
+                  }}
+                >
+                  Remove
+                </button>
               </div>
             </div>
           ))}
