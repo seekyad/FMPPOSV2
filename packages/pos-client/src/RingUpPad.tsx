@@ -155,9 +155,12 @@ export const RingUpPad = forwardRef<
   const paidSoFar = taken.reduce((s, p) => s + p.amountCents, 0);
   const showEntry = mode === 'entry' && cents > 0;
 
-  /** Register display: entry while typing, otherwise the live money state. */
+  const cashTender = mode === 'tender' && method === 'cash';
+
+  /** Register display: entry while typing, otherwise the live money state —
+   *  in cash tender it also carries TENDERED and CHANGE BACK / STILL DUE. */
   const displayPanel = (
-    <div className="flex items-center justify-between gap-4 rounded-xl bg-navy px-5 py-3">
+    <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 rounded-xl bg-navy px-5 py-3">
       <div className="space-y-0.5 text-[13px] leading-snug text-white/65">
         <div>
           Subtotal <b className="text-white/90">{formatCents(subtotalCents)}</b>
@@ -175,13 +178,39 @@ export const RingUpPad = forwardRef<
           </div>
         )}
       </div>
-      <div className="text-right">
-        <div className="text-[11px] font-semibold tracking-[0.1em] text-white/50">
-          {showEntry ? 'ENTRY' : paidSoFar > 0 ? 'REMAINING DUE' : 'AMOUNT DUE'}
+      <div className="ml-auto flex flex-wrap items-center justify-end gap-x-6 gap-y-2">
+        {cashTender && (
+          <div className="text-right">
+            <div className="text-[11px] font-semibold tracking-[0.1em] text-white/50">TENDERED</div>
+            <div className="text-[38px] leading-tight font-extrabold text-white">{formatCents(tendered)}</div>
+          </div>
+        )}
+        <div className="text-right">
+          <div className="text-[11px] font-semibold tracking-[0.1em] text-white/50">
+            {showEntry ? 'ENTRY' : paidSoFar > 0 ? 'REMAINING DUE' : 'AMOUNT DUE'}
+          </div>
+          <div className="text-[38px] leading-tight font-extrabold text-orange">
+            {formatCents(showEntry ? cents : mode === 'tender' ? remaining : totalCents)}
+          </div>
         </div>
-        <div className="text-[38px] leading-tight font-extrabold text-orange">
-          {formatCents(showEntry ? cents : mode === 'tender' ? remaining : totalCents)}
-        </div>
+        {cashTender && tendered > 0 && (
+          <div className="rounded-lg bg-white/10 px-4 py-1 text-right">
+            <div
+              className={`text-[11px] font-semibold tracking-[0.1em] ${
+                tendered >= remaining ? 'text-[#4ade80]' : 'text-[#fbbf24]'
+              }`}
+            >
+              {tendered >= remaining ? 'CHANGE BACK' : 'STILL DUE'}
+            </div>
+            <div
+              className={`text-[38px] leading-tight font-extrabold ${
+                tendered >= remaining ? 'text-[#4ade80]' : 'text-[#fbbf24]'
+              }`}
+            >
+              {formatCents(tendered >= remaining ? change : remaining - tendered)}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -314,41 +343,30 @@ export const RingUpPad = forwardRef<
             </div>
 
             {method === 'cash' ? (
-              <div className="grid grid-cols-2 gap-2.5">
-                <div className="rounded-xl border border-line px-4 py-2.5">
-                  <div className="text-[11px] font-semibold tracking-wide text-ink-4">TENDERED — type on keypad</div>
-                  <div className="text-[24px] font-extrabold text-ink">{formatCents(tendered)}</div>
-                  <div className="mt-1.5 flex flex-wrap gap-1.5">
-                    {[1000, 2000, 5000, 10000].map((v) => (
-                      <button
-                        key={v}
-                        onClick={() => setTendered(v)}
-                        className={`rounded-lg px-3 py-1.5 text-[13.5px] font-bold ${tendered === v ? 'bg-navy text-white' : 'border border-line bg-card text-ink'}`}
-                      >
-                        ${v / 100}
-                      </button>
-                    ))}
-                    <button
-                      onClick={() => setTendered(remaining)}
-                      className={`rounded-lg px-3 py-1.5 text-[13.5px] font-bold ${tendered === remaining && remaining > 0 ? 'bg-navy text-white' : 'border border-line bg-card text-ink'}`}
-                    >
-                      Exact
-                    </button>
-                  </div>
+              <div className="rounded-xl border border-line px-4 py-3">
+                <div className="text-[11px] font-semibold tracking-wide text-ink-4">
+                  CASH TENDERED — TYPE ON KEYPAD OR TAP A BILL
                 </div>
-                <div
-                  className={`rounded-xl px-4 py-2.5 ${
-                    tendered >= remaining
-                      ? 'border border-green-line bg-green-bg text-green'
-                      : 'border border-amber bg-amber-bg text-amber'
-                  }`}
-                >
-                  <div className="text-[11px] font-semibold tracking-wide">
-                    {tendered >= remaining ? 'CHANGE BACK' : 'LEFT TO COLLECT AFTER THIS'}
-                  </div>
-                  <div className="text-[30px] font-extrabold">
-                    {formatCents(tendered >= remaining ? change : remaining - tendered)}
-                  </div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {[1000, 2000, 5000, 10000].map((v) => (
+                    <button
+                      key={v}
+                      onClick={() => setTendered(v)}
+                      className={`min-h-[46px] rounded-xl px-5 text-[16px] font-bold ${
+                        tendered === v ? 'bg-navy text-white' : 'border border-line bg-card text-ink'
+                      }`}
+                    >
+                      ${v / 100}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => setTendered(remaining)}
+                    className={`min-h-[46px] rounded-xl px-5 text-[16px] font-bold ${
+                      tendered === remaining && remaining > 0 ? 'bg-navy text-white' : 'border border-line bg-card text-ink'
+                    }`}
+                  >
+                    Exact
+                  </button>
                 </div>
               </div>
             ) : method === 'store_credit' ? (
