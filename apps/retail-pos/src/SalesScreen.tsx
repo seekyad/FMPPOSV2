@@ -1,22 +1,24 @@
 import { useEffect, useMemo, useState } from 'react';
 import { computeTotals, formatCents } from '@fmp/shared';
 import { Button, Modal } from '@fmp/ui';
+import { useRef } from 'react';
 import {
   api,
   session,
   lineKey,
-  CustomItemModal,
   CustomerModal,
   InventoryPickerModal,
   PaymentModal,
+  RingUpPad,
   useNarrow,
   type CartCustomer,
   type CartLine,
   type PaymentDraft,
   type PickableItem,
+  type RingUpPadHandle,
 } from '@fmp/pos-client';
 
-type OpenModal = null | 'custom' | 'customer' | 'accessory' | 'device' | 'payment';
+type OpenModal = null | 'customer' | 'accessory' | 'device' | 'payment';
 
 /** Retail register: device & accessory sales on the shared inventory. */
 export function SalesScreen() {
@@ -27,6 +29,7 @@ export function SalesScreen() {
   const [modal, setModal] = useState<OpenModal>(null);
   const [busy, setBusy] = useState(false);
   const [taxRateBp, setTaxRateBp] = useState(600);
+  const ringUpRef = useRef<RingUpPadHandle>(null);
   const [done, setDone] = useState<null | { changeCents: number | null; receiptText: string; printed: boolean }>(null);
   const [error, setError] = useState('');
 
@@ -105,7 +108,7 @@ export function SalesScreen() {
     { icon: 'bi-phone', title: 'Device sale', caption: 'Phones, tablets, wifi boxes', bg: 'var(--green-bg)', onClick: () => setModal('device') },
     { icon: 'bi-lightning-charge', title: 'Accessory', caption: 'Cases, chargers, glass', bg: 'var(--blue-bg)', onClick: () => setModal('accessory') },
     { icon: 'bi-person', title: 'Customer', caption: 'Find or create customer', bg: 'var(--card)', onClick: () => setModal('customer') },
-    { icon: 'bi-plus-circle', title: 'Custom item', caption: 'Description and price', bg: 'var(--card)', onClick: () => setModal('custom') },
+    { icon: 'bi-plus-circle', title: 'Custom item', caption: 'Use the ring-up pad above', bg: 'var(--card)', onClick: () => ringUpRef.current?.focus() },
   ];
 
   return (
@@ -121,6 +124,13 @@ export function SalesScreen() {
         <div style={{ color: 'var(--ink-3)', fontSize: 14, marginTop: 2 }}>
           {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })} · {user?.name}
         </div>
+        <RingUpPad
+          ref={ringUpRef}
+          taxRateBp={taxRateBp}
+          onAdd={(item) =>
+            setLines((prev) => [...prev, { key: lineKey(), kind: 'custom', qty: 1, discountCents: 0, ...item }])
+          }
+        />
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12, marginTop: 18 }}>
           {tiles.map((a) => (
             <button
@@ -205,12 +215,6 @@ export function SalesScreen() {
         </div>
       </div>
 
-      <CustomItemModal
-        open={modal === 'custom'}
-        taxRateBp={taxRateBp}
-        onClose={() => setModal(null)}
-        onAdd={(item) => setLines((prev) => [...prev, { key: lineKey(), kind: 'custom', qty: 1, discountCents: 0, ...item }])}
-      />
       <CustomerModal open={modal === 'customer'} onClose={() => setModal(null)} onPick={setCustomer} />
       <InventoryPickerModal open={modal === 'accessory'} tab="accessories" title="Add accessory" onClose={() => setModal(null)} onPick={addItem} />
       <InventoryPickerModal open={modal === 'device'} tab="phones" title="Device sale" onClose={() => setModal(null)} onPick={addItem} />

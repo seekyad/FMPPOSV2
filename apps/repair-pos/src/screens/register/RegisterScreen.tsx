@@ -2,9 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { computeTotals, formatCents } from '@fmp/shared';
 import { Button, Modal } from '@fmp/ui';
-import { api, session, useNarrow } from '@fmp/pos-client';
+import { api, session, useNarrow, RingUpPad, type RingUpPadHandle } from '@fmp/pos-client';
+import { useRef } from 'react';
 import { lineKey, type CartCustomer, type CartLine } from '@fmp/pos-client';
-import { CustomItemModal } from '@fmp/pos-client';
 import { CustomerModal } from '@fmp/pos-client';
 import { InventoryPickerModal, type PickableItem } from '@fmp/pos-client';
 import { PaymentModal, type PaymentDraft } from '@fmp/pos-client';
@@ -40,6 +40,7 @@ export function RegisterScreen() {
   const [repairOpen, setRepairOpen] = useState(false);
   const [toast, setToast] = useState('');
   const [taxRateBp, setTaxRateBp] = useState(cachedTaxRateBp);
+  const ringUpRef = useRef<RingUpPadHandle>(null);
   const [depositTicket, setDepositTicket] = useState<{ id: number; number: string; balanceCents: number } | null>(null);
   const [done, setDone] = useState<null | { changeCents: number | null; receiptText: string; printed: boolean }>(null);
   const [error, setError] = useState('');
@@ -217,7 +218,7 @@ export function RegisterScreen() {
     { icon: 'bi-cash-coin', title: 'Payout', caption: 'Cash paid from register', bg: 'var(--red-bg)', onClick: () => setModal('payout') },
     { icon: 'bi-pencil-square', title: 'Quick note', caption: 'Add a register note', bg: 'var(--card)', onClick: () => setModal('note') },
     { icon: 'bi-person', title: 'Customer', caption: 'Find or create customer', bg: 'var(--card)', onClick: () => setModal('customer') },
-    { icon: 'bi-plus-circle', title: 'Custom item', caption: 'Enter description and price', bg: 'var(--card)', onClick: () => setModal('custom') },
+    { icon: 'bi-plus-circle', title: 'Custom item', caption: 'Use the ring-up pad above', bg: 'var(--card)', onClick: () => ringUpRef.current?.focus() },
   ];
 
   return (
@@ -262,6 +263,14 @@ export function RegisterScreen() {
         </div>
 
         <SearchBar onAddItem={addItem} onPickCustomer={(c) => setCustomer(c)} />
+
+        <RingUpPad
+          ref={ringUpRef}
+          taxRateBp={taxRateBp}
+          onAdd={(item) =>
+            setLines((prev) => [...prev, { key: lineKey(), kind: 'custom', qty: 1, discountCents: 0, ...item }])
+          }
+        />
 
         <div style={{ font: '600 11.5px Inter, sans-serif', color: 'var(--ink-4)', letterSpacing: '0.08em', margin: '18px 0 8px' }}>
           SMART ACTIONS
@@ -388,7 +397,7 @@ export function RegisterScreen() {
           )}
           {lines.length > 0 && (
             <button
-              onClick={() => setModal('custom')}
+              onClick={() => ringUpRef.current?.focus()}
               style={{
                 width: '100%',
                 marginTop: 10,
@@ -439,17 +448,6 @@ export function RegisterScreen() {
         </div>
       </div>
 
-      <CustomItemModal
-        open={modal === 'custom'}
-        taxRateBp={taxRateBp}
-        onClose={() => setModal(null)}
-        onAdd={(item) =>
-          setLines((prev) => [
-            ...prev,
-            { key: lineKey(), kind: 'custom', qty: 1, discountCents: 0, ...item },
-          ])
-        }
-      />
       <CustomerModal open={modal === 'customer'} onClose={() => setModal(null)} onPick={setCustomer} />
       <InventoryPickerModal
         open={modal === 'accessory'}

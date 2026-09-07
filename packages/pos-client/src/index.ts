@@ -8,4 +8,5 @@ export { InventoryPickerModal, type PickableItem } from './InventoryPickerModal'
 export { CustomersScreen } from './CustomersScreen';
 export { useNarrow } from './useNarrow';
 export { SidePanel } from './SidePanel';
+export { RingUpPad, type RingUpPadHandle } from './RingUpPad';
 export { InventoryScreen } from './InventoryScreen';
