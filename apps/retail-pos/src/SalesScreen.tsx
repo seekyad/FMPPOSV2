@@ -77,7 +77,7 @@ export function SalesScreen() {
     });
   }
 
-  async function complete(payments: PaymentDraft[]) {
+  async function complete(payments: PaymentDraft[], useLines: CartLine[] = lines) {
     setBusy(true);
     setError('');
     try {
@@ -86,7 +86,7 @@ export function SalesScreen() {
         {
           method: 'POST',
           body: JSON.stringify({
-            lines: lines.map(({ key, detail, serialized, ...l }) => l),
+            lines: useLines.map(({ key, detail, serialized, ...l }) => l),
             customerId: customer?.id ?? null,
             payments,
           }),
@@ -101,6 +101,28 @@ export function SalesScreen() {
       setModal(null);
     } finally {
       setBusy(false);
+    }
+  }
+
+  /** Ring-up pad fast collection: card completes instantly; cash/split open the payment screen. */
+  function collectFromPad(method: 'cash' | 'card' | 'split', item: { description: string; unitCents: number; taxable: boolean } | null) {
+    const effective = item
+      ? [...lines, { key: lineKey(), kind: 'custom' as const, qty: 1, discountCents: 0, ...item }]
+      : lines;
+    if (effective.length === 0) {
+      setError('Ring up an amount or add items first.');
+      return;
+    }
+    setError('');
+    setLines(effective);
+    if (method === 'card') {
+      const t = computeTotals(
+        effective.map((l) => ({ qty: l.qty, unitCents: l.unitCents, taxable: l.taxable, discountCents: l.discountCents })),
+        taxRateBp,
+      );
+      void complete([{ method: 'card', amountCents: t.totalCents }], effective);
+    } else {
+      setModal('payment');
     }
   }
 
@@ -130,6 +152,7 @@ export function SalesScreen() {
           onAdd={(item) =>
             setLines((prev) => [...prev, { key: lineKey(), kind: 'custom', qty: 1, discountCents: 0, ...item }])
           }
+          onCollect={collectFromPad}
         />
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12, marginTop: 18 }}>
           {tiles.map((a) => (

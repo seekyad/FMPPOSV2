@@ -41,6 +41,7 @@ export function RegisterScreen() {
   const [toast, setToast] = useState('');
   const [taxRateBp, setTaxRateBp] = useState(cachedTaxRateBp);
   const ringUpRef = useRef<RingUpPadHandle>(null);
+  const [payMethod, setPayMethod] = useState<'cash' | 'card' | 'tap' | 'store_credit'>('cash');
   const [depositTicket, setDepositTicket] = useState<{ id: number; number: string; balanceCents: number } | null>(null);
   const [done, setDone] = useState<null | { changeCents: number | null; receiptText: string; printed: boolean }>(null);
   const [error, setError] = useState('');
@@ -174,7 +175,7 @@ export function RegisterScreen() {
     }
   }
 
-  async function complete(payments: PaymentDraft[]) {
+  async function complete(payments: PaymentDraft[], useLines: CartLine[] = lines) {
     setBusy(true);
     setError('');
     try {
@@ -183,7 +184,7 @@ export function RegisterScreen() {
         {
           method: 'POST',
           body: JSON.stringify({
-            lines: lines.map(({ key, detail, serialized, ...l }) => l),
+            lines: useLines.map(({ key, detail, serialized, ...l }) => l),
             customerId: customer?.id ?? null,
             payments,
             parkedSaleId: resumedSaleId,
@@ -199,6 +200,29 @@ export function RegisterScreen() {
       setModal(null);
     } finally {
       setBusy(false);
+    }
+  }
+
+  /** Ring-up pad fast collection: card completes instantly; cash/split open the payment screen. */
+  function collectFromPad(method: 'cash' | 'card' | 'split', item: { description: string; unitCents: number; taxable: boolean } | null) {
+    const effective = item
+      ? [...lines, { key: lineKey(), kind: 'custom' as const, qty: 1, discountCents: 0, ...item }]
+      : lines;
+    if (effective.length === 0) {
+      setError('Ring up an amount or add items first.');
+      return;
+    }
+    setError('');
+    setLines(effective);
+    if (method === 'card') {
+      const t = computeTotals(
+        effective.map((l) => ({ qty: l.qty, unitCents: l.unitCents, taxable: l.taxable, discountCents: l.discountCents })),
+        taxRateBp,
+      );
+      void complete([{ method: 'card', amountCents: t.totalCents }], effective);
+    } else {
+      setPayMethod(method === 'split' ? 'cash' : 'cash');
+      setModal('payment');
     }
   }
 
@@ -270,6 +294,7 @@ export function RegisterScreen() {
           onAdd={(item) =>
             setLines((prev) => [...prev, { key: lineKey(), kind: 'custom', qty: 1, discountCents: 0, ...item }])
           }
+          onCollect={collectFromPad}
         />
 
         <div style={{ font: '600 11.5px Inter, sans-serif', color: 'var(--ink-4)', letterSpacing: '0.08em', margin: '18px 0 8px' }}>
@@ -468,7 +493,11 @@ export function RegisterScreen() {
         dueCents={totals.totalCents}
         customer={customer}
         busy={busy}
-        onClose={() => setModal(null)}
+        initialMethod={payMethod}
+        onClose={() => {
+          setModal(null);
+          setPayMethod('cash');
+        }}
         onComplete={(p) => void complete(p)}
       />
 

@@ -20,6 +20,7 @@ export function PaymentModal({
   dueCents,
   customer,
   busy,
+  initialMethod = 'cash',
   onClose,
   onComplete,
 }: {
@@ -27,6 +28,7 @@ export function PaymentModal({
   dueCents: number;
   customer: CartCustomer | null;
   busy: boolean;
+  initialMethod?: PaymentDraft['method'];
   onClose: () => void;
   onComplete: (payments: PaymentDraft[]) => void;
 }) {
@@ -40,11 +42,12 @@ export function PaymentModal({
 
   useEffect(() => {
     if (open) {
+      setMethod(initialMethod);
       void api<{ configured: boolean }>('/api/terminal/status')
         .then((s) => setTerminalConfigured(s.configured))
         .catch(() => setTerminalConfigured(false));
     }
-  }, [open]);
+  }, [open, initialMethod]);
 
   const remaining = dueCents - taken.reduce((s, p) => s + p.amountCents, 0);
   const amount = partial ?? remaining;
