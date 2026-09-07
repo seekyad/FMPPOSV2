@@ -185,9 +185,23 @@ export function SalesScreen() {
           flexDirection: 'column',
         }}
       >
-        <div style={{ padding: '20px 20px 12px', borderBottom: '1px solid var(--line-soft)' }}>
+        <div style={{ padding: '18px 20px 14px', borderBottom: '1px solid var(--line-soft)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h2 style={{ margin: 0, font: '700 20.5px Inter, sans-serif' }}>Current sale</h2>
+            <h2 style={{ margin: 0, font: '700 20.5px Inter, sans-serif' }}>
+              Current sale{' '}
+              <span
+                style={{
+                  background: 'var(--orange-soft)',
+                  color: 'var(--orange)',
+                  borderRadius: 999,
+                  padding: '2px 11px',
+                  font: '700 14.5px Inter, sans-serif',
+                  verticalAlign: 'middle',
+                }}
+              >
+                {lines.reduce((n, l) => n + l.qty, 0)}
+              </span>
+            </h2>
             <button
               onClick={() => {
                 setLines([]);
@@ -198,25 +212,63 @@ export function SalesScreen() {
                 border: '1px solid var(--line)',
                 background: 'var(--card)',
                 color: lines.length === 0 ? 'var(--ink-4)' : 'var(--red)',
-                borderRadius: 10,
-                padding: '7px 14px',
-                font: '600 13.5px Inter, sans-serif',
+                borderRadius: 11,
+                padding: '10px 18px',
+                minHeight: 42,
+                font: '600 14.5px Inter, sans-serif',
                 opacity: lines.length === 0 ? 0.5 : 1,
               }}
             >
               <i className="bi bi-x-circle" /> Clear
             </button>
           </div>
-          <div style={{ fontSize: 12.5, color: 'var(--ink-3)', marginTop: 2 }}>
-            {customer ? (
-              <span>
-                <i className="bi bi-person" /> {customer.name}{' '}
-                <button onClick={() => setCustomer(null)} style={{ border: 'none', background: 'none', color: 'var(--red)', fontSize: 12.5 }}>remove</button>
-              </span>
-            ) : (
-              'Walk-in customer'
-            )}
-          </div>
+          {customer ? (
+            <div
+              style={{
+                marginTop: 12,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 11,
+                minHeight: 50,
+                borderRadius: 12,
+                background: 'var(--blue-bg)',
+                padding: '8px 14px',
+              }}
+            >
+              <i className="bi bi-person-fill" style={{ fontSize: 19, color: 'var(--navy)' }} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ font: '600 15.5px Inter, sans-serif' }}>{customer.name}</div>
+                {customer.phone && <div style={{ fontSize: 13, color: 'var(--ink-3)' }}>{customer.phone}</div>}
+              </div>
+              <button
+                onClick={() => setCustomer(null)}
+                style={{ border: 'none', background: 'none', color: 'var(--red)', font: '600 14px Inter, sans-serif', padding: '8px 6px' }}
+              >
+                <i className="bi bi-x-lg" /> Remove
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setModal('customer')}
+              style={{
+                width: '100%',
+                marginTop: 12,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 9,
+                minHeight: 50,
+                borderRadius: 12,
+                border: '1px solid var(--line-soft)',
+                background: 'var(--card)',
+                color: 'var(--ink)',
+                font: '700 15.5px Inter, sans-serif',
+                boxShadow: 'var(--shadow-card)',
+              }}
+            >
+              <i className="bi bi-person-plus" style={{ fontSize: 18 }} /> Add customer — search name or phone
+            </button>
+          )}
         </div>
         <div style={{ flex: 1, overflow: 'auto', padding: '12px 20px' }}>
           {lines.map((l) => (
