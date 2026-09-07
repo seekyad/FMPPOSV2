@@ -1,14 +1,8 @@
 {
   "extends": "../tsconfig.base.json",
   "compilerOptions": {
-    "composite": true,
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "outDir": "dist",
-    "rootDir": "src",
-    "noEmit": false,
+    "noEmit": true,
     "types": ["node"]
   },
-  "include": ["src"],
-  "references": [{ "path": "../packages/shared" }]
+  "include": ["src"]
 }

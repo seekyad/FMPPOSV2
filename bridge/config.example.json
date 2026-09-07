@@ -1,0 +1,10 @@
+{
+  "serverUrl": "https://your-app.onrender.com",
+  "storeId": 1,
+  "receiptPrinter": {
+    "mode": "tcp",
+    "host": "192.168.1.50",
+    "port": 9100,
+    "_or_": "for a USB Rongta shared in Windows as 'Rongta', use: { \"mode\": \"share\", \"shareName\": \"Rongta\" }"
+  }
+}

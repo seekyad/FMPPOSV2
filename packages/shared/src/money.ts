@@ -56,16 +56,18 @@ export function computeTotals(lines: SaleLineInput[], taxRateBp: number, saleDis
   let lineDiscounts = 0;
   for (const line of lines) {
     const gross = assertCents(line.unitCents) * line.qty;
-    const disc = Math.min(line.discountCents ?? 0, gross);
+    // discounts only apply to positive lines; refund (negative) lines carry none
+    const disc = gross > 0 ? Math.min(line.discountCents ?? 0, gross) : 0;
     subtotal += gross;
     lineDiscounts += disc;
     if (line.taxable) taxable += gross - disc;
   }
   const netBeforeSaleDiscount = subtotal - lineDiscounts;
-  const saleDisc = Math.min(saleDiscountCents, netBeforeSaleDiscount);
+  const saleDisc = Math.max(0, Math.min(saleDiscountCents, netBeforeSaleDiscount));
   // Sale-level discount reduces the taxable base proportionally.
   const taxableShare = netBeforeSaleDiscount > 0 ? Math.round((saleDisc * taxable) / netBeforeSaleDiscount) : 0;
-  const taxableFinal = Math.max(taxable - taxableShare, 0);
+  // may be negative on refund sales — tax reverses with the same rounding
+  const taxableFinal = taxable - taxableShare;
   const tax = taxCents(taxableFinal, taxRateBp);
   return {
     subtotalCents: subtotal,

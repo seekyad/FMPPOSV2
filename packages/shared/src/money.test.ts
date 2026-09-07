@@ -98,6 +98,21 @@ describe('computeTotals', () => {
     expect(totals.totalCents).toBe(18540);
   });
 
+  it('reverses tax on refund (negative) lines', () => {
+    // refund of the $152.64 mock sale: totals mirror the original exactly
+    const totals = computeTotals(
+      [
+        { qty: 1, unitCents: -12900, taxable: true },
+        { qty: 1, unitCents: -1500, taxable: true },
+      ],
+      rate,
+    );
+    expect(totals.subtotalCents).toBe(-14400);
+    expect(totals.taxCents).toBe(-864);
+    expect(totals.totalCents).toBe(-15264);
+    expect(totals.discountCents).toBe(0);
+  });
+
   it('handles an empty sale', () => {
     const totals = computeTotals([], rate);
     expect(totals.totalCents).toBe(0);

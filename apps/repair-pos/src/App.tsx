@@ -3,6 +3,10 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { PinScreen } from './PinScreen';
 import { Sidebar } from './Sidebar';
 import { session } from './api';
+import { RegisterScreen } from './screens/register/RegisterScreen';
+import { PendingSalesScreen } from './screens/PendingSalesScreen';
+import { CustomersScreen } from './screens/CustomersScreen';
+import { InventoryScreen } from './screens/InventoryScreen';
 
 function Placeholder({ title }: { title: string }) {
   return (
@@ -31,10 +35,11 @@ export function App() {
       <main style={{ flex: 1, minWidth: 0 }}>
         <Routes>
           <Route path="/" element={<Navigate to="/register" replace />} />
-          <Route path="/register" element={<Placeholder title="Register" />} />
+          <Route path="/register" element={<RegisterScreen />} />
+          <Route path="/pending" element={<PendingSalesScreen />} />
           <Route path="/repairs" element={<Placeholder title="Repairs" />} />
-          <Route path="/inventory" element={<Placeholder title="Inventory" />} />
-          <Route path="/customers" element={<Placeholder title="Customers" />} />
+          <Route path="/inventory" element={<InventoryScreen />} />
+          <Route path="/customers" element={<CustomersScreen />} />
           <Route path="/reports" element={<Placeholder title="Reports" />} />
           <Route path="/more" element={<Placeholder title="More" />} />
         </Routes>
