@@ -49,7 +49,6 @@ export const RingUpPad = forwardRef<
   // tender state
   const [method, setMethod] = useState<PaymentDraft['method']>('cash');
   const [tendered, setTendered] = useState(0);
-  const [partial, setPartial] = useState<number | null>(null);
   const [taken, setTaken] = useState<PaymentDraft[]>([]);
   const [terminalConfigured, setTerminalConfigured] = useState(false);
   const [terminalState, setTerminalState] = useState<'idle' | 'waiting' | 'declined'>('idle');
@@ -78,13 +77,22 @@ export const RingUpPad = forwardRef<
   }, [totalCents]);
 
   const remaining = totalCents - taken.reduce((s, p) => s + p.amountCents, 0);
-  const paying = partial ?? remaining;
-  const change = method === 'cash' ? tendered - paying : 0;
   const credit = customer?.storeCreditCents ?? 0;
+  // Cash: whatever is punched in — less than the total is taken as a partial
+  // (split). Store credit: uses up to what the customer has. Card/tap: the rest.
+  const paying =
+    method === 'cash'
+      ? tendered > 0
+        ? Math.min(tendered, remaining)
+        : remaining
+      : method === 'store_credit'
+        ? Math.min(remaining, credit)
+        : remaining;
+  const change = method === 'cash' ? tendered - paying : 0;
   const canConfirm =
     paying > 0 &&
     paying <= remaining &&
-    (method === 'cash' ? tendered >= paying : method === 'store_credit' ? credit >= paying : true);
+    (method === 'cash' ? tendered > 0 : method === 'store_credit' ? credit > 0 : true);
 
   function currentItem(): RingUpItem | null {
     if (cents <= 0) return null;
@@ -102,7 +110,6 @@ export const RingUpPad = forwardRef<
     setMode('entry');
     setMethod('cash');
     setTendered(0);
-    setPartial(null);
     setTaken([]);
     setTerminalState('idle');
     setTerminalMsg('');
@@ -122,7 +129,6 @@ export const RingUpPad = forwardRef<
     resetEntry();
     setMethod('cash');
     setTendered(0);
-    setPartial(null);
     setTaken([]);
     setMode('tender');
   }
@@ -136,7 +142,6 @@ export const RingUpPad = forwardRef<
       resetAll();
     } else {
       setTaken(nextTaken);
-      setPartial(null);
       setTendered(0);
       setMethod('cash');
     }
@@ -308,24 +313,6 @@ export const RingUpPad = forwardRef<
               {methodBtn('store_credit', 'bi-wallet2', 'Credit', !customer || credit <= 0)}
             </div>
 
-            <div className="flex items-center gap-2.5">
-              <span className="text-[13.5px] text-ink-3">Paying now</span>
-              <input
-                value={(paying / 100).toFixed(2)}
-                onChange={(e) => {
-                  const v = Math.round(parseFloat(e.target.value || '0') * 100);
-                  setPartial(Number.isFinite(v) ? Math.max(0, Math.min(v, remaining)) : 0);
-                }}
-                className="w-24 rounded-lg border border-line px-2.5 py-2 text-[15px] font-semibold"
-              />
-              {partial != null && partial < remaining && (
-                <span className="text-[12.5px] font-semibold text-amber">{formatCents(remaining - partial)} left after this</span>
-              )}
-              {method === 'store_credit' && customer && (
-                <span className="ml-auto text-[12.5px] text-purple">{customer.name}: {formatCents(credit)} available</span>
-              )}
-            </div>
-
             {method === 'cash' ? (
               <div className="grid grid-cols-2 gap-2.5">
                 <div className="rounded-xl border border-line px-4 py-2.5">
@@ -342,8 +329,8 @@ export const RingUpPad = forwardRef<
                       </button>
                     ))}
                     <button
-                      onClick={() => setTendered(paying)}
-                      className={`rounded-lg px-3 py-1.5 text-[13.5px] font-bold ${tendered === paying && paying > 0 ? 'bg-navy text-white' : 'border border-line bg-card text-ink'}`}
+                      onClick={() => setTendered(remaining)}
+                      className={`rounded-lg px-3 py-1.5 text-[13.5px] font-bold ${tendered === remaining && remaining > 0 ? 'bg-navy text-white' : 'border border-line bg-card text-ink'}`}
                     >
                       Exact
                     </button>
@@ -351,11 +338,17 @@ export const RingUpPad = forwardRef<
                 </div>
                 <div
                   className={`rounded-xl px-4 py-2.5 ${
-                    change >= 0 ? 'border border-green-line bg-green-bg text-green' : 'border border-red-line bg-red-bg text-red'
+                    tendered >= remaining
+                      ? 'border border-green-line bg-green-bg text-green'
+                      : 'border border-amber bg-amber-bg text-amber'
                   }`}
                 >
-                  <div className="text-[11px] font-semibold tracking-wide">{change >= 0 ? 'CHANGE BACK' : 'STILL SHORT'}</div>
-                  <div className="text-[30px] font-extrabold">{formatCents(Math.abs(change))}</div>
+                  <div className="text-[11px] font-semibold tracking-wide">
+                    {tendered >= remaining ? 'CHANGE BACK' : 'LEFT TO COLLECT AFTER THIS'}
+                  </div>
+                  <div className="text-[30px] font-extrabold">
+                    {formatCents(tendered >= remaining ? change : remaining - tendered)}
+                  </div>
                 </div>
               </div>
             ) : method === 'store_credit' ? (
