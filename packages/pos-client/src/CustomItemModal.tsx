@@ -42,8 +42,8 @@ export function CustomItemModal({
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
         <div>
-          <h2 style={{ margin: 0, font: '700 18px Inter, sans-serif' }}>Custom item</h2>
-          <p style={{ margin: '2px 0 0', color: 'var(--ink-3)', fontSize: 12 }}>
+          <h2 style={{ margin: 0, font: '700 20.5px Inter, sans-serif' }}>Custom item</h2>
+          <p style={{ margin: '2px 0 0', color: 'var(--ink-3)', fontSize: 14 }}>
             Type a price, then add it to the current sale
           </p>
         </div>
@@ -62,7 +62,7 @@ export function CustomItemModal({
           padding: '11px 13px',
           borderRadius: 10,
           border: '1px solid var(--line)',
-          fontSize: 13,
+          fontSize: 15,
         }}
       />
 
@@ -74,7 +74,7 @@ export function CustomItemModal({
           padding: '18px 18px',
           textAlign: 'right',
           color: 'var(--orange)',
-          font: '800 32px Inter, sans-serif',
+          font: '800 35px Inter, sans-serif',
         }}
       >
         {formatCents(cents)}
@@ -100,10 +100,10 @@ export function CustomItemModal({
               padding: '8px 10px',
             }}
           >
-            <div style={{ font: '600 9px Inter, sans-serif', color: cell.highlight ? 'var(--green)' : 'var(--ink-4)' }}>
+            <div style={{ font: '600 10.5px Inter, sans-serif', color: cell.highlight ? 'var(--green)' : 'var(--ink-4)' }}>
               {cell.label}
             </div>
-            <div style={{ font: '700 13px Inter, sans-serif' }}>{cell.value}</div>
+            <div style={{ font: '700 15px Inter, sans-serif' }}>{cell.value}</div>
           </div>
         ))}
       </div>
@@ -119,7 +119,7 @@ export function CustomItemModal({
               border: '1px solid var(--line)',
               background: tendered === v ? 'var(--navy)' : 'var(--card)',
               color: tendered === v ? '#fff' : 'var(--ink)',
-              font: '600 12px Inter, sans-serif',
+              font: '600 14px Inter, sans-serif',
             }}
           >
             ${v / 100}
@@ -137,7 +137,7 @@ export function CustomItemModal({
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 14 }}>
-        <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 12, color: 'var(--ink-3)' }}>
+        <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 14, color: 'var(--ink-3)' }}>
           <input type="checkbox" checked={taxable} onChange={(e) => setTaxable(e.target.checked)} />
           Taxable at {(taxRateBp / 100).toFixed(taxRateBp % 100 === 0 ? 0 : 2)}% · applied at checkout
         </label>

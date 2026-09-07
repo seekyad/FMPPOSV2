@@ -84,8 +84,8 @@ export function InventoryScreen() {
     <div style={{ padding: '22px 24px', height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <h1 style={{ margin: 0, font: '700 24px Inter, sans-serif' }}>Inventory</h1>
-          <div style={{ color: 'var(--ink-3)', fontSize: 12, marginTop: 2 }}>
+          <h1 style={{ margin: 0, font: '700 27.5px Inter, sans-serif' }}>Inventory</h1>
+          <div style={{ color: 'var(--ink-3)', fontSize: 14, marginTop: 2 }}>
             {rows.length} shown · retail value {formatCents(retailValue)}
           </div>
         </div>
@@ -95,12 +95,12 @@ export function InventoryScreen() {
       </div>
 
       <div style={{ position: 'relative', marginTop: 16 }}>
-        <i className="bi bi-search" style={{ position: 'absolute', left: 14, top: 13, color: 'var(--ink-4)', fontSize: 14 }} />
+        <i className="bi bi-search" style={{ position: 'absolute', left: 14, top: 13, color: 'var(--ink-4)', fontSize: 16 }} />
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search model, IMEI, SKU, or serial"
-          style={{ width: '100%', padding: '12px 14px 12px 38px', borderRadius: 12, border: '1px solid var(--line)', background: 'var(--card)', fontSize: 13 }}
+          style={{ width: '100%', padding: '12px 14px 12px 38px', borderRadius: 12, border: '1px solid var(--line)', background: 'var(--card)', fontSize: 15 }}
         />
       </div>
 
@@ -115,7 +115,7 @@ export function InventoryScreen() {
               border: '1px solid var(--line)',
               background: tab === t.id ? 'var(--navy)' : 'var(--card)',
               color: tab === t.id ? '#fff' : 'var(--ink-2)',
-              font: '600 12px Inter, sans-serif',
+              font: '600 14px Inter, sans-serif',
             }}
           >
             {t.label}{' '}
@@ -125,11 +125,11 @@ export function InventoryScreen() {
       </div>
 
       <div style={{ marginTop: 14, background: 'var(--card)', borderRadius: 14, border: '1px solid var(--line-soft)', overflow: 'auto', flex: 1 }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 15 }}>
           <thead>
-            <tr style={{ textAlign: 'left', color: 'var(--ink-4)', font: '600 10px Inter, sans-serif', letterSpacing: '0.06em' }}>
+            <tr style={{ textAlign: 'left', color: 'var(--ink-4)', font: '600 11.5px Inter, sans-serif', letterSpacing: '0.06em' }}>
               {['ITEM', tab === 'phones' || tab === 'tradeins' || tab === 'sold' ? 'IMEI' : 'SKU', 'CONDITION', 'QTY', 'COST', 'PRICE', 'AGE', 'STATUS', ''].map((h, i) => (
-                <th key={i} style={{ padding: '12px 16px', borderBottom: '1px solid var(--line-soft)', position: 'sticky', top: 0, background: 'var(--card)' }}>
+                <th key={i} style={{ padding: '15px 16px', borderBottom: '1px solid var(--line-soft)', position: 'sticky', top: 0, background: 'var(--card)' }}>
                   {h}
                 </th>
               ))}
@@ -140,30 +140,30 @@ export function InventoryScreen() {
               const age = ageDays(item);
               return (
                 <tr key={item.id}>
-                  <td style={{ padding: '11px 16px', borderBottom: '1px solid var(--line-soft)', font: '600 13px Inter, sans-serif' }}>
+                  <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--line-soft)', font: '600 15px Inter, sans-serif' }}>
                     {item.name}
                     {item.storage ? <span style={{ color: 'var(--ink-3)', fontWeight: 500 }}> · {item.storage}</span> : null}
                   </td>
-                  <td style={{ padding: '11px 16px', borderBottom: '1px solid var(--line-soft)', color: 'var(--ink-3)' }}>
+                  <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--line-soft)', color: 'var(--ink-3)' }}>
                     {item.kind === 'device' ? (item.imei ? `…${item.imei.slice(-5)}` : '—') : (item.sku ?? '—')}
                   </td>
-                  <td style={{ padding: '11px 16px', borderBottom: '1px solid var(--line-soft)', color: 'var(--ink-2)' }}>
+                  <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--line-soft)', color: 'var(--ink-2)' }}>
                     {item.kind === 'device' ? `${item.conditionGrade ?? '?'} · ${item.carrier ?? '—'}` : '—'}
                   </td>
-                  <td style={{ padding: '11px 16px', borderBottom: '1px solid var(--line-soft)' }}>{item.kind === 'device' ? '1' : item.qty}</td>
-                  <td style={{ padding: '11px 16px', borderBottom: '1px solid var(--line-soft)', color: 'var(--ink-3)' }}>{formatCents(item.costCents)}</td>
-                  <td style={{ padding: '11px 16px', borderBottom: '1px solid var(--line-soft)', font: '700 13px Inter, sans-serif' }}>{formatCents(item.priceCents)}</td>
-                  <td style={{ padding: '11px 16px', borderBottom: '1px solid var(--line-soft)', color: age >= AGING_DAYS ? 'var(--red)' : 'var(--ink-3)' }}>
+                  <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--line-soft)' }}>{item.kind === 'device' ? '1' : item.qty}</td>
+                  <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--line-soft)', color: 'var(--ink-3)' }}>{formatCents(item.costCents)}</td>
+                  <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--line-soft)', font: '700 15px Inter, sans-serif' }}>{formatCents(item.priceCents)}</td>
+                  <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--line-soft)', color: age >= AGING_DAYS ? 'var(--red)' : 'var(--ink-3)' }}>
                     {age} d
                   </td>
-                  <td style={{ padding: '11px 16px', borderBottom: '1px solid var(--line-soft)' }}>{statusChip(item)}</td>
-                  <td style={{ padding: '11px 16px', borderBottom: '1px solid var(--line-soft)', textAlign: 'right' }}>
+                  <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--line-soft)' }}>{statusChip(item)}</td>
+                  <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--line-soft)', textAlign: 'right' }}>
                     {item.status !== 'sold' && (
                       <button
                         onClick={() => setAdjusting(item)}
                         title={isManager ? 'Adjust / remove' : 'Manager only'}
                         disabled={!isManager}
-                        style={{ border: 'none', background: 'none', color: isManager ? 'var(--ink-3)' : 'var(--line)', fontSize: 14 }}
+                        style={{ border: 'none', background: 'none', color: isManager ? 'var(--ink-3)' : 'var(--line)', fontSize: 16 }}
                       >
                         <i className="bi bi-three-dots" />
                       </button>
@@ -174,7 +174,7 @@ export function InventoryScreen() {
             })}
           </tbody>
         </table>
-        {rows.length === 0 && <div style={{ padding: 24, color: 'var(--ink-4)', fontSize: 13 }}>Nothing here.</div>}
+        {rows.length === 0 && <div style={{ padding: 24, color: 'var(--ink-4)', fontSize: 15 }}>Nothing here.</div>}
       </div>
 
       <AddItemModal open={adding} onClose={() => setAdding(false)} onSaved={() => void load()} defaultKind={tab === 'parts' ? 'part' : tab === 'accessories' ? 'accessory' : 'device'} />
@@ -237,13 +237,13 @@ function AddItemModal({
       value={form[key]}
       onChange={(e) => setForm((prev) => ({ ...prev, [key]: e.target.value }))}
       placeholder={placeholder}
-      style={{ width: width ?? '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--line)', fontSize: 13 }}
+      style={{ width: width ?? '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--line)', fontSize: 15 }}
     />
   );
 
   return (
     <Modal open={open} onClose={onClose} width={440}>
-      <h2 style={{ margin: 0, font: '700 18px Inter, sans-serif' }}>Add inventory</h2>
+      <h2 style={{ margin: 0, font: '700 20.5px Inter, sans-serif' }}>Add inventory</h2>
       <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
         {(['device', 'part', 'accessory'] as const).map((k) => (
           <button
@@ -256,7 +256,7 @@ function AddItemModal({
               border: '1px solid var(--line)',
               background: kind === k ? 'var(--navy)' : 'var(--card)',
               color: kind === k ? '#fff' : 'var(--ink-2)',
-              font: '600 12px Inter, sans-serif',
+              font: '600 14px Inter, sans-serif',
               textTransform: 'capitalize',
             }}
           >
@@ -286,7 +286,7 @@ function AddItemModal({
                       border: '1px solid var(--line)',
                       background: form.grade === g ? 'var(--orange-soft)' : 'var(--card)',
                       color: form.grade === g ? 'var(--orange)' : 'var(--ink-2)',
-                      font: '700 12px Inter, sans-serif',
+                      font: '700 14px Inter, sans-serif',
                     }}
                   >
                     {g}
@@ -306,7 +306,7 @@ function AddItemModal({
           {input('price', 'Sell price $')}
         </div>
       </div>
-      {error && <div style={{ color: 'var(--red)', fontSize: 12, marginTop: 8 }}>{error}</div>}
+      {error && <div style={{ color: 'var(--red)', fontSize: 14, marginTop: 8 }}>{error}</div>}
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 14 }}>
         <Button variant="ghost" onClick={onClose}>Cancel</Button>
         <Button variant="primary" onClick={() => void save()}>Add to inventory</Button>
@@ -358,29 +358,29 @@ function AdjustModal({ item, onClose, onSaved }: { item: Item | null; onClose: (
 
   return (
     <Modal open={item !== null} onClose={close} width={380}>
-      <h2 style={{ margin: 0, font: '700 17px Inter, sans-serif' }}>{item?.name}</h2>
-      <p style={{ fontSize: 12, color: 'var(--ink-3)', margin: '4px 0 0' }}>
+      <h2 style={{ margin: 0, font: '700 19.5px Inter, sans-serif' }}>{item?.name}</h2>
+      <p style={{ fontSize: 14, color: 'var(--ink-3)', margin: '4px 0 0' }}>
         Manager adjustment — every change is logged with your name.
       </p>
       {item?.kind !== 'device' && (
         <div style={{ display: 'flex', gap: 8, marginTop: 12, alignItems: 'center' }}>
-          <span style={{ fontSize: 13 }}>Qty change</span>
+          <span style={{ fontSize: 15 }}>Qty change</span>
           <input
             value={delta}
             onChange={(e) => setDelta(e.target.value)}
             placeholder="+5 or -2"
-            style={{ width: 90, padding: '9px 12px', borderRadius: 10, border: '1px solid var(--line)', fontSize: 13 }}
+            style={{ width: 90, padding: '9px 12px', borderRadius: 10, border: '1px solid var(--line)', fontSize: 15 }}
           />
-          <span style={{ fontSize: 12, color: 'var(--ink-4)' }}>now {item?.qty}</span>
+          <span style={{ fontSize: 14, color: 'var(--ink-4)' }}>now {item?.qty}</span>
         </div>
       )}
       <input
         value={reason}
         onChange={(e) => setReason(e.target.value)}
         placeholder="Reason * — e.g. damaged in store"
-        style={{ width: '100%', marginTop: 10, padding: '10px 12px', borderRadius: 10, border: '1px solid var(--line)', fontSize: 13 }}
+        style={{ width: '100%', marginTop: 10, padding: '10px 12px', borderRadius: 10, border: '1px solid var(--line)', fontSize: 15 }}
       />
-      {error && <div style={{ color: 'var(--red)', fontSize: 12, marginTop: 8 }}>{error}</div>}
+      {error && <div style={{ color: 'var(--red)', fontSize: 14, marginTop: 8 }}>{error}</div>}
       <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 14 }}>
         <Button variant="danger" onClick={() => void remove()}>Remove item</Button>
         <div style={{ display: 'flex', gap: 8 }}>

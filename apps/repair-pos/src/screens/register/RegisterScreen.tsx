@@ -225,8 +225,8 @@ export function RegisterScreen() {
       <div style={{ flex: 1, minWidth: 0, padding: '22px 24px', display: 'flex', flexDirection: 'column', overflow: 'auto' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
-            <h1 style={{ margin: 0, font: '700 24px Inter, sans-serif' }}>New sale</h1>
-            <div style={{ color: 'var(--ink-3)', fontSize: 12, marginTop: 2 }}>
+            <h1 style={{ margin: 0, font: '700 27.5px Inter, sans-serif' }}>New sale</h1>
+            <div style={{ color: 'var(--ink-3)', fontSize: 14, marginTop: 2 }}>
               {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })} · {user?.name}
             </div>
           </div>
@@ -234,12 +234,12 @@ export function RegisterScreen() {
             <Link to="/pending" style={{ textDecoration: 'none' }}>
               <Button variant="secondary">
                 Pending Sale{' '}
-                <span style={{ background: 'var(--line-soft)', borderRadius: 999, padding: '1px 8px', fontSize: 11 }}>{parkedCount}</span>
+                <span style={{ background: 'var(--line-soft)', borderRadius: 999, padding: '1px 8px', fontSize: 12.5 }}>{parkedCount}</span>
               </Button>
             </Link>
             <Link to="/repairs" style={{ textDecoration: 'none' }}>
               <Button variant="dark">
-                Repairs <span style={{ background: 'var(--orange)', borderRadius: 999, padding: '1px 8px', fontSize: 11 }}>{takenIn.length}</span>
+                Repairs <span style={{ background: 'var(--orange)', borderRadius: 999, padding: '1px 8px', fontSize: 12.5 }}>{takenIn.length}</span>
               </Button>
             </Link>
           </div>
@@ -247,7 +247,7 @@ export function RegisterScreen() {
 
         <SearchBar onAddItem={addItem} onPickCustomer={(c) => setCustomer(c)} />
 
-        <div style={{ font: '600 10px Inter, sans-serif', color: 'var(--ink-4)', letterSpacing: '0.08em', margin: '18px 0 8px' }}>
+        <div style={{ font: '600 11.5px Inter, sans-serif', color: 'var(--ink-4)', letterSpacing: '0.08em', margin: '18px 0 8px' }}>
           SMART ACTIONS
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
@@ -267,17 +267,17 @@ export function RegisterScreen() {
                 boxShadow: 'var(--shadow-card)',
               }}
             >
-              <i className={`bi ${a.icon}`} style={{ fontSize: 17 }} />
-              <div style={{ font: '700 14px Inter, sans-serif', marginTop: 8 }}>
-                {a.title} <i className="bi bi-chevron-right" style={{ fontSize: 10, color: 'var(--ink-4)' }} />
+              <i className={`bi ${a.icon}`} style={{ fontSize: 19.5 }} />
+              <div style={{ font: '700 16px Inter, sans-serif', marginTop: 8 }}>
+                {a.title} <i className="bi bi-chevron-right" style={{ fontSize: 11.5, color: 'var(--ink-4)' }} />
               </div>
-              <div style={{ fontSize: 11, color: 'var(--ink-3)', marginTop: 2 }}>{a.caption}</div>
+              <div style={{ fontSize: 12.5, color: 'var(--ink-3)', marginTop: 2 }}>{a.caption}</div>
             </button>
           ))}
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'space-between', margin: '20px 0 8px' }}>
-          <span style={{ font: '600 10px Inter, sans-serif', color: 'var(--ink-4)', letterSpacing: '0.08em' }}>
+          <span style={{ font: '600 11.5px Inter, sans-serif', color: 'var(--ink-4)', letterSpacing: '0.08em' }}>
             TAKEN IN TODAY{' '}
             <span style={{ color: 'var(--orange)' }}>
               {takenIn.filter((t) => !['completed', 'cancelled', 'abandoned'].includes(t.status)).length} open
@@ -289,18 +289,18 @@ export function RegisterScreen() {
             <Link key={t.id} to="/repairs" style={{ textDecoration: 'none', color: 'inherit' }}>
               <div style={{ background: 'var(--card)', borderRadius: 12, border: '1px solid var(--line-soft)', padding: '10px 12px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ font: '600 12px Inter, sans-serif' }}>{t.customerName}</span>
-                  <span style={{ fontSize: 10, color: 'var(--ink-4)' }}>
+                  <span style={{ font: '600 14px Inter, sans-serif' }}>{t.customerName}</span>
+                  <span style={{ fontSize: 11.5, color: 'var(--ink-4)' }}>
                     {new Date(t.createdAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
                   </span>
                 </div>
-                <div style={{ fontSize: 11, color: 'var(--ink-3)', marginTop: 3 }}>
-                  <i className="bi bi-phone" style={{ fontSize: 10 }} /> {t.deviceSummary ?? t.number}
+                <div style={{ fontSize: 12.5, color: 'var(--ink-3)', marginTop: 3 }}>
+                  <i className="bi bi-phone" style={{ fontSize: 11.5 }} /> {t.deviceSummary ?? t.number}
                 </div>
               </div>
             </Link>
           ))}
-          {takenIn.length === 0 && <div style={{ fontSize: 12, color: 'var(--ink-4)' }}>No repairs taken in yet.</div>}
+          {takenIn.length === 0 && <div style={{ fontSize: 14, color: 'var(--ink-4)' }}>No repairs taken in yet.</div>}
         </div>
       </div>
 
@@ -317,16 +317,16 @@ export function RegisterScreen() {
       >
         <div style={{ padding: '20px 20px 12px', borderBottom: '1px solid var(--line-soft)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h2 style={{ margin: 0, font: '700 18px Inter, sans-serif' }}>Current sale</h2>
-            <span style={{ background: 'var(--orange-soft)', color: 'var(--orange)', borderRadius: 999, padding: '2px 10px', font: '700 12px Inter, sans-serif' }}>
+            <h2 style={{ margin: 0, font: '700 20.5px Inter, sans-serif' }}>Current sale</h2>
+            <span style={{ background: 'var(--orange-soft)', color: 'var(--orange)', borderRadius: 999, padding: '2px 10px', font: '700 14px Inter, sans-serif' }}>
               {lines.reduce((n, l) => n + l.qty, 0)}
             </span>
           </div>
-          <div style={{ fontSize: 11, color: 'var(--ink-3)', marginTop: 2 }}>
+          <div style={{ fontSize: 12.5, color: 'var(--ink-3)', marginTop: 2 }}>
             {customer ? (
               <span>
                 <i className="bi bi-person" /> {customer.name}{' '}
-                <button onClick={() => setCustomer(null)} style={{ border: 'none', background: 'none', color: 'var(--red)', fontSize: 11 }}>
+                <button onClick={() => setCustomer(null)} style={{ border: 'none', background: 'none', color: 'var(--red)', fontSize: 12.5 }}>
                   remove
                 </button>
               </span>
@@ -341,31 +341,31 @@ export function RegisterScreen() {
           {lines.map((l) => (
             <div key={l.key} style={{ borderBottom: '1px solid var(--line-soft)', padding: '10px 0' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ font: '600 13px Inter, sans-serif' }}>{l.description}</span>
-                <span style={{ font: '700 13px Inter, sans-serif' }}>{formatCents(l.qty * l.unitCents - l.discountCents)}</span>
+                <span style={{ font: '600 15px Inter, sans-serif' }}>{l.description}</span>
+                <span style={{ font: '700 15px Inter, sans-serif' }}>{formatCents(l.qty * l.unitCents - l.discountCents)}</span>
               </div>
-              {l.detail && <div style={{ fontSize: 11, color: 'var(--ink-3)' }}>{l.detail}</div>}
+              {l.detail && <div style={{ fontSize: 12.5, color: 'var(--ink-3)' }}>{l.detail}</div>}
               <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 6 }}>
                 {!l.serialized && (
                   <span style={{ display: 'inline-flex', border: '1px solid var(--line)', borderRadius: 8 }}>
                     <button onClick={() => updateQty(l.key, -1)} style={{ border: 'none', background: 'none', padding: '3px 9px' }}>−</button>
-                    <span style={{ padding: '3px 4px', fontSize: 12, alignSelf: 'center' }}>{l.qty}</span>
+                    <span style={{ padding: '3px 4px', fontSize: 14, alignSelf: 'center' }}>{l.qty}</span>
                     <button onClick={() => updateQty(l.key, 1)} style={{ border: 'none', background: 'none', padding: '3px 9px' }}>+</button>
                   </span>
                 )}
                 <button
                   onClick={() => setLines((prev) => prev.filter((x) => x.key !== l.key))}
-                  style={{ border: 'none', background: 'none', color: 'var(--red)', fontSize: 11 }}
+                  style={{ border: 'none', background: 'none', color: 'var(--red)', fontSize: 12.5 }}
                 >
                   Remove
                 </button>
-                {!l.taxable && <span style={{ fontSize: 10, color: 'var(--ink-4)' }}>No tax</span>}
+                {!l.taxable && <span style={{ fontSize: 11.5, color: 'var(--ink-4)' }}>No tax</span>}
               </div>
             </div>
           ))}
           {lines.length === 0 && (
-            <div style={{ textAlign: 'center', color: 'var(--ink-4)', fontSize: 13, marginTop: 40 }}>
-              <i className="bi bi-bag" style={{ fontSize: 26 }} />
+            <div style={{ textAlign: 'center', color: 'var(--ink-4)', fontSize: 15, marginTop: 40 }}>
+              <i className="bi bi-bag" style={{ fontSize: 30 }} />
               <div style={{ marginTop: 8 }}>Scan, search, or tap a smart action to start.</div>
             </div>
           )}
@@ -380,7 +380,7 @@ export function RegisterScreen() {
                 border: '1px dashed var(--line)',
                 background: 'var(--card)',
                 color: 'var(--ink-2)',
-                font: '600 12px Inter, sans-serif',
+                font: '600 14px Inter, sans-serif',
               }}
             >
               + Add custom item
@@ -389,18 +389,18 @@ export function RegisterScreen() {
         </div>
 
         <div style={{ borderTop: '1px solid var(--line-soft)', padding: '14px 20px 18px' }}>
-          {error && <div style={{ color: 'var(--red)', fontSize: 12, marginBottom: 8 }}>{error}</div>}
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--ink-3)' }}>
+          {error && <div style={{ color: 'var(--red)', fontSize: 14, marginBottom: 8 }}>{error}</div>}
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: 'var(--ink-3)' }}>
             <span>Subtotal</span>
             <span>{formatCents(totals.subtotalCents)}</span>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--ink-3)', marginTop: 3 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: 'var(--ink-3)', marginTop: 3 }}>
             <span>Tax {(taxRateBp / 100).toFixed(taxRateBp % 100 === 0 ? 0 : 2)}%</span>
             <span>{formatCents(totals.taxCents)}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, alignItems: 'baseline' }}>
-            <span style={{ font: '700 16px Inter, sans-serif' }}>Total</span>
-            <span style={{ font: '800 24px Inter, sans-serif' }}>{formatCents(totals.totalCents)}</span>
+            <span style={{ font: '700 18.5px Inter, sans-serif' }}>Total</span>
+            <span style={{ font: '800 27.5px Inter, sans-serif' }}>{formatCents(totals.totalCents)}</span>
           </div>
           <Button
             variant="primary"
@@ -486,7 +486,7 @@ export function RegisterScreen() {
             color: '#fff',
             borderRadius: 12,
             padding: '12px 20px',
-            font: '600 13px Inter, sans-serif',
+            font: '600 15px Inter, sans-serif',
             boxShadow: 'var(--shadow)',
             zIndex: 200,
           }}
@@ -498,13 +498,13 @@ export function RegisterScreen() {
       <DepositModal ticket={depositTicket} onClose={() => setDepositTicket(null)} onDone={() => void refreshSide()} />
 
       <Modal open={modal === 'note'} onClose={() => setModal(null)} width={380}>
-        <h2 style={{ margin: 0, font: '700 18px Inter, sans-serif' }}>Quick note</h2>
+        <h2 style={{ margin: 0, font: '700 20.5px Inter, sans-serif' }}>Quick note</h2>
         <textarea
           value={note}
           onChange={(e) => setNote(e.target.value)}
           rows={3}
           placeholder="Shown on the parked sale"
-          style={{ width: '100%', marginTop: 12, padding: '11px 13px', borderRadius: 10, border: '1px solid var(--line)', fontSize: 13, resize: 'none' }}
+          style={{ width: '100%', marginTop: 12, padding: '11px 13px', borderRadius: 10, border: '1px solid var(--line)', fontSize: 15, resize: 'none' }}
         />
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 10 }}>
           <Button variant="primary" onClick={() => setModal(null)}>Save note</Button>
@@ -515,14 +515,14 @@ export function RegisterScreen() {
       <Modal open={done !== null} onClose={() => setDone(null)} width={400}>
         {done && (
           <div style={{ textAlign: 'center' }}>
-            <i className="bi bi-check-circle-fill" style={{ fontSize: 40, color: 'var(--green)' }} />
-            <h2 style={{ margin: '10px 0 4px', font: '700 20px Inter, sans-serif' }}>Sale complete</h2>
+            <i className="bi bi-check-circle-fill" style={{ fontSize: 43, color: 'var(--green)' }} />
+            <h2 style={{ margin: '10px 0 4px', font: '700 23px Inter, sans-serif' }}>Sale complete</h2>
             {done.changeCents != null && done.changeCents > 0 && (
-              <div style={{ background: 'var(--green-bg)', color: 'var(--green)', borderRadius: 12, padding: '12px 0', margin: '12px 0', font: '800 26px Inter, sans-serif' }}>
+              <div style={{ background: 'var(--green-bg)', color: 'var(--green)', borderRadius: 12, padding: '12px 0', margin: '12px 0', font: '800 30px Inter, sans-serif' }}>
                 Change {formatCents(done.changeCents)}
               </div>
             )}
-            <div style={{ fontSize: 12, color: 'var(--ink-3)' }}>
+            <div style={{ fontSize: 14, color: 'var(--ink-3)' }}>
               {done.printed ? 'Receipt sent to printer.' : 'Print bridge offline — receipt below.'}
             </div>
             {!done.printed && (
@@ -532,7 +532,7 @@ export function RegisterScreen() {
                   background: 'var(--line-soft)',
                   borderRadius: 10,
                   padding: 12,
-                  fontSize: 10.5,
+                  fontSize: 12,
                   fontFamily: 'ui-monospace, monospace',
                   maxHeight: 220,
                   overflow: 'auto',
@@ -579,7 +579,7 @@ function SearchBar({
 
   return (
     <div style={{ position: 'relative', marginTop: 16 }}>
-      <i className="bi bi-search" style={{ position: 'absolute', left: 14, top: 13, color: 'var(--ink-4)', fontSize: 14 }} />
+      <i className="bi bi-search" style={{ position: 'absolute', left: 14, top: 13, color: 'var(--ink-4)', fontSize: 16 }} />
       <input
         value={q}
         onChange={(e) => setQ(e.target.value)}
@@ -590,7 +590,7 @@ function SearchBar({
           borderRadius: 12,
           border: '1px solid var(--line)',
           background: 'var(--card)',
-          fontSize: 13,
+          fontSize: 15,
         }}
       />
       {results && (results.customers.length > 0 || results.items.length > 0) && (
@@ -618,12 +618,12 @@ function SearchBar({
               }}
               style={{ display: 'flex', width: '100%', justifyContent: 'space-between', padding: '10px 14px', border: 'none', background: 'none', textAlign: 'left' }}
             >
-              <span style={{ fontSize: 13 }}>
+              <span style={{ fontSize: 15 }}>
                 <i className="bi bi-box-seam" style={{ color: 'var(--ink-4)', marginRight: 8 }} />
                 {item.name}
                 {item.storage ? ` · ${item.storage}` : ''}
               </span>
-              <span style={{ font: '600 13px Inter, sans-serif' }}>{formatCents(item.priceCents)}</span>
+              <span style={{ font: '600 15px Inter, sans-serif' }}>{formatCents(item.priceCents)}</span>
             </button>
           ))}
           {results.customers.map((c) => (
@@ -635,11 +635,11 @@ function SearchBar({
               }}
               style={{ display: 'flex', width: '100%', justifyContent: 'space-between', padding: '10px 14px', border: 'none', background: 'none', textAlign: 'left' }}
             >
-              <span style={{ fontSize: 13 }}>
+              <span style={{ fontSize: 15 }}>
                 <i className="bi bi-person" style={{ color: 'var(--ink-4)', marginRight: 8 }} />
                 {c.name}
               </span>
-              <span style={{ fontSize: 11, color: 'var(--ink-3)' }}>{c.phone}</span>
+              <span style={{ fontSize: 12.5, color: 'var(--ink-3)' }}>{c.phone}</span>
             </button>
           ))}
         </div>

@@ -47,13 +47,13 @@ export function InventoryPickerModal({
 
   return (
     <Modal open={open} onClose={onClose} width={520}>
-      <h2 style={{ margin: 0, font: '700 18px Inter, sans-serif' }}>{title}</h2>
+      <h2 style={{ margin: 0, font: '700 20.5px Inter, sans-serif' }}>{title}</h2>
       <input
         autoFocus
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         placeholder="Search name, SKU, or IMEI"
-        style={{ width: '100%', marginTop: 12, padding: '11px 13px', borderRadius: 10, border: '1px solid var(--line)', fontSize: 13 }}
+        style={{ width: '100%', marginTop: 12, padding: '11px 13px', borderRadius: 10, border: '1px solid var(--line)', fontSize: 15 }}
       />
       <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 340, overflow: 'auto' }}>
         {rows.map((item) => (
@@ -75,11 +75,11 @@ export function InventoryPickerModal({
             }}
           >
             <div>
-              <div style={{ font: '600 13px Inter, sans-serif' }}>
+              <div style={{ font: '600 15px Inter, sans-serif' }}>
                 {item.name}
                 {item.storage ? ` · ${item.storage}` : ''}
               </div>
-              <div style={{ fontSize: 11, color: 'var(--ink-3)' }}>
+              <div style={{ fontSize: 12.5, color: 'var(--ink-3)' }}>
                 {item.kind === 'device'
                   ? `IMEI …${(item.imei ?? '').slice(-5)} · ${item.conditionGrade ?? '?'} · ${item.carrier ?? ''}`
                   : `${item.sku ?? ''} · ${item.qty} in stock`}
@@ -87,11 +87,11 @@ export function InventoryPickerModal({
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               {item.qty <= 3 && item.kind !== 'device' && <StatusChip tone="amber">Low</StatusChip>}
-              <span style={{ font: '700 14px Inter, sans-serif' }}>{formatCents(item.priceCents)}</span>
+              <span style={{ font: '700 16px Inter, sans-serif' }}>{formatCents(item.priceCents)}</span>
             </div>
           </button>
         ))}
-        {rows.length === 0 && <div style={{ fontSize: 12, color: 'var(--ink-3)', padding: 8 }}>Nothing in stock matches.</div>}
+        {rows.length === 0 && <div style={{ fontSize: 14, color: 'var(--ink-3)', padding: 8 }}>Nothing in stock matches.</div>}
       </div>
     </Modal>
   );

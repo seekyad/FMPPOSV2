@@ -109,8 +109,8 @@ export function SalesScreen() {
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
       <div style={{ flex: 1, minWidth: 0, padding: '22px 24px', overflow: 'auto' }}>
-        <h1 style={{ margin: 0, font: '700 24px Inter, sans-serif' }}>New sale</h1>
-        <div style={{ color: 'var(--ink-3)', fontSize: 12, marginTop: 2 }}>
+        <h1 style={{ margin: 0, font: '700 27.5px Inter, sans-serif' }}>New sale</h1>
+        <div style={{ color: 'var(--ink-3)', fontSize: 14, marginTop: 2 }}>
           {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })} · {user?.name}
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12, marginTop: 18 }}>
@@ -120,9 +120,9 @@ export function SalesScreen() {
               onClick={a.onClick}
               style={{ textAlign: 'left', background: a.bg, border: '1px solid var(--line-soft)', borderRadius: 14, padding: '16px 18px', boxShadow: 'var(--shadow-card)' }}
             >
-              <i className={`bi ${a.icon}`} style={{ fontSize: 18 }} />
-              <div style={{ font: '700 15px Inter, sans-serif', marginTop: 8 }}>{a.title}</div>
-              <div style={{ fontSize: 11, color: 'var(--ink-3)', marginTop: 2 }}>{a.caption}</div>
+              <i className={`bi ${a.icon}`} style={{ fontSize: 20.5 }} />
+              <div style={{ font: '700 17.5px Inter, sans-serif', marginTop: 8 }}>{a.title}</div>
+              <div style={{ fontSize: 12.5, color: 'var(--ink-3)', marginTop: 2 }}>{a.caption}</div>
             </button>
           ))}
         </div>
@@ -130,12 +130,12 @@ export function SalesScreen() {
 
       <div style={{ width: 340, flexShrink: 0, background: 'var(--card)', borderLeft: '1px solid var(--line-soft)', display: 'flex', flexDirection: 'column' }}>
         <div style={{ padding: '20px 20px 12px', borderBottom: '1px solid var(--line-soft)' }}>
-          <h2 style={{ margin: 0, font: '700 18px Inter, sans-serif' }}>Current sale</h2>
-          <div style={{ fontSize: 11, color: 'var(--ink-3)', marginTop: 2 }}>
+          <h2 style={{ margin: 0, font: '700 20.5px Inter, sans-serif' }}>Current sale</h2>
+          <div style={{ fontSize: 12.5, color: 'var(--ink-3)', marginTop: 2 }}>
             {customer ? (
               <span>
                 <i className="bi bi-person" /> {customer.name}{' '}
-                <button onClick={() => setCustomer(null)} style={{ border: 'none', background: 'none', color: 'var(--red)', fontSize: 11 }}>remove</button>
+                <button onClick={() => setCustomer(null)} style={{ border: 'none', background: 'none', color: 'var(--red)', fontSize: 12.5 }}>remove</button>
               </span>
             ) : (
               'Walk-in customer'
@@ -146,40 +146,40 @@ export function SalesScreen() {
           {lines.map((l) => (
             <div key={l.key} style={{ borderBottom: '1px solid var(--line-soft)', padding: '10px 0' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ font: '600 13px Inter, sans-serif' }}>{l.description}</span>
-                <span style={{ font: '700 13px Inter, sans-serif' }}>{formatCents(l.qty * l.unitCents)}</span>
+                <span style={{ font: '600 15px Inter, sans-serif' }}>{l.description}</span>
+                <span style={{ font: '700 15px Inter, sans-serif' }}>{formatCents(l.qty * l.unitCents)}</span>
               </div>
-              {l.detail && <div style={{ fontSize: 11, color: 'var(--ink-3)' }}>{l.detail}</div>}
+              {l.detail && <div style={{ fontSize: 12.5, color: 'var(--ink-3)' }}>{l.detail}</div>}
               <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
                 {!l.serialized && (
                   <span style={{ display: 'inline-flex', border: '1px solid var(--line)', borderRadius: 8 }}>
                     <button onClick={() => setLines((p) => p.map((x) => (x.key === l.key ? { ...x, qty: Math.max(1, x.qty - 1) } : x)))} style={{ border: 'none', background: 'none', padding: '3px 9px' }}>−</button>
-                    <span style={{ padding: '3px 4px', fontSize: 12 }}>{l.qty}</span>
+                    <span style={{ padding: '3px 4px', fontSize: 14 }}>{l.qty}</span>
                     <button onClick={() => setLines((p) => p.map((x) => (x.key === l.key ? { ...x, qty: x.qty + 1 } : x)))} style={{ border: 'none', background: 'none', padding: '3px 9px' }}>+</button>
                   </span>
                 )}
-                <button onClick={() => setLines((p) => p.filter((x) => x.key !== l.key))} style={{ border: 'none', background: 'none', color: 'var(--red)', fontSize: 11 }}>Remove</button>
+                <button onClick={() => setLines((p) => p.filter((x) => x.key !== l.key))} style={{ border: 'none', background: 'none', color: 'var(--red)', fontSize: 12.5 }}>Remove</button>
               </div>
             </div>
           ))}
           {lines.length === 0 && (
-            <div style={{ textAlign: 'center', color: 'var(--ink-4)', fontSize: 13, marginTop: 40 }}>
-              <i className="bi bi-bag" style={{ fontSize: 26 }} />
+            <div style={{ textAlign: 'center', color: 'var(--ink-4)', fontSize: 15, marginTop: 40 }}>
+              <i className="bi bi-bag" style={{ fontSize: 30 }} />
               <div style={{ marginTop: 8 }}>Tap a tile to start the sale.</div>
             </div>
           )}
         </div>
         <div style={{ borderTop: '1px solid var(--line-soft)', padding: '14px 20px 18px' }}>
-          {error && <div style={{ color: 'var(--red)', fontSize: 12, marginBottom: 8 }}>{error}</div>}
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--ink-3)' }}>
+          {error && <div style={{ color: 'var(--red)', fontSize: 14, marginBottom: 8 }}>{error}</div>}
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: 'var(--ink-3)' }}>
             <span>Subtotal</span><span>{formatCents(totals.subtotalCents)}</span>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--ink-3)', marginTop: 3 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: 'var(--ink-3)', marginTop: 3 }}>
             <span>Tax</span><span>{formatCents(totals.taxCents)}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, alignItems: 'baseline' }}>
-            <span style={{ font: '700 16px Inter, sans-serif' }}>Total</span>
-            <span style={{ font: '800 24px Inter, sans-serif' }}>{formatCents(totals.totalCents)}</span>
+            <span style={{ font: '700 18.5px Inter, sans-serif' }}>Total</span>
+            <span style={{ font: '800 27.5px Inter, sans-serif' }}>{formatCents(totals.totalCents)}</span>
           </div>
           <Button variant="primary" size="lg" style={{ width: '100%', marginTop: 12 }} disabled={lines.length === 0 || busy} onClick={() => setModal('payment')}>
             Take payment · {formatCents(totals.totalCents)}
@@ -208,15 +208,15 @@ export function SalesScreen() {
       <Modal open={done !== null} onClose={() => setDone(null)} width={400}>
         {done && (
           <div style={{ textAlign: 'center' }}>
-            <i className="bi bi-check-circle-fill" style={{ fontSize: 40, color: 'var(--green)' }} />
-            <h2 style={{ margin: '10px 0 4px', font: '700 20px Inter, sans-serif' }}>Sale complete</h2>
+            <i className="bi bi-check-circle-fill" style={{ fontSize: 43, color: 'var(--green)' }} />
+            <h2 style={{ margin: '10px 0 4px', font: '700 23px Inter, sans-serif' }}>Sale complete</h2>
             {done.changeCents != null && done.changeCents > 0 && (
-              <div style={{ background: 'var(--green-bg)', color: 'var(--green)', borderRadius: 12, padding: '12px 0', margin: '12px 0', font: '800 26px Inter, sans-serif' }}>
+              <div style={{ background: 'var(--green-bg)', color: 'var(--green)', borderRadius: 12, padding: '12px 0', margin: '12px 0', font: '800 30px Inter, sans-serif' }}>
                 Change {formatCents(done.changeCents)}
               </div>
             )}
             {!done.printed && (
-              <pre style={{ textAlign: 'left', background: 'var(--line-soft)', borderRadius: 10, padding: 12, fontSize: 10.5, fontFamily: 'ui-monospace, monospace', maxHeight: 200, overflow: 'auto', userSelect: 'text' }}>
+              <pre style={{ textAlign: 'left', background: 'var(--line-soft)', borderRadius: 10, padding: 12, fontSize: 12, fontFamily: 'ui-monospace, monospace', maxHeight: 200, overflow: 'auto', userSelect: 'text' }}>
                 {done.receiptText}
               </pre>
             )}

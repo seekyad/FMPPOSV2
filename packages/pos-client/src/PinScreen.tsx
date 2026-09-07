@@ -104,7 +104,7 @@ export function PinScreen({ system, onSignedIn }: { system: PosSystem; onSignedI
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          font: '800 17px Inter, sans-serif',
+          font: '800 19.5px Inter, sans-serif',
           color: 'var(--navy)',
         }}
       >
@@ -113,7 +113,7 @@ export function PinScreen({ system, onSignedIn }: { system: PosSystem; onSignedI
 
       {pickingSystem ? (
         <>
-          <div style={{ color: '#fff', font: '700 17px Inter, sans-serif' }}>
+          <div style={{ color: '#fff', font: '700 19.5px Inter, sans-serif' }}>
             Welcome, {session.user?.name?.split(' ')[0]} — which system?
           </div>
           <div style={{ display: 'flex', gap: 16 }}>
@@ -149,13 +149,13 @@ export function PinScreen({ system, onSignedIn }: { system: PosSystem; onSignedI
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    fontSize: 22,
+                    fontSize: 25.5,
                   }}
                 >
                   <i className={`bi ${s.icon}`} />
                 </span>
-                <span style={{ font: '700 15px Inter, sans-serif' }}>{s.title}</span>
-                <span style={{ font: '500 11px Inter, sans-serif', color: '#9aa1ad' }}>{s.caption}</span>
+                <span style={{ font: '700 17.5px Inter, sans-serif' }}>{s.title}</span>
+                <span style={{ font: '500 12.5px Inter, sans-serif', color: '#9aa1ad' }}>{s.caption}</span>
               </button>
             ))}
           </div>
@@ -166,15 +166,15 @@ export function PinScreen({ system, onSignedIn }: { system: PosSystem; onSignedI
               setSelected(null);
               setPin('');
             }}
-            style={{ background: 'none', border: 'none', color: '#9aa1ad', font: '600 13px Inter, sans-serif' }}
+            style={{ background: 'none', border: 'none', color: '#9aa1ad', font: '600 15px Inter, sans-serif' }}
           >
             ← Not you? Back to staff
           </button>
         </>
       ) : needsSetup ? (
         <div style={{ background: '#fff', borderRadius: 20, padding: 28, width: 380 }}>
-          <h2 style={{ margin: '0 0 4px', font: '700 20px Inter, sans-serif' }}>Register this terminal</h2>
-          <p style={{ margin: '0 0 16px', color: 'var(--ink-3)', fontSize: 13 }}>
+          <h2 style={{ margin: '0 0 4px', font: '700 23px Inter, sans-serif' }}>Register this terminal</h2>
+          <p style={{ margin: '0 0 16px', color: 'var(--ink-3)', fontSize: 15 }}>
             One-time setup: pick the store this device belongs to.
           </p>
           <input
@@ -186,7 +186,7 @@ export function PinScreen({ system, onSignedIn }: { system: PosSystem; onSignedI
               padding: '12px 14px',
               borderRadius: 10,
               border: '1px solid var(--line)',
-              fontSize: 14,
+              fontSize: 16,
               marginBottom: 12,
             }}
           />
@@ -200,7 +200,7 @@ export function PinScreen({ system, onSignedIn }: { system: PosSystem; onSignedI
         </div>
       ) : !selected ? (
         <>
-          <div style={{ color: '#9aa1ad', font: '600 14px Inter, sans-serif' }}>Who's on the register?</div>
+          <div style={{ color: '#9aa1ad', font: '600 16px Inter, sans-serif' }}>Who's on the register?</div>
           <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', justifyContent: 'center', maxWidth: 520 }}>
             {staff.map((s) => (
               <button
@@ -228,13 +228,13 @@ export function PinScreen({ system, onSignedIn }: { system: PosSystem; onSignedI
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    font: '700 15px Inter, sans-serif',
+                    font: '700 17.5px Inter, sans-serif',
                   }}
                 >
                   {s.initials}
                 </span>
-                <span style={{ font: '600 13px Inter, sans-serif' }}>{s.name}</span>
-                <span style={{ font: '500 10px Inter, sans-serif', color: '#9aa1ad', textTransform: 'capitalize' }}>
+                <span style={{ font: '600 15px Inter, sans-serif' }}>{s.name}</span>
+                <span style={{ font: '500 11.5px Inter, sans-serif', color: '#9aa1ad', textTransform: 'capitalize' }}>
                   {s.role}
                 </span>
               </button>
@@ -243,7 +243,7 @@ export function PinScreen({ system, onSignedIn }: { system: PosSystem; onSignedI
         </>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 18 }}>
-          <div style={{ color: '#fff', font: '600 15px Inter, sans-serif' }}>
+          <div style={{ color: '#fff', font: '600 17.5px Inter, sans-serif' }}>
             {selected.name} — enter PIN
           </div>
           <div style={{ display: 'flex', gap: 10 }}>
@@ -259,7 +259,7 @@ export function PinScreen({ system, onSignedIn }: { system: PosSystem; onSignedI
               />
             ))}
           </div>
-          {error && <div style={{ color: '#fca5a5', fontSize: 13 }}>{error}</div>}
+          {error && <div style={{ color: '#fca5a5', fontSize: 15 }}>{error}</div>}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 72px)', gap: 10 }}>
             {keypadKeys.map((k, i) =>
               k === '' ? (
@@ -274,7 +274,7 @@ export function PinScreen({ system, onSignedIn }: { system: PosSystem; onSignedI
                     border: '1px solid rgba(255,255,255,0.12)',
                     background: 'rgba(255,255,255,0.06)',
                     color: '#fff',
-                    font: '600 20px Inter, sans-serif',
+                    font: '600 23px Inter, sans-serif',
                   }}
                 >
                   {k}
@@ -288,7 +288,7 @@ export function PinScreen({ system, onSignedIn }: { system: PosSystem; onSignedI
               setPin('');
               setError('');
             }}
-            style={{ background: 'none', border: 'none', color: '#9aa1ad', font: '600 13px Inter, sans-serif' }}
+            style={{ background: 'none', border: 'none', color: '#9aa1ad', font: '600 15px Inter, sans-serif' }}
           >
             ← Back to staff
           </button>

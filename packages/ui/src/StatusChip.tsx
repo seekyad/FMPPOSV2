@@ -20,11 +20,11 @@ export function StatusChip({ tone, children, style }: { tone: ChipTone; children
         display: 'inline-flex',
         alignItems: 'center',
         gap: 4,
-        padding: '3px 10px',
+        padding: '4px 12px',
         borderRadius: 999,
         background: t.bg,
         color: t.fg,
-        font: '600 12px Inter, sans-serif',
+        font: '600 13px Inter, sans-serif',
         whiteSpace: 'nowrap',
         ...style,
       }}

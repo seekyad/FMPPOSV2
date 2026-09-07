@@ -17,11 +17,11 @@ export function Keypad({
       key={label}
       onClick={onClick}
       style={{
-        height: 56,
+        height: 64,
         borderRadius: 12,
         border: '1px solid var(--line)',
         background: 'var(--card)',
-        font: '600 19px Inter, sans-serif',
+        font: '600 22px Inter, sans-serif',
         color: 'var(--ink)',
         ...style,
       }}

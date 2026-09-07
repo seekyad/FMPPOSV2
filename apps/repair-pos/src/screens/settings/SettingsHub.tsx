@@ -20,7 +20,7 @@ export function SettingsHub() {
 
   return (
     <div style={{ padding: '22px 24px', height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-      <h1 style={{ margin: 0, font: '700 24px Inter, sans-serif' }}>More</h1>
+      <h1 style={{ margin: 0, font: '700 27.5px Inter, sans-serif' }}>More</h1>
       <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
         {TABS.map((t) => (
           <button
@@ -35,10 +35,10 @@ export function SettingsHub() {
               border: '1px solid var(--line)',
               background: tab === t.id ? 'var(--navy)' : 'var(--card)',
               color: tab === t.id ? '#fff' : 'var(--ink-2)',
-              font: '600 12px Inter, sans-serif',
+              font: '600 14px Inter, sans-serif',
             }}
           >
-            <i className={`bi ${t.icon}`} style={{ fontSize: 12 }} />
+            <i className={`bi ${t.icon}`} style={{ fontSize: 14 }} />
             {t.label}
           </button>
         ))}

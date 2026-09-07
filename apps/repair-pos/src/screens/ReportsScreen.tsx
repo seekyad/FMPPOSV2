@@ -122,14 +122,14 @@ export function ReportsScreen() {
   const maxCategory = Math.max(...CATEGORY_META.map((c) => data.revenueByCategory[c.key]), 1);
 
   const card = { background: 'var(--card)', borderRadius: 14, border: '1px solid var(--line-soft)', padding: '16px 18px' };
-  const cardTitle = { font: '700 14px Inter, sans-serif', margin: '0 0 12px' };
+  const cardTitle = { font: '700 16px Inter, sans-serif', margin: '0 0 12px' };
 
   return (
     <div style={{ padding: '22px 24px', height: '100vh', overflow: 'auto' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <h1 style={{ margin: 0, font: '700 24px Inter, sans-serif' }}>Reports</h1>
-          <div style={{ color: 'var(--ink-3)', fontSize: 12, marginTop: 2 }}>
+          <h1 style={{ margin: 0, font: '700 27.5px Inter, sans-serif' }}>Reports</h1>
+          <div style={{ color: 'var(--ink-3)', fontSize: 14, marginTop: 2 }}>
             {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })} · drawer open since{' '}
             {new Date(data.drawer.openedAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
           </div>
@@ -158,7 +158,7 @@ export function ReportsScreen() {
               border: '1px solid var(--line)',
               background: range === r.id ? 'var(--navy)' : 'var(--card)',
               color: range === r.id ? '#fff' : 'var(--ink-2)',
-              font: '600 12px Inter, sans-serif',
+              font: '600 14px Inter, sans-serif',
             }}
           >
             {r.label}
@@ -169,32 +169,32 @@ export function ReportsScreen() {
       {/* KPI tiles */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginTop: 14 }}>
         <div style={card}>
-          <div style={{ font: '600 10px Inter, sans-serif', color: 'var(--ink-4)', letterSpacing: '0.06em' }}>GROSS SALES</div>
-          <div style={{ font: '800 26px Inter, sans-serif', marginTop: 4 }}>{formatCents(data.grossSalesCents)}</div>
+          <div style={{ font: '600 11.5px Inter, sans-serif', color: 'var(--ink-4)', letterSpacing: '0.06em' }}>GROSS SALES</div>
+          <div style={{ font: '800 30px Inter, sans-serif', marginTop: 4 }}>{formatCents(data.grossSalesCents)}</div>
           {delta != null && (
-            <div style={{ fontSize: 11, marginTop: 3, color: delta >= 0 ? 'var(--green)' : 'var(--red)' }}>
+            <div style={{ fontSize: 12.5, marginTop: 3, color: delta >= 0 ? 'var(--green)' : 'var(--red)' }}>
               <i className={`bi ${delta >= 0 ? 'bi-arrow-up' : 'bi-arrow-down'}`} /> {Math.abs(delta)}% vs previous
             </div>
           )}
         </div>
         <div style={card}>
-          <div style={{ font: '600 10px Inter, sans-serif', color: 'var(--ink-4)', letterSpacing: '0.06em' }}>TICKETS TAKEN IN</div>
-          <div style={{ font: '800 26px Inter, sans-serif', marginTop: 4 }}>{data.ticketsTakenIn}</div>
-          <div style={{ fontSize: 11, marginTop: 3, color: 'var(--ink-3)' }}>
+          <div style={{ font: '600 11.5px Inter, sans-serif', color: 'var(--ink-4)', letterSpacing: '0.06em' }}>TICKETS TAKEN IN</div>
+          <div style={{ font: '800 30px Inter, sans-serif', marginTop: 4 }}>{data.ticketsTakenIn}</div>
+          <div style={{ fontSize: 12.5, marginTop: 3, color: 'var(--ink-3)' }}>
             {data.ticketsCompleted} completed · {data.ticketsStillOpen} still open
           </div>
         </div>
         <div style={card}>
-          <div style={{ font: '600 10px Inter, sans-serif', color: 'var(--ink-4)', letterSpacing: '0.06em' }}>AVERAGE TICKET</div>
-          <div style={{ font: '800 26px Inter, sans-serif', marginTop: 4 }}>{formatCents(data.averageTicketCents)}</div>
-          <div style={{ fontSize: 11, marginTop: 3, color: 'var(--ink-3)' }}>{data.salesCount} sales</div>
+          <div style={{ font: '600 11.5px Inter, sans-serif', color: 'var(--ink-4)', letterSpacing: '0.06em' }}>AVERAGE TICKET</div>
+          <div style={{ font: '800 30px Inter, sans-serif', marginTop: 4 }}>{formatCents(data.averageTicketCents)}</div>
+          <div style={{ fontSize: 12.5, marginTop: 3, color: 'var(--ink-3)' }}>{data.salesCount} sales</div>
         </div>
         <div style={card}>
-          <div style={{ font: '600 10px Inter, sans-serif', color: 'var(--ink-4)', letterSpacing: '0.06em' }}>OUTSTANDING BALANCE</div>
-          <div style={{ font: '800 26px Inter, sans-serif', marginTop: 4, color: data.outstandingBalanceCents > 0 ? 'var(--red)' : 'var(--ink)' }}>
+          <div style={{ font: '600 11.5px Inter, sans-serif', color: 'var(--ink-4)', letterSpacing: '0.06em' }}>OUTSTANDING BALANCE</div>
+          <div style={{ font: '800 30px Inter, sans-serif', marginTop: 4, color: data.outstandingBalanceCents > 0 ? 'var(--red)' : 'var(--ink)' }}>
             {formatCents(data.outstandingBalanceCents)}
           </div>
-          <div style={{ fontSize: 11, marginTop: 3, color: 'var(--ink-3)' }}>Across {data.outstandingCount} unpaid tickets</div>
+          <div style={{ fontSize: 12.5, marginTop: 3, color: 'var(--ink-3)' }}>Across {data.outstandingCount} unpaid tickets</div>
         </div>
       </div>
 
@@ -203,11 +203,11 @@ export function ReportsScreen() {
           <div style={card}>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <h3 style={cardTitle}>Revenue by category</h3>
-              <span style={{ fontSize: 10, color: 'var(--ink-4)' }}>Net of tax</span>
+              <span style={{ fontSize: 11.5, color: 'var(--ink-4)' }}>Net of tax</span>
             </div>
             {CATEGORY_META.map((c) => (
               <div key={c.key} style={{ marginBottom: 12 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14.5 }}>
                   <span>{c.label}</span>
                   <span style={{ fontWeight: 700 }}>{formatCents(data.revenueByCategory[c.key])}</span>
                 </div>
@@ -228,11 +228,11 @@ export function ReportsScreen() {
           <div style={card}>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <h3 style={cardTitle}>Top repair types</h3>
-              <span style={{ fontSize: 10, color: 'var(--ink-4)' }}>Last 30 days</span>
+              <span style={{ fontSize: 11.5, color: 'var(--ink-4)' }}>Last 30 days</span>
             </div>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14.5 }}>
               <thead>
-                <tr style={{ textAlign: 'left', color: 'var(--ink-4)', font: '600 10px Inter, sans-serif' }}>
+                <tr style={{ textAlign: 'left', color: 'var(--ink-4)', font: '600 11.5px Inter, sans-serif' }}>
                   <th style={{ padding: '6px 0' }}>REPAIR TYPE</th>
                   <th>JOBS</th>
                   <th>REVENUE</th>
@@ -262,22 +262,22 @@ export function ReportsScreen() {
           <div style={card}>
             <h3 style={cardTitle}>Payment mix</h3>
             {data.paymentMix.map((p) => (
-              <div key={p.method} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, padding: '5px 0' }}>
+              <div key={p.method} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14.5, padding: '5px 0' }}>
                 <span>
                   <i className={`bi ${METHOD_LABELS[p.method]?.icon ?? 'bi-cash'}`} style={{ color: 'var(--ink-4)', marginRight: 8 }} />
                   {METHOD_LABELS[p.method]?.label ?? p.method}
                 </span>
                 <span>
                   <b>{formatCents(p.totalCents)}</b>{' '}
-                  <span style={{ color: 'var(--ink-4)', fontSize: 11 }}>
+                  <span style={{ color: 'var(--ink-4)', fontSize: 12.5 }}>
                     {collected > 0 ? Math.round((Math.max(p.totalCents, 0) / collected) * 100) : 0}%
                   </span>
                 </span>
               </div>
             ))}
             <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--line-soft)', marginTop: 8, paddingTop: 8 }}>
-              <span style={{ fontWeight: 600, fontSize: 13 }}>Collected</span>
-              <span style={{ font: '800 15px Inter, sans-serif' }}>{formatCents(collected)}</span>
+              <span style={{ fontWeight: 600, fontSize: 15 }}>Collected</span>
+              <span style={{ font: '800 17.5px Inter, sans-serif' }}>{formatCents(collected)}</span>
             </div>
           </div>
 
@@ -290,7 +290,7 @@ export function ReportsScreen() {
               ['Trade-in & payouts', -data.drawer.paidOutCents, 'red'],
               ['Refunds', -data.drawer.cashRefundsCents, 'red'],
             ].map(([label, cents, tone]) => (
-              <div key={label as string} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, padding: '4px 0' }}>
+              <div key={label as string} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14.5, padding: '4px 0' }}>
                 <span style={{ color: 'var(--ink-3)' }}>{label}</span>
                 <span style={{ color: tone === 'red' && (cents as number) !== 0 ? 'var(--red)' : 'var(--ink)' }}>
                   {formatCents(cents as number)}
@@ -298,8 +298,8 @@ export function ReportsScreen() {
               </div>
             ))}
             <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--line-soft)', marginTop: 8, paddingTop: 8 }}>
-              <span style={{ fontWeight: 600, fontSize: 13 }}>Expected in drawer</span>
-              <span style={{ font: '800 15px Inter, sans-serif' }}>{formatCents(data.drawer.expectedCents)}</span>
+              <span style={{ fontWeight: 600, fontSize: 15 }}>Expected in drawer</span>
+              <span style={{ font: '800 17.5px Inter, sans-serif' }}>{formatCents(data.drawer.expectedCents)}</span>
             </div>
           </div>
 
@@ -307,34 +307,34 @@ export function ReportsScreen() {
             <h3 style={cardTitle}>Technician output</h3>
             {data.technicianOutput.map((t) => (
               <div key={t.name} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0' }}>
-                <span style={{ width: 30, height: 30, borderRadius: 999, background: 'var(--line-soft)', display: 'flex', alignItems: 'center', justifyContent: 'center', font: '700 11px Inter, sans-serif', color: 'var(--ink-2)' }}>
+                <span style={{ width: 30, height: 30, borderRadius: 999, background: 'var(--line-soft)', display: 'flex', alignItems: 'center', justifyContent: 'center', font: '700 12.5px Inter, sans-serif', color: 'var(--ink-2)' }}>
                   {t.initials}
                 </span>
                 <div style={{ flex: 1 }}>
-                  <div style={{ font: '600 12.5px Inter, sans-serif' }}>{t.name}</div>
-                  <div style={{ fontSize: 10.5, color: 'var(--ink-4)' }}>{t.jobs} jobs closed</div>
+                  <div style={{ font: '600 14.5px Inter, sans-serif' }}>{t.name}</div>
+                  <div style={{ fontSize: 12, color: 'var(--ink-4)' }}>{t.jobs} jobs closed</div>
                 </div>
-                <span style={{ font: '700 13px Inter, sans-serif' }}>{formatCents(t.revenueCents)}</span>
+                <span style={{ font: '700 15px Inter, sans-serif' }}>{formatCents(t.revenueCents)}</span>
               </div>
             ))}
-            {data.technicianOutput.length === 0 && <div style={{ fontSize: 12, color: 'var(--ink-4)' }}>No completed tickets in range.</div>}
+            {data.technicianOutput.length === 0 && <div style={{ fontSize: 14, color: 'var(--ink-4)' }}>No completed tickets in range.</div>}
           </div>
         </div>
       </div>
 
       {/* Close drawer */}
       <Modal open={closing} onClose={() => setClosing(false)} width={380}>
-        <h2 style={{ margin: 0, font: '700 17px Inter, sans-serif' }}>Close drawer</h2>
-        <p style={{ fontSize: 12, color: 'var(--ink-3)' }}>
+        <h2 style={{ margin: 0, font: '700 19.5px Inter, sans-serif' }}>Close drawer</h2>
+        <p style={{ fontSize: 14, color: 'var(--ink-3)' }}>
           Count the cash, enter the total. Expected: <b>{formatCents(data.drawer.expectedCents)}</b>. Parked sales clear on close.
         </p>
         <input
           value={counted}
           onChange={(e) => setCounted(e.target.value)}
           placeholder="Counted cash $ *"
-          style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--line)', fontSize: 13 }}
+          style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--line)', fontSize: 15 }}
         />
-        {error && <div style={{ color: 'var(--red)', fontSize: 12, marginTop: 8 }}>{error}</div>}
+        {error && <div style={{ color: 'var(--red)', fontSize: 14, marginTop: 8 }}>{error}</div>}
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 14 }}>
           <Button variant="ghost" onClick={() => setClosing(false)}>Cancel</Button>
           <Button variant="primary" onClick={() => void closeDrawer()}>Close drawer</Button>
@@ -344,14 +344,14 @@ export function ReportsScreen() {
       <Modal open={closeResult !== null} onClose={() => setCloseResult(null)} width={360}>
         {closeResult && (
           <div style={{ textAlign: 'center' }}>
-            <i className="bi bi-lock-fill" style={{ fontSize: 34, color: 'var(--green)' }} />
-            <h2 style={{ margin: '8px 0 4px', font: '700 18px Inter, sans-serif' }}>Drawer closed</h2>
+            <i className="bi bi-lock-fill" style={{ fontSize: 37, color: 'var(--green)' }} />
+            <h2 style={{ margin: '8px 0 4px', font: '700 20.5px Inter, sans-serif' }}>Drawer closed</h2>
             <div
               style={{
                 borderRadius: 12,
                 padding: '12px 0',
                 margin: '10px 0',
-                font: '800 22px Inter, sans-serif',
+                font: '800 25.5px Inter, sans-serif',
                 background: closeResult.overShortCents === 0 ? 'var(--green-bg)' : 'var(--red-bg)',
                 color: closeResult.overShortCents === 0 ? 'var(--green)' : 'var(--red)',
               }}
@@ -362,7 +362,7 @@ export function ReportsScreen() {
                   ? `Over ${formatCents(closeResult.overShortCents)}`
                   : `Short ${formatCents(-closeResult.overShortCents)}`}
             </div>
-            <div style={{ fontSize: 12, color: 'var(--ink-3)' }}>Expected {formatCents(closeResult.expectedCents)}</div>
+            <div style={{ fontSize: 14, color: 'var(--ink-3)' }}>Expected {formatCents(closeResult.expectedCents)}</div>
             <Button variant="primary" style={{ width: '100%', marginTop: 12 }} onClick={() => setCloseResult(null)}>
               Done
             </Button>

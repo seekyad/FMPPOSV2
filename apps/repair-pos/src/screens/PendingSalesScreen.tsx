@@ -91,8 +91,8 @@ export function PendingSalesScreen() {
       <div style={{ flex: 1, minWidth: 0, padding: '22px 24px', overflow: 'auto' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
-            <h1 style={{ margin: 0, font: '700 24px Inter, sans-serif' }}>Pending sales</h1>
-            <div style={{ color: 'var(--ink-3)', fontSize: 12, marginTop: 2 }}>
+            <h1 style={{ margin: 0, font: '700 27.5px Inter, sans-serif' }}>Pending sales</h1>
+            <div style={{ color: 'var(--ink-3)', fontSize: 14, marginTop: 2 }}>
               {rows.length} parked ticket{rows.length === 1 ? '' : 's'} · nothing charged yet
             </div>
           </div>
@@ -102,16 +102,16 @@ export function PendingSalesScreen() {
         </div>
 
         <div style={{ position: 'relative', marginTop: 16 }}>
-          <i className="bi bi-search" style={{ position: 'absolute', left: 14, top: 13, color: 'var(--ink-4)', fontSize: 14 }} />
+          <i className="bi bi-search" style={{ position: 'absolute', left: 14, top: 13, color: 'var(--ink-4)', fontSize: 16 }} />
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search parked sales by ticket, name, or phone"
-            style={{ width: '100%', padding: '12px 14px 12px 38px', borderRadius: 12, border: '1px solid var(--line)', background: 'var(--card)', fontSize: 13 }}
+            style={{ width: '100%', padding: '12px 14px 12px 38px', borderRadius: 12, border: '1px solid var(--line)', background: 'var(--card)', fontSize: 15 }}
           />
         </div>
 
-        <div style={{ font: '600 10px Inter, sans-serif', color: 'var(--ink-4)', letterSpacing: '0.08em', margin: '18px 0 8px' }}>
+        <div style={{ font: '600 11.5px Inter, sans-serif', color: 'var(--ink-4)', letterSpacing: '0.08em', margin: '18px 0 8px' }}>
           PARKED TODAY
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -126,7 +126,7 @@ export function PendingSalesScreen() {
                 background: 'var(--card)',
                 borderRadius: 14,
                 border: `1.5px solid ${selected?.id === sale.id ? 'var(--orange)' : 'var(--line-soft)'}`,
-                padding: '12px 16px',
+                padding: '15px 16px',
                 cursor: 'pointer',
               }}
             >
@@ -140,7 +140,7 @@ export function PendingSalesScreen() {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  font: '700 12px Inter, sans-serif',
+                  font: '700 14px Inter, sans-serif',
                 }}
               >
                 {(sale.customerName ?? 'W I')
@@ -150,17 +150,17 @@ export function PendingSalesScreen() {
                   .join('')}
               </span>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ font: '600 14px Inter, sans-serif' }}>
+                <div style={{ font: '600 16px Inter, sans-serif' }}>
                   {sale.customerName ?? 'Walk-in'}{' '}
-                  <span style={{ color: 'var(--ink-4)', font: '500 11px Inter, sans-serif' }}>#{sale.ticketNumber}</span>
+                  <span style={{ color: 'var(--ink-4)', font: '500 12.5px Inter, sans-serif' }}>#{sale.ticketNumber}</span>
                 </div>
-                <div style={{ fontSize: 11, color: 'var(--ink-3)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                <div style={{ fontSize: 12.5, color: 'var(--ink-3)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {sale.lines.map((l) => l.description).join(' · ')} · {sale.lines.length} item{sale.lines.length === 1 ? '' : 's'}
                 </div>
               </div>
               <div style={{ textAlign: 'right' }}>
-                <div style={{ font: '700 14px Inter, sans-serif' }}>{formatCents(sale.totalCents)}</div>
-                <div style={{ fontSize: 10, color: 'var(--ink-4)' }}>
+                <div style={{ font: '700 16px Inter, sans-serif' }}>{formatCents(sale.totalCents)}</div>
+                <div style={{ fontSize: 11.5, color: 'var(--ink-4)' }}>
                   Parked {new Date(sale.createdAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })} · {sale.cashierName}
                 </div>
               </div>
@@ -169,10 +169,10 @@ export function PendingSalesScreen() {
               </Button>
             </div>
           ))}
-          {filtered.length === 0 && <div style={{ color: 'var(--ink-4)', fontSize: 13, marginTop: 30, textAlign: 'center' }}>No parked sales.</div>}
+          {filtered.length === 0 && <div style={{ color: 'var(--ink-4)', fontSize: 15, marginTop: 30, textAlign: 'center' }}>No parked sales.</div>}
         </div>
 
-        <div style={{ marginTop: 24, fontSize: 11, color: 'var(--ink-4)', display: 'flex', gap: 6, alignItems: 'center' }}>
+        <div style={{ marginTop: 24, fontSize: 12.5, color: 'var(--ink-4)', display: 'flex', gap: 6, alignItems: 'center' }}>
           <i className="bi bi-info-circle" /> Parked sales clear at end-of-day close. Resuming one replaces whatever is in the current sale.
         </div>
       </div>
@@ -181,40 +181,40 @@ export function PendingSalesScreen() {
       <div style={{ width: 340, flexShrink: 0, background: 'var(--card)', borderLeft: '1px solid var(--line-soft)', display: 'flex', flexDirection: 'column', padding: '22px 20px' }}>
         {selected ? (
           <>
-            <h2 style={{ margin: 0, font: '700 18px Inter, sans-serif' }}>{selected.customerName ?? 'Walk-in'}</h2>
-            <div style={{ fontSize: 11, color: 'var(--ink-3)', marginTop: 2 }}>
+            <h2 style={{ margin: 0, font: '700 20.5px Inter, sans-serif' }}>{selected.customerName ?? 'Walk-in'}</h2>
+            <div style={{ fontSize: 12.5, color: 'var(--ink-3)', marginTop: 2 }}>
               #{selected.ticketNumber} · parked {new Date(selected.createdAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
             </div>
             <div style={{ marginTop: 14, flex: 1, overflow: 'auto' }}>
               {selected.lines.map((l) => (
                 <div key={l.id} style={{ border: '1px solid var(--line-soft)', borderRadius: 10, padding: '9px 12px', marginBottom: 8 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ font: '600 12px Inter, sans-serif' }}>{l.description}</span>
-                    <span style={{ font: '700 12px Inter, sans-serif' }}>{formatCents(l.qty * l.unitCents - l.discountCents)}</span>
+                    <span style={{ font: '600 14px Inter, sans-serif' }}>{l.description}</span>
+                    <span style={{ font: '700 14px Inter, sans-serif' }}>{formatCents(l.qty * l.unitCents - l.discountCents)}</span>
                   </div>
-                  {l.qty > 1 && <div style={{ fontSize: 10, color: 'var(--ink-4)' }}>{l.qty} × {formatCents(l.unitCents)}</div>}
+                  {l.qty > 1 && <div style={{ fontSize: 11.5, color: 'var(--ink-4)' }}>{l.qty} × {formatCents(l.unitCents)}</div>}
                 </div>
               ))}
               {selected.parkedNote && (
-                <div style={{ background: 'var(--amber-bg)', color: 'var(--amber)', borderRadius: 10, padding: '9px 12px', fontSize: 11 }}>
+                <div style={{ background: 'var(--amber-bg)', color: 'var(--amber)', borderRadius: 10, padding: '9px 12px', fontSize: 12.5 }}>
                   <i className="bi bi-sticky" /> Note: {selected.parkedNote}
                 </div>
               )}
             </div>
             <div style={{ borderTop: '1px solid var(--line-soft)', paddingTop: 12 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--ink-3)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: 'var(--ink-3)' }}>
                 <span>Subtotal</span>
                 <span>{formatCents(selected.subtotalCents)}</span>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--ink-3)', marginTop: 3 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: 'var(--ink-3)', marginTop: 3 }}>
                 <span>Tax</span>
                 <span>{formatCents(selected.taxCents)}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8 }}>
-                <span style={{ font: '700 15px Inter, sans-serif' }}>Total</span>
-                <span style={{ font: '800 20px Inter, sans-serif' }}>{formatCents(selected.totalCents)}</span>
+                <span style={{ font: '700 17.5px Inter, sans-serif' }}>Total</span>
+                <span style={{ font: '800 23px Inter, sans-serif' }}>{formatCents(selected.totalCents)}</span>
               </div>
-              {error && <div style={{ color: 'var(--red)', fontSize: 12, marginTop: 6 }}>{error}</div>}
+              {error && <div style={{ color: 'var(--red)', fontSize: 14, marginTop: 6 }}>{error}</div>}
               <Button variant="primary" size="lg" style={{ width: '100%', marginTop: 12 }} onClick={() => resume(selected)}>
                 Resume this sale
               </Button>
@@ -230,13 +230,13 @@ export function PendingSalesScreen() {
             </div>
           </>
         ) : (
-          <div style={{ color: 'var(--ink-4)', fontSize: 13, marginTop: 40, textAlign: 'center' }}>Select a parked sale.</div>
+          <div style={{ color: 'var(--ink-4)', fontSize: 15, marginTop: 40, textAlign: 'center' }}>Select a parked sale.</div>
         )}
       </div>
 
       <Modal open={voiding !== null} onClose={() => setVoiding(null)} width={360}>
-        <h2 style={{ margin: 0, font: '700 17px Inter, sans-serif' }}>Void parked sale?</h2>
-        <p style={{ fontSize: 13, color: 'var(--ink-2)' }}>
+        <h2 style={{ margin: 0, font: '700 19.5px Inter, sans-serif' }}>Void parked sale?</h2>
+        <p style={{ fontSize: 15, color: 'var(--ink-2)' }}>
           #{voiding?.ticketNumber} · {formatCents(voiding?.totalCents ?? 0)} — this can't be undone.
         </p>
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>

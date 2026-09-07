@@ -96,7 +96,7 @@ export function TimeClockTab() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-        <div style={{ fontSize: 13 }}>
+        <div style={{ fontSize: 15 }}>
           {openEntry ? (
             <span>
               <StatusChip tone="green">Clocked in</StatusChip>{' '}
@@ -105,7 +105,7 @@ export function TimeClockTab() {
           ) : (
             <StatusChip tone="neutral">Not clocked in</StatusChip>
           )}
-          {error && <span style={{ color: 'var(--red)', marginLeft: 10, fontSize: 12 }}>{error}</span>}
+          {error && <span style={{ color: 'var(--red)', marginLeft: 10, fontSize: 14 }}>{error}</span>}
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <Button variant="secondary" onClick={exportCsv}>
@@ -124,34 +124,34 @@ export function TimeClockTab() {
       </div>
 
       <div style={{ background: 'var(--card)', borderRadius: 14, border: '1px solid var(--line-soft)', overflow: 'auto', flex: 1 }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 15 }}>
           <thead>
-            <tr style={{ textAlign: 'left', color: 'var(--ink-4)', font: '600 10px Inter, sans-serif', letterSpacing: '0.06em' }}>
+            <tr style={{ textAlign: 'left', color: 'var(--ink-4)', font: '600 11.5px Inter, sans-serif', letterSpacing: '0.06em' }}>
               {['STAFF', 'CLOCK IN', 'CLOCK OUT', 'HOURS', 'FLAGS', ''].map((h, i) => (
-                <th key={i} style={{ padding: '12px 16px', borderBottom: '1px solid var(--line-soft)' }}>{h}</th>
+                <th key={i} style={{ padding: '15px 16px', borderBottom: '1px solid var(--line-soft)' }}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {entries.map((e) => (
               <tr key={e.id}>
-                <td style={{ padding: '10px 16px', borderBottom: '1px solid var(--line-soft)', font: '600 13px Inter, sans-serif' }}>{e.userName}</td>
-                <td style={{ padding: '10px 16px', borderBottom: '1px solid var(--line-soft)' }}>
+                <td style={{ padding: '13px 16px', borderBottom: '1px solid var(--line-soft)', font: '600 15px Inter, sans-serif' }}>{e.userName}</td>
+                <td style={{ padding: '13px 16px', borderBottom: '1px solid var(--line-soft)' }}>
                   {new Date(e.clockIn).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
                 </td>
-                <td style={{ padding: '10px 16px', borderBottom: '1px solid var(--line-soft)' }}>
+                <td style={{ padding: '13px 16px', borderBottom: '1px solid var(--line-soft)' }}>
                   {e.clockOut
                     ? new Date(e.clockOut).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
                     : '—'}
                 </td>
-                <td style={{ padding: '10px 16px', borderBottom: '1px solid var(--line-soft)' }}>{hours(e)}</td>
-                <td style={{ padding: '10px 16px', borderBottom: '1px solid var(--line-soft)' }}>
+                <td style={{ padding: '13px 16px', borderBottom: '1px solid var(--line-soft)' }}>{hours(e)}</td>
+                <td style={{ padding: '13px 16px', borderBottom: '1px solid var(--line-soft)' }}>
                   <span style={{ display: 'inline-flex', gap: 4 }}>
                     {e.flagged && <StatusChip tone="red">Check</StatusChip>}
                     {e.editNote && <StatusChip tone="amber" style={{ cursor: 'help' }}>Edited</StatusChip>}
                   </span>
                 </td>
-                <td style={{ padding: '10px 16px', borderBottom: '1px solid var(--line-soft)', textAlign: 'right' }}>
+                <td style={{ padding: '13px 16px', borderBottom: '1px solid var(--line-soft)', textAlign: 'right' }}>
                   {isManager && (
                     <button
                       onClick={() => {
@@ -170,24 +170,24 @@ export function TimeClockTab() {
             ))}
           </tbody>
         </table>
-        {entries.length === 0 && <div style={{ padding: 24, color: 'var(--ink-4)', fontSize: 13 }}>No time entries in the last 14 days.</div>}
+        {entries.length === 0 && <div style={{ padding: 24, color: 'var(--ink-4)', fontSize: 15 }}>No time entries in the last 14 days.</div>}
       </div>
 
       <Modal open={editing !== null} onClose={() => setEditing(null)} width={380}>
-        <h2 style={{ margin: 0, font: '700 17px Inter, sans-serif' }}>Edit entry · {editing?.userName}</h2>
-        <label style={{ display: 'block', marginTop: 12, fontSize: 11, color: 'var(--ink-3)' }}>
+        <h2 style={{ margin: 0, font: '700 19.5px Inter, sans-serif' }}>Edit entry · {editing?.userName}</h2>
+        <label style={{ display: 'block', marginTop: 12, fontSize: 12.5, color: 'var(--ink-3)' }}>
           Clock in
-          <input type="datetime-local" value={editIn} onChange={(e) => setEditIn(e.target.value)} style={{ width: '100%', marginTop: 4, padding: '9px 12px', borderRadius: 10, border: '1px solid var(--line)', fontSize: 13 }} />
+          <input type="datetime-local" value={editIn} onChange={(e) => setEditIn(e.target.value)} style={{ width: '100%', marginTop: 4, padding: '9px 12px', borderRadius: 10, border: '1px solid var(--line)', fontSize: 15 }} />
         </label>
-        <label style={{ display: 'block', marginTop: 8, fontSize: 11, color: 'var(--ink-3)' }}>
+        <label style={{ display: 'block', marginTop: 8, fontSize: 12.5, color: 'var(--ink-3)' }}>
           Clock out (empty = still in)
-          <input type="datetime-local" value={editOut} onChange={(e) => setEditOut(e.target.value)} style={{ width: '100%', marginTop: 4, padding: '9px 12px', borderRadius: 10, border: '1px solid var(--line)', fontSize: 13 }} />
+          <input type="datetime-local" value={editOut} onChange={(e) => setEditOut(e.target.value)} style={{ width: '100%', marginTop: 4, padding: '9px 12px', borderRadius: 10, border: '1px solid var(--line)', fontSize: 15 }} />
         </label>
         <input
           value={editNote}
           onChange={(e) => setEditNote(e.target.value)}
           placeholder="Edit note * — e.g. forgot to clock out"
-          style={{ width: '100%', marginTop: 8, padding: '10px 12px', borderRadius: 10, border: '1px solid var(--line)', fontSize: 13 }}
+          style={{ width: '100%', marginTop: 8, padding: '10px 12px', borderRadius: 10, border: '1px solid var(--line)', fontSize: 15 }}
         />
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 14 }}>
           <Button variant="ghost" onClick={() => setEditing(null)}>Cancel</Button>

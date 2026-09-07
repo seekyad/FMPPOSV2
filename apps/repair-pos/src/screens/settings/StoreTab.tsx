@@ -72,13 +72,13 @@ export function StoreTab() {
 
   const field = (key: string, label: string, placeholder = '') => (
     <label style={{ display: 'block', marginBottom: 10 }}>
-      <div style={{ font: '600 11px Inter, sans-serif', color: 'var(--ink-3)', marginBottom: 4 }}>{label}</div>
+      <div style={{ font: '600 12.5px Inter, sans-serif', color: 'var(--ink-3)', marginBottom: 4 }}>{label}</div>
       <input
         value={form[key] ?? ''}
         disabled={!isManager}
         onChange={(e) => setForm((prev) => ({ ...prev, [key]: e.target.value }))}
         placeholder={placeholder}
-        style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--line)', fontSize: 13 }}
+        style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--line)', fontSize: 15 }}
       />
     </label>
   );
@@ -87,7 +87,7 @@ export function StoreTab() {
     <div style={{ overflow: 'auto', flex: 1 }}>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, maxWidth: 860 }}>
         <div>
-          <h3 style={{ font: '700 14px Inter, sans-serif', margin: '0 0 10px' }}>Store</h3>
+          <h3 style={{ font: '700 16px Inter, sans-serif', margin: '0 0 10px' }}>Store</h3>
           {field('name', 'Store name')}
           {field('address', 'Address')}
           {field('phone', 'Phone')}
@@ -95,11 +95,11 @@ export function StoreTab() {
           {field('drawerFloat', 'Default drawer float $', '200.00')}
         </div>
         <div>
-          <h3 style={{ font: '700 14px Inter, sans-serif', margin: '0 0 10px' }}>Receipts</h3>
+          <h3 style={{ font: '700 16px Inter, sans-serif', margin: '0 0 10px' }}>Receipts</h3>
           {field('receiptHeader', 'Receipt header', 'FMP — Phone Repair & Sales')}
           {field('receiptFooter', 'Receipt footer', 'Thank you! 90-day warranty on repairs.')}
-          <h3 style={{ font: '700 14px Inter, sans-serif', margin: '16px 0 10px' }}>
-            Dejavoo terminal <span style={{ font: '500 10px Inter, sans-serif', color: 'var(--ink-4)' }}>(leave empty for manual card entry)</span>
+          <h3 style={{ font: '700 16px Inter, sans-serif', margin: '16px 0 10px' }}>
+            Dejavoo terminal <span style={{ font: '500 11.5px Inter, sans-serif', color: 'var(--ink-4)' }}>(leave empty for manual card entry)</span>
           </h3>
           {field('tpn', 'TPN')}
           {field('authKey', 'Auth key')}
@@ -108,9 +108,9 @@ export function StoreTab() {
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 8 }}>
         <Button variant="primary" disabled={!isManager} onClick={() => void save()}>Save settings</Button>
-        {saved && <span style={{ color: 'var(--green)', fontSize: 12 }}>{saved}</span>}
-        {error && <span style={{ color: 'var(--red)', fontSize: 12 }}>{error}</span>}
-        {!isManager && <span style={{ color: 'var(--ink-4)', fontSize: 12 }}>Manager sign-in required to edit.</span>}
+        {saved && <span style={{ color: 'var(--green)', fontSize: 14 }}>{saved}</span>}
+        {error && <span style={{ color: 'var(--red)', fontSize: 14 }}>{error}</span>}
+        {!isManager && <span style={{ color: 'var(--ink-4)', fontSize: 14 }}>Manager sign-in required to edit.</span>}
       </div>
     </div>
   );

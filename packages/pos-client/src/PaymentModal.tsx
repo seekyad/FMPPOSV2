@@ -106,11 +106,11 @@ export function PaymentModal({
       width={480}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-        <h2 style={{ margin: 0, font: '700 18px Inter, sans-serif' }}>Take payment</h2>
-        <div style={{ font: '800 22px Inter, sans-serif' }}>{formatCents(remaining)}</div>
+        <h2 style={{ margin: 0, font: '700 20.5px Inter, sans-serif' }}>Take payment</h2>
+        <div style={{ font: '800 25.5px Inter, sans-serif' }}>{formatCents(remaining)}</div>
       </div>
       {taken.length > 0 && (
-        <div style={{ marginTop: 8, padding: '8px 12px', background: 'var(--line-soft)', borderRadius: 10, fontSize: 12 }}>
+        <div style={{ marginTop: 8, padding: '8px 12px', background: 'var(--line-soft)', borderRadius: 10, fontSize: 14 }}>
           {taken.map((p, i) => (
             <div key={i} style={{ display: 'flex', justifyContent: 'space-between' }}>
               <span style={{ textTransform: 'capitalize' }}>{p.method.replace('_', ' ')}</span>
@@ -135,7 +135,7 @@ export function PaymentModal({
               border: `1.5px solid ${method === m.id ? 'var(--navy)' : 'var(--line)'}`,
               background: method === m.id ? 'var(--navy)' : 'var(--card)',
               color: method === m.id ? '#fff' : 'var(--ink)',
-              font: '600 13px Inter, sans-serif',
+              font: '600 15px Inter, sans-serif',
               opacity: m.disabled ? 0.45 : 1,
             }}
           >
@@ -145,17 +145,17 @@ export function PaymentModal({
       </div>
 
       <div style={{ display: 'flex', gap: 8, marginTop: 12, alignItems: 'center' }}>
-        <span style={{ fontSize: 12, color: 'var(--ink-3)' }}>Paying now</span>
+        <span style={{ fontSize: 14, color: 'var(--ink-3)' }}>Paying now</span>
         <input
           value={(amount / 100).toFixed(2)}
           onChange={(e) => {
             const v = Math.round(parseFloat(e.target.value || '0') * 100);
             setPartial(Number.isFinite(v) ? Math.max(0, Math.min(v, remaining)) : 0);
           }}
-          style={{ width: 90, padding: '7px 10px', borderRadius: 8, border: '1px solid var(--line)', font: '600 13px Inter, sans-serif' }}
+          style={{ width: 90, padding: '7px 10px', borderRadius: 8, border: '1px solid var(--line)', font: '600 15px Inter, sans-serif' }}
         />
         {partial != null && partial < remaining && (
-          <span style={{ fontSize: 11, color: 'var(--amber)' }}>
+          <span style={{ fontSize: 12.5, color: 'var(--amber)' }}>
             Split: {formatCents(remaining - partial)} left after this
           </span>
         )}
@@ -174,7 +174,7 @@ export function PaymentModal({
                   border: '1px solid var(--line)',
                   background: tendered === v ? 'var(--navy)' : 'var(--card)',
                   color: tendered === v ? '#fff' : 'var(--ink)',
-                  font: '600 12px Inter, sans-serif',
+                  font: '600 14px Inter, sans-serif',
                 }}
               >
                 ${v / 100}
@@ -188,7 +188,7 @@ export function PaymentModal({
                 border: '1px solid var(--line)',
                 background: tendered === amount && amount > 0 ? 'var(--navy)' : 'var(--card)',
                 color: tendered === amount && amount > 0 ? '#fff' : 'var(--ink)',
-                font: '600 12px Inter, sans-serif',
+                font: '600 14px Inter, sans-serif',
               }}
             >
               Exact
@@ -203,8 +203,8 @@ export function PaymentModal({
             />
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               <div style={{ border: '1px solid var(--line)', borderRadius: 10, padding: '10px 12px' }}>
-                <div style={{ font: '600 9px Inter, sans-serif', color: 'var(--ink-4)' }}>TENDERED</div>
-                <div style={{ font: '700 18px Inter, sans-serif' }}>{formatCents(tendered)}</div>
+                <div style={{ font: '600 10.5px Inter, sans-serif', color: 'var(--ink-4)' }}>TENDERED</div>
+                <div style={{ font: '700 20.5px Inter, sans-serif' }}>{formatCents(tendered)}</div>
               </div>
               <div
                 style={{
@@ -216,8 +216,8 @@ export function PaymentModal({
                   flex: 1,
                 }}
               >
-                <div style={{ font: '600 9px Inter, sans-serif' }}>{change >= 0 ? 'CHANGE BACK' : 'STILL DUE'}</div>
-                <div style={{ font: '800 24px Inter, sans-serif' }}>{formatCents(Math.abs(change))}</div>
+                <div style={{ font: '600 10.5px Inter, sans-serif' }}>{change >= 0 ? 'CHANGE BACK' : 'STILL DUE'}</div>
+                <div style={{ font: '800 27.5px Inter, sans-serif' }}>{formatCents(Math.abs(change))}</div>
               </div>
             </div>
           </div>
@@ -231,7 +231,7 @@ export function PaymentModal({
             padding: '14px 16px',
             border: '1px dashed var(--line)',
             borderRadius: 12,
-            fontSize: 13,
+            fontSize: 15,
             color: 'var(--ink-2)',
           }}
         >
@@ -271,16 +271,16 @@ export function PaymentModal({
                 )}
               </Button>
               {terminalState === 'declined' && (
-                <div style={{ color: 'var(--red)', fontSize: 12, marginTop: 6 }}>{terminalMsg}</div>
+                <div style={{ color: 'var(--red)', fontSize: 14, marginTop: 6 }}>{terminalMsg}</div>
               )}
-              <div style={{ fontSize: 11, color: 'var(--ink-4)', marginTop: 6 }}>
+              <div style={{ fontSize: 12.5, color: 'var(--ink-4)', marginTop: 6 }}>
                 Or run it on the terminal yourself and confirm below.
               </div>
             </>
           ) : (
             <>
               <i className="bi bi-credit-card-2-front" /> Run {formatCents(amount)} on the terminal, then confirm below.
-              <div style={{ fontSize: 11, color: 'var(--ink-4)', marginTop: 4 }}>
+              <div style={{ fontSize: 12.5, color: 'var(--ink-4)', marginTop: 4 }}>
                 Add Dejavoo credentials in More → Store & payments to send the amount automatically.
               </div>
             </>
@@ -289,7 +289,7 @@ export function PaymentModal({
       )}
 
       {method === 'store_credit' && customer && (
-        <div style={{ marginTop: 14, padding: '12px 16px', background: 'var(--purple-bg)', color: 'var(--purple)', borderRadius: 12, fontSize: 13 }}>
+        <div style={{ marginTop: 14, padding: '15px 16px', background: 'var(--purple-bg)', color: 'var(--purple)', borderRadius: 12, fontSize: 15 }}>
           {customer.name} has {formatCents(credit)} in store credit.
         </div>
       )}

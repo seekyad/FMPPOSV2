@@ -79,8 +79,8 @@ export function CustomersScreen() {
       <div style={{ flex: 1, minWidth: 0, padding: '22px 24px', display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
-            <h1 style={{ margin: 0, font: '700 24px Inter, sans-serif' }}>Customers</h1>
-            <div style={{ color: 'var(--ink-3)', fontSize: 12, marginTop: 2 }}>
+            <h1 style={{ margin: 0, font: '700 27.5px Inter, sans-serif' }}>Customers</h1>
+            <div style={{ color: 'var(--ink-3)', fontSize: 14, marginTop: 2 }}>
               {rows.length} shown · {rows.filter((r) => r.openTickets > 0).length} with open tickets
             </div>
           </div>
@@ -90,21 +90,21 @@ export function CustomersScreen() {
         </div>
 
         <div style={{ position: 'relative', marginTop: 16 }}>
-          <i className="bi bi-search" style={{ position: 'absolute', left: 14, top: 13, color: 'var(--ink-4)', fontSize: 14 }} />
+          <i className="bi bi-search" style={{ position: 'absolute', left: 14, top: 13, color: 'var(--ink-4)', fontSize: 16 }} />
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search name, phone, email, or IMEI"
-            style={{ width: '100%', padding: '12px 14px 12px 38px', borderRadius: 12, border: '1px solid var(--line)', background: 'var(--card)', fontSize: 13 }}
+            style={{ width: '100%', padding: '12px 14px 12px 38px', borderRadius: 12, border: '1px solid var(--line)', background: 'var(--card)', fontSize: 15 }}
           />
         </div>
 
         <div style={{ marginTop: 14, background: 'var(--card)', borderRadius: 14, border: '1px solid var(--line-soft)', overflow: 'auto', flex: 1 }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 15 }}>
             <thead>
-              <tr style={{ textAlign: 'left', color: 'var(--ink-4)', font: '600 10px Inter, sans-serif', letterSpacing: '0.06em' }}>
+              <tr style={{ textAlign: 'left', color: 'var(--ink-4)', font: '600 11.5px Inter, sans-serif', letterSpacing: '0.06em' }}>
                 {['NAME', 'PHONE', 'VISITS', 'OPEN', 'LIFETIME', 'LAST SEEN', 'FLAG'].map((h) => (
-                  <th key={h} style={{ padding: '12px 16px', borderBottom: '1px solid var(--line-soft)', position: 'sticky', top: 0, background: 'var(--card)' }}>
+                  <th key={h} style={{ padding: '15px 16px', borderBottom: '1px solid var(--line-soft)', position: 'sticky', top: 0, background: 'var(--card)' }}>
                     {h}
                   </th>
                 ))}
@@ -119,19 +119,19 @@ export function CustomersScreen() {
                     onClick={() => setSelectedId(row.id)}
                     style={{ cursor: 'pointer', background: selectedId === row.id ? 'var(--orange-soft)' : 'transparent' }}
                   >
-                    <td style={{ padding: '11px 16px', borderBottom: '1px solid var(--line-soft)', font: '600 13px Inter, sans-serif' }}>{row.name}</td>
-                    <td style={{ padding: '11px 16px', borderBottom: '1px solid var(--line-soft)', color: 'var(--ink-2)' }}>{row.phone}</td>
-                    <td style={{ padding: '11px 16px', borderBottom: '1px solid var(--line-soft)' }}>{row.visits}</td>
-                    <td style={{ padding: '11px 16px', borderBottom: '1px solid var(--line-soft)', color: row.openTickets > 0 ? 'var(--blue)' : 'var(--ink-4)' }}>
+                    <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--line-soft)', font: '600 15px Inter, sans-serif' }}>{row.name}</td>
+                    <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--line-soft)', color: 'var(--ink-2)' }}>{row.phone}</td>
+                    <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--line-soft)' }}>{row.visits}</td>
+                    <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--line-soft)', color: row.openTickets > 0 ? 'var(--blue)' : 'var(--ink-4)' }}>
                       {row.openTickets || '—'}
                     </td>
-                    <td style={{ padding: '11px 16px', borderBottom: '1px solid var(--line-soft)', font: '700 13px Inter, sans-serif' }}>
+                    <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--line-soft)', font: '700 15px Inter, sans-serif' }}>
                       {formatCents(row.lifetimeCents)}
                     </td>
-                    <td style={{ padding: '11px 16px', borderBottom: '1px solid var(--line-soft)', color: 'var(--ink-3)' }}>
+                    <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--line-soft)', color: 'var(--ink-3)' }}>
                       {row.lastSeen ? new Date(row.lastSeen).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}
                     </td>
-                    <td style={{ padding: '11px 16px', borderBottom: '1px solid var(--line-soft)' }}>
+                    <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--line-soft)' }}>
                       {flag.label === '—' ? <span style={{ color: 'var(--ink-4)' }}>—</span> : <StatusChip tone={flag.tone}>{flag.label}</StatusChip>}
                     </td>
                   </tr>
@@ -139,7 +139,7 @@ export function CustomersScreen() {
               })}
             </tbody>
           </table>
-          {rows.length === 0 && <div style={{ padding: 24, color: 'var(--ink-4)', fontSize: 13 }}>No customers match.</div>}
+          {rows.length === 0 && <div style={{ padding: 24, color: 'var(--ink-4)', fontSize: 15 }}>No customers match.</div>}
         </div>
       </div>
 
@@ -148,12 +148,12 @@ export function CustomersScreen() {
         {detail ? (
           <>
             <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-              <span style={{ width: 44, height: 44, borderRadius: 999, background: 'var(--line-soft)', display: 'flex', alignItems: 'center', justifyContent: 'center', font: '700 14px Inter, sans-serif', color: 'var(--ink-2)' }}>
+              <span style={{ width: 44, height: 44, borderRadius: 999, background: 'var(--line-soft)', display: 'flex', alignItems: 'center', justifyContent: 'center', font: '700 16px Inter, sans-serif', color: 'var(--ink-2)' }}>
                 {detail.customer.name.split(' ').map((w) => w[0]).slice(0, 2).join('')}
               </span>
               <div>
-                <div style={{ font: '700 16px Inter, sans-serif' }}>{detail.customer.name}</div>
-                <div style={{ fontSize: 11, color: 'var(--ink-3)' }}>
+                <div style={{ font: '700 18.5px Inter, sans-serif' }}>{detail.customer.name}</div>
+                <div style={{ fontSize: 12.5, color: 'var(--ink-3)' }}>
                   {detail.customer.phone ?? 'no phone'} · {detail.customer.email ?? 'no email'}
                 </div>
               </div>
@@ -166,8 +166,8 @@ export function CustomersScreen() {
                 { label: 'Credit', value: formatCents(detail.customer.storeCreditCents) },
               ].map((s) => (
                 <div key={s.label} style={{ border: '1px solid var(--line-soft)', borderRadius: 10, padding: '8px 4px' }}>
-                  <div style={{ font: '700 15px Inter, sans-serif' }}>{s.value}</div>
-                  <div style={{ fontSize: 10, color: 'var(--ink-4)' }}>{s.label}</div>
+                  <div style={{ font: '700 17.5px Inter, sans-serif' }}>{s.value}</div>
+                  <div style={{ fontSize: 11.5, color: 'var(--ink-4)' }}>{s.label}</div>
                 </div>
               ))}
             </div>
@@ -175,8 +175,8 @@ export function CustomersScreen() {
             <Section title="DEVICES ON FILE">
               {detail.devices.map((d) => (
                 <div key={d.id} style={{ border: '1px solid var(--line-soft)', borderRadius: 10, padding: '9px 12px', marginBottom: 6 }}>
-                  <div style={{ font: '600 12px Inter, sans-serif' }}>{d.label}</div>
-                  <div style={{ fontSize: 10, color: 'var(--ink-4)' }}>
+                  <div style={{ font: '600 14px Inter, sans-serif' }}>{d.label}</div>
+                  <div style={{ fontSize: 11.5, color: 'var(--ink-4)' }}>
                     {d.imei ? `IMEI …${d.imei.slice(-5)}` : ''} {d.detail ? `· ${d.detail}` : ''}
                   </div>
                 </div>
@@ -187,7 +187,7 @@ export function CustomersScreen() {
             <Section title="OPEN TICKETS">
               {detail.tickets.filter((t) => !['completed', 'cancelled', 'abandoned'].includes(t.status)).map((t) => (
                 <div key={t.id} style={{ border: '1px solid var(--line-soft)', borderRadius: 10, padding: '9px 12px', marginBottom: 6, display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ font: '600 12px Inter, sans-serif' }}>{t.number}</span>
+                  <span style={{ font: '600 14px Inter, sans-serif' }}>{t.number}</span>
                   <StatusChip tone="blue">{t.status.replace('_', ' ')}</StatusChip>
                 </div>
               ))}
@@ -198,11 +198,11 @@ export function CustomersScreen() {
 
             <Section title="HISTORY">
               {detail.saleHistory.slice(0, 8).map((s) => (
-                <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '5px 0', borderBottom: '1px solid var(--line-soft)' }}>
+                <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, padding: '5px 0', borderBottom: '1px solid var(--line-soft)' }}>
                   <span style={{ color: 'var(--ink-3)' }}>
                     {new Date(s.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} · #{s.ticketNumber}
                   </span>
-                  <span style={{ font: '600 12px Inter, sans-serif', color: s.totalCents < 0 ? 'var(--red)' : 'var(--ink)' }}>
+                  <span style={{ font: '600 14px Inter, sans-serif', color: s.totalCents < 0 ? 'var(--red)' : 'var(--ink)' }}>
                     {formatCents(s.totalCents)}
                   </span>
                 </div>
@@ -211,19 +211,19 @@ export function CustomersScreen() {
             </Section>
           </>
         ) : (
-          <div style={{ color: 'var(--ink-4)', fontSize: 13, marginTop: 40, textAlign: 'center' }}>Select a customer.</div>
+          <div style={{ color: 'var(--ink-4)', fontSize: 15, marginTop: 40, textAlign: 'center' }}>Select a customer.</div>
         )}
       </div>
 
       <Modal open={creating} onClose={() => setCreating(false)} width={400}>
-        <h2 style={{ margin: 0, font: '700 18px Inter, sans-serif' }}>New customer</h2>
+        <h2 style={{ margin: 0, font: '700 20.5px Inter, sans-serif' }}>New customer</h2>
         {(['name', 'phone', 'email'] as const).map((f) => (
           <input
             key={f}
             value={form[f]}
             onChange={(e) => setForm((prev) => ({ ...prev, [f]: e.target.value }))}
             placeholder={f === 'name' ? 'Full name *' : f[0]!.toUpperCase() + f.slice(1)}
-            style={{ width: '100%', marginTop: 10, padding: '11px 13px', borderRadius: 10, border: '1px solid var(--line)', fontSize: 13 }}
+            style={{ width: '100%', marginTop: 10, padding: '11px 13px', borderRadius: 10, border: '1px solid var(--line)', fontSize: 15 }}
           />
         ))}
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 14 }}>
@@ -238,12 +238,12 @@ export function CustomersScreen() {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div style={{ marginTop: 18 }}>
-      <div style={{ font: '600 10px Inter, sans-serif', color: 'var(--ink-4)', letterSpacing: '0.08em', marginBottom: 8 }}>{title}</div>
+      <div style={{ font: '600 11.5px Inter, sans-serif', color: 'var(--ink-4)', letterSpacing: '0.08em', marginBottom: 8 }}>{title}</div>
       {children}
     </div>
   );
 }
 
 function Empty({ children }: { children: React.ReactNode }) {
-  return <div style={{ fontSize: 11, color: 'var(--ink-4)' }}>{children}</div>;
+  return <div style={{ fontSize: 12.5, color: 'var(--ink-4)' }}>{children}</div>;
 }

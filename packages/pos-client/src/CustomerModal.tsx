@@ -45,7 +45,7 @@ export function CustomerModal({
 
   return (
     <Modal open={open} onClose={onClose} width={420}>
-      <h2 style={{ margin: 0, font: '700 18px Inter, sans-serif' }}>Customer</h2>
+      <h2 style={{ margin: 0, font: '700 20.5px Inter, sans-serif' }}>Customer</h2>
       {!creating ? (
         <>
           <input
@@ -53,7 +53,7 @@ export function CustomerModal({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search name or phone"
-            style={{ width: '100%', marginTop: 12, padding: '11px 13px', borderRadius: 10, border: '1px solid var(--line)', fontSize: 13 }}
+            style={{ width: '100%', marginTop: 12, padding: '11px 13px', borderRadius: 10, border: '1px solid var(--line)', fontSize: 15 }}
           />
           <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 260, overflow: 'auto' }}>
             {results.map((c) => (
@@ -71,12 +71,12 @@ export function CustomerModal({
                   background: 'var(--card)',
                 }}
               >
-                <div style={{ font: '600 13px Inter, sans-serif' }}>{c.name}</div>
-                <div style={{ fontSize: 11, color: 'var(--ink-3)' }}>{c.phone ?? 'no phone'}</div>
+                <div style={{ font: '600 15px Inter, sans-serif' }}>{c.name}</div>
+                <div style={{ fontSize: 12.5, color: 'var(--ink-3)' }}>{c.phone ?? 'no phone'}</div>
               </button>
             ))}
             {query.length >= 2 && results.length === 0 && (
-              <div style={{ fontSize: 12, color: 'var(--ink-3)', padding: 8 }}>No matches.</div>
+              <div style={{ fontSize: 14, color: 'var(--ink-3)', padding: 8 }}>No matches.</div>
             )}
           </div>
           <Button variant="secondary" style={{ marginTop: 12, width: '100%' }} onClick={() => setCreating(true)}>
@@ -90,13 +90,13 @@ export function CustomerModal({
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Full name *"
-            style={{ width: '100%', marginTop: 12, padding: '11px 13px', borderRadius: 10, border: '1px solid var(--line)', fontSize: 13 }}
+            style={{ width: '100%', marginTop: 12, padding: '11px 13px', borderRadius: 10, border: '1px solid var(--line)', fontSize: 15 }}
           />
           <input
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
             placeholder="Phone"
-            style={{ width: '100%', marginTop: 8, padding: '11px 13px', borderRadius: 10, border: '1px solid var(--line)', fontSize: 13 }}
+            style={{ width: '100%', marginTop: 8, padding: '11px 13px', borderRadius: 10, border: '1px solid var(--line)', fontSize: 15 }}
           />
           <div style={{ display: 'flex', gap: 8, marginTop: 12, justifyContent: 'flex-end' }}>
             <Button variant="ghost" onClick={() => setCreating(false)}>

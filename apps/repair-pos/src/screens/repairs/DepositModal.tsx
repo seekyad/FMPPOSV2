@@ -52,8 +52,8 @@ export function DepositModal({
 
   return (
     <Modal open={ticket !== null} onClose={onClose} width={380}>
-      <h2 style={{ margin: 0, font: '700 17px Inter, sans-serif' }}>Take deposit · {ticket?.number}</h2>
-      <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--ink-3)' }}>
+      <h2 style={{ margin: 0, font: '700 19.5px Inter, sans-serif' }}>Take deposit · {ticket?.number}</h2>
+      <p style={{ margin: '4px 0 0', fontSize: 14, color: 'var(--ink-3)' }}>
         Balance {formatCents(ticket?.balanceCents ?? 0)} — rest is collected at pickup.
       </p>
       <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
@@ -68,7 +68,7 @@ export function DepositModal({
               border: '1px solid var(--line)',
               background: method === m ? 'var(--navy)' : 'var(--card)',
               color: method === m ? '#fff' : 'var(--ink-2)',
-              font: '600 12px Inter, sans-serif',
+              font: '600 14px Inter, sans-serif',
               textTransform: 'capitalize',
             }}
           >
@@ -81,7 +81,7 @@ export function DepositModal({
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
           placeholder="Deposit $ *"
-          style={{ flex: 1, padding: '10px 12px', borderRadius: 10, border: '1px solid var(--line)', fontSize: 13 }}
+          style={{ flex: 1, padding: '10px 12px', borderRadius: 10, border: '1px solid var(--line)', fontSize: 15 }}
         />
         <Button variant="secondary" onClick={() => ticket && setAmount((ticket.balanceCents / 100).toFixed(2))}>
           Full balance
@@ -93,16 +93,16 @@ export function DepositModal({
             value={tendered}
             onChange={(e) => setTendered(e.target.value)}
             placeholder="Cash tendered $"
-            style={{ flex: 1, padding: '10px 12px', borderRadius: 10, border: '1px solid var(--line)', fontSize: 13 }}
+            style={{ flex: 1, padding: '10px 12px', borderRadius: 10, border: '1px solid var(--line)', fontSize: 15 }}
           />
           {change != null && (
-            <span style={{ font: '700 13px Inter, sans-serif', color: change >= 0 ? 'var(--green)' : 'var(--red)' }}>
+            <span style={{ font: '700 15px Inter, sans-serif', color: change >= 0 ? 'var(--green)' : 'var(--red)' }}>
               {change >= 0 ? `Change ${formatCents(change)}` : `Short ${formatCents(-change)}`}
             </span>
           )}
         </div>
       )}
-      {error && <div style={{ color: 'var(--red)', fontSize: 12, marginTop: 8 }}>{error}</div>}
+      {error && <div style={{ color: 'var(--red)', fontSize: 14, marginTop: 8 }}>{error}</div>}
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 14 }}>
         <Button variant="ghost" onClick={onClose}>Cancel</Button>
         <Button variant="primary" disabled={busy || amountCents <= 0} onClick={() => void take()}>

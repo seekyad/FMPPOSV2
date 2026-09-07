@@ -172,8 +172,8 @@ export function RepairsScreen() {
       <div style={{ flex: 1, minWidth: 0, padding: '22px 24px', display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
-            <h1 style={{ margin: 0, font: '700 24px Inter, sans-serif' }}>Repairs</h1>
-            <div style={{ color: 'var(--ink-3)', fontSize: 12, marginTop: 2 }}>
+            <h1 style={{ margin: 0, font: '700 27.5px Inter, sans-serif' }}>Repairs</h1>
+            <div style={{ color: 'var(--ink-3)', fontSize: 14, marginTop: 2 }}>
               {counts.open} open · {rows.filter(pastPromised).length} past promised
             </div>
           </div>
@@ -183,12 +183,12 @@ export function RepairsScreen() {
         </div>
 
         <div style={{ position: 'relative', marginTop: 16 }}>
-          <i className="bi bi-search" style={{ position: 'absolute', left: 14, top: 13, color: 'var(--ink-4)', fontSize: 14 }} />
+          <i className="bi bi-search" style={{ position: 'absolute', left: 14, top: 13, color: 'var(--ink-4)', fontSize: 16 }} />
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search ticket #, customer, phone, IMEI, or device"
-            style={{ width: '100%', padding: '12px 14px 12px 38px', borderRadius: 12, border: '1px solid var(--line)', background: 'var(--card)', fontSize: 13 }}
+            style={{ width: '100%', padding: '12px 14px 12px 38px', borderRadius: 12, border: '1px solid var(--line)', background: 'var(--card)', fontSize: 15 }}
           />
         </div>
 
@@ -203,21 +203,21 @@ export function RepairsScreen() {
                 border: '1px solid var(--line)',
                 background: filter === f.id ? 'var(--navy)' : 'var(--card)',
                 color: filter === f.id ? '#fff' : 'var(--ink-2)',
-                font: '600 12px Inter, sans-serif',
+                font: '600 14px Inter, sans-serif',
               }}
             >
-              {f.id === 'call' && <i className="bi bi-telephone-fill" style={{ marginRight: 4, fontSize: 10 }} />}
+              {f.id === 'call' && <i className="bi bi-telephone-fill" style={{ marginRight: 4, fontSize: 11.5 }} />}
               {f.label} <span style={{ opacity: 0.6, marginLeft: 2 }}>{filterCount(f.id)}</span>
             </button>
           ))}
         </div>
 
         <div style={{ marginTop: 14, background: 'var(--card)', borderRadius: 14, border: '1px solid var(--line-soft)', overflow: 'auto', flex: 1 }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 15 }}>
             <thead>
-              <tr style={{ textAlign: 'left', color: 'var(--ink-4)', font: '600 10px Inter, sans-serif', letterSpacing: '0.06em' }}>
+              <tr style={{ textAlign: 'left', color: 'var(--ink-4)', font: '600 11.5px Inter, sans-serif', letterSpacing: '0.06em' }}>
                 {['TICKET', 'CUSTOMER', 'DEVICE', 'SERVICE', 'DATE & TIME', 'TOTAL', 'BALANCE', 'STATUS'].map((h) => (
-                  <th key={h} style={{ padding: '12px 16px', borderBottom: '1px solid var(--line-soft)', position: 'sticky', top: 0, background: 'var(--card)' }}>{h}</th>
+                  <th key={h} style={{ padding: '15px 16px', borderBottom: '1px solid var(--line-soft)', position: 'sticky', top: 0, background: 'var(--card)' }}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -227,24 +227,24 @@ export function RepairsScreen() {
                 const balance = row.totalCents - row.paidCents;
                 return (
                   <tr key={row.id} onClick={() => setDetailId(row.id)} style={{ cursor: 'pointer', background: detailId === row.id ? 'var(--orange-soft)' : 'transparent' }}>
-                    <td style={{ padding: '11px 16px', borderBottom: '1px solid var(--line-soft)', font: '700 13px Inter, sans-serif' }}>{row.number}</td>
-                    <td style={{ padding: '11px 16px', borderBottom: '1px solid var(--line-soft)' }}>{row.customerName}</td>
-                    <td style={{ padding: '11px 16px', borderBottom: '1px solid var(--line-soft)', color: 'var(--ink-2)' }}>{row.deviceSummary}</td>
-                    <td style={{ padding: '11px 16px', borderBottom: '1px solid var(--line-soft)', color: 'var(--ink-2)', maxWidth: 180, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.serviceSummary}</td>
-                    <td style={{ padding: '11px 16px', borderBottom: '1px solid var(--line-soft)', color: late ? 'var(--red)' : 'var(--ink-3)', fontWeight: late ? 600 : 400 }}>
+                    <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--line-soft)', font: '700 15px Inter, sans-serif' }}>{row.number}</td>
+                    <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--line-soft)' }}>{row.customerName}</td>
+                    <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--line-soft)', color: 'var(--ink-2)' }}>{row.deviceSummary}</td>
+                    <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--line-soft)', color: 'var(--ink-2)', maxWidth: 180, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.serviceSummary}</td>
+                    <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--line-soft)', color: late ? 'var(--red)' : 'var(--ink-3)', fontWeight: late ? 600 : 400 }}>
                       {row.promisedAt
                         ? new Date(row.promisedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
                         : new Date(row.createdAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
                     </td>
-                    <td style={{ padding: '11px 16px', borderBottom: '1px solid var(--line-soft)', font: '700 13px Inter, sans-serif' }}>{formatCents(row.totalCents)}</td>
-                    <td style={{ padding: '11px 16px', borderBottom: '1px solid var(--line-soft)', color: balance > 0 ? 'var(--red)' : 'var(--green)', fontWeight: 600 }}>
+                    <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--line-soft)', font: '700 15px Inter, sans-serif' }}>{formatCents(row.totalCents)}</td>
+                    <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--line-soft)', color: balance > 0 ? 'var(--red)' : 'var(--green)', fontWeight: 600 }}>
                       {balance > 0 ? `${formatCents(balance)} due` : 'Paid'}
                     </td>
-                    <td style={{ padding: '11px 16px', borderBottom: '1px solid var(--line-soft)' }}>
+                    <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--line-soft)' }}>
                       <span style={{ display: 'inline-flex', gap: 4 }}>
                         {late && <StatusChip tone="red">Past promised</StatusChip>}
                         {row.callFlag && !['completed', 'cancelled'].includes(row.status) && (
-                          <StatusChip tone="purple"><i className="bi bi-telephone-fill" style={{ fontSize: 9 }} /> Call</StatusChip>
+                          <StatusChip tone="purple"><i className="bi bi-telephone-fill" style={{ fontSize: 10.5 }} /> Call</StatusChip>
                         )}
                         {!late && <StatusChip tone={STATUS_TONES[row.status] ?? 'neutral'}>{statusLabel(row.status)}</StatusChip>}
                       </span>
@@ -254,7 +254,7 @@ export function RepairsScreen() {
               })}
             </tbody>
           </table>
-          {rows.length === 0 && <div style={{ padding: 24, color: 'var(--ink-4)', fontSize: 13 }}>No tickets in this view.</div>}
+          {rows.length === 0 && <div style={{ padding: 24, color: 'var(--ink-4)', fontSize: 15 }}>No tickets in this view.</div>}
         </div>
       </div>
 
@@ -263,17 +263,17 @@ export function RepairsScreen() {
         {detail ? (
           <>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-              <h2 style={{ margin: 0, font: '700 18px Inter, sans-serif' }}>{detail.ticket.number}</h2>
+              <h2 style={{ margin: 0, font: '700 20.5px Inter, sans-serif' }}>{detail.ticket.number}</h2>
               <StatusChip tone={STATUS_TONES[detail.ticket.status] ?? 'neutral'}>{statusLabel(detail.ticket.status)}</StatusChip>
             </div>
-            <div style={{ fontSize: 12, color: 'var(--ink-3)', marginTop: 4 }}>
+            <div style={{ fontSize: 14, color: 'var(--ink-3)', marginTop: 4 }}>
               {detail.customer?.name} · {detail.customer?.phone}
             </div>
             {detail.ticket.warrantyOfTicketId && (
               <div style={{ marginTop: 6 }}><StatusChip tone="blue">Warranty rework</StatusChip></div>
             )}
 
-            {error && <div style={{ color: 'var(--red)', fontSize: 12, marginTop: 8 }}>{error}</div>}
+            {error && <div style={{ color: 'var(--red)', fontSize: 14, marginTop: 8 }}>{error}</div>}
 
             <div style={{ display: 'flex', gap: 6, marginTop: 12, flexWrap: 'wrap' }}>
               {(['intake', 'in_progress', 'waiting_part', 'ready', 'completed'] as const).map((s) => (
@@ -287,7 +287,7 @@ export function RepairsScreen() {
                     border: '1px solid var(--line)',
                     background: detail.ticket.status === s ? 'var(--navy)' : 'var(--card)',
                     color: detail.ticket.status === s ? '#fff' : 'var(--ink-2)',
-                    font: '600 11px Inter, sans-serif',
+                    font: '600 12.5px Inter, sans-serif',
                     opacity: ['completed', 'cancelled', 'abandoned'].includes(detail.ticket.status) && detail.ticket.status !== s ? 0.4 : 1,
                   }}
                 >
@@ -302,49 +302,49 @@ export function RepairsScreen() {
                 width: '100%', marginTop: 10, display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px',
                 borderRadius: 10, border: `1px solid ${detail.ticket.callFlag ? 'var(--purple)' : 'var(--line)'}`,
                 background: detail.ticket.callFlag ? 'var(--purple)' : 'var(--card)',
-                color: detail.ticket.callFlag ? '#fff' : 'var(--ink-2)', font: '600 12px Inter, sans-serif',
+                color: detail.ticket.callFlag ? '#fff' : 'var(--ink-2)', font: '600 14px Inter, sans-serif',
               }}
             >
               <i className={`bi ${detail.ticket.callFlag ? 'bi-telephone-fill' : 'bi-telephone'}`} />
               {detail.ticket.callFlag ? 'Customer waiting on our call' : 'Flag: customer wants a call'}
             </button>
 
-            <div style={{ font: '600 10px Inter, sans-serif', color: 'var(--ink-4)', letterSpacing: '0.06em', margin: '16px 0 6px' }}>DEVICES & WORK</div>
+            <div style={{ font: '600 11.5px Inter, sans-serif', color: 'var(--ink-4)', letterSpacing: '0.06em', margin: '16px 0 6px' }}>DEVICES & WORK</div>
             {detail.devices.map((d) => (
               <div key={d.id} style={{ border: '1px solid var(--line-soft)', borderRadius: 10, padding: '9px 12px', marginBottom: 6 }}>
-                <div style={{ font: '600 12.5px Inter, sans-serif' }}>
+                <div style={{ font: '600 14.5px Inter, sans-serif' }}>
                   {d.label} {!d.powersOn && <StatusChip tone="red" style={{ marginLeft: 4 }}>DOA</StatusChip>}
                 </div>
-                <div style={{ fontSize: 10.5, color: 'var(--ink-4)' }}>
+                <div style={{ fontSize: 12, color: 'var(--ink-4)' }}>
                   {d.imei ? `IMEI …${d.imei.slice(-5)} · ` : ''}
                   {d.unlockMethod && d.unlockMethod !== 'none' ? `${d.unlockMethod}: ${d.unlockValue ?? '—'}` : 'no lock'}
                 </div>
-                {d.conditionNotes && <div style={{ fontSize: 10.5, color: 'var(--ink-3)', marginTop: 2 }}>{d.conditionNotes}</div>}
+                {d.conditionNotes && <div style={{ fontSize: 12, color: 'var(--ink-3)', marginTop: 2 }}>{d.conditionNotes}</div>}
               </div>
             ))}
             {detail.lines.map((l) => (
-              <div key={l.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '4px 2px' }}>
+              <div key={l.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, padding: '4px 2px' }}>
                 <span>{l.description}</span>
                 <span style={{ fontWeight: 700 }}>{formatCents(l.priceCents)}</span>
               </div>
             ))}
             {detail.ticket.notesForTech && (
-              <div style={{ background: 'var(--amber-bg)', color: 'var(--amber)', borderRadius: 10, padding: '8px 12px', fontSize: 11, marginTop: 6 }}>
+              <div style={{ background: 'var(--amber-bg)', color: 'var(--amber)', borderRadius: 10, padding: '8px 12px', fontSize: 12.5, marginTop: 6 }}>
                 <i className="bi bi-sticky" /> {detail.ticket.notesForTech}
               </div>
             )}
 
             <div style={{ borderTop: '1px solid var(--line-soft)', marginTop: 12, paddingTop: 10 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--ink-3)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: 'var(--ink-3)' }}>
                 <span>Total (incl. tax)</span><span>{formatCents(detail.ticket.totalCents)}</span>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginTop: 3 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, marginTop: 3 }}>
                 <span style={{ color: 'var(--ink-3)' }}>Paid</span>
                 <span style={{ color: 'var(--green)', fontWeight: 600 }}>{formatCents(detail.paidCents)}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}>
-                <span style={{ font: '700 14px Inter, sans-serif' }}>Balance</span>
-                <span style={{ font: '800 18px Inter, sans-serif', color: detail.balanceCents > 0 ? 'var(--red)' : 'var(--green)' }}>
+                <span style={{ font: '700 16px Inter, sans-serif' }}>Balance</span>
+                <span style={{ font: '800 20.5px Inter, sans-serif', color: detail.balanceCents > 0 ? 'var(--red)' : 'var(--green)' }}>
                   {formatCents(detail.balanceCents)}
                 </span>
               </div>
@@ -394,16 +394,16 @@ export function RepairsScreen() {
               )}
             </div>
 
-            <div style={{ font: '600 10px Inter, sans-serif', color: 'var(--ink-4)', letterSpacing: '0.06em', margin: '16px 0 6px' }}>HISTORY</div>
+            <div style={{ font: '600 11.5px Inter, sans-serif', color: 'var(--ink-4)', letterSpacing: '0.06em', margin: '16px 0 6px' }}>HISTORY</div>
             {detail.history.map((h) => (
-              <div key={h.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--ink-3)', padding: '3px 0' }}>
+              <div key={h.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, color: 'var(--ink-3)', padding: '3px 0' }}>
                 <span>{statusLabel(h.status)} · {h.userName}</span>
                 <span>{new Date(h.createdAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span>
               </div>
             ))}
           </>
         ) : (
-          <div style={{ color: 'var(--ink-4)', fontSize: 13, marginTop: 40, textAlign: 'center' }}>Select a ticket.</div>
+          <div style={{ color: 'var(--ink-4)', fontSize: 15, marginTop: 40, textAlign: 'center' }}>Select a ticket.</div>
         )}
       </div>
 
@@ -411,15 +411,15 @@ export function RepairsScreen() {
       <DepositModal ticket={depositTicket} onClose={() => setDepositTicket(null)} onDone={() => void refreshAll()} />
 
       <Modal open={cancelling} onClose={() => setCancelling(false)} width={380}>
-        <h2 style={{ margin: 0, font: '700 17px Inter, sans-serif' }}>Cancel {detail?.ticket.number}?</h2>
-        <p style={{ fontSize: 12, color: 'var(--ink-3)' }}>
+        <h2 style={{ margin: 0, font: '700 19.5px Inter, sans-serif' }}>Cancel {detail?.ticket.number}?</h2>
+        <p style={{ fontSize: 14, color: 'var(--ink-3)' }}>
           Consumed parts go back to stock. {detail && detail.paidCents > 0 ? `Deposits of ${formatCents(detail.paidCents)} were taken — refund them from the register.` : ''}
         </p>
         <input
           value={cancelReason}
           onChange={(e) => setCancelReason(e.target.value)}
           placeholder="Reason * — e.g. customer declined quote"
-          style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--line)', fontSize: 13 }}
+          style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--line)', fontSize: 15 }}
         />
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12 }}>
           <Button variant="ghost" onClick={() => setCancelling(false)}>Keep ticket</Button>

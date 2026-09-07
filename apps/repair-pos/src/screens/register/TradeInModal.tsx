@@ -107,8 +107,8 @@ export function TradeInModal({
     <Modal open={open} onClose={() => { reset(); onClose(); }} width={480}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
         <div>
-          <h2 style={{ margin: 0, font: '700 18px Inter, sans-serif' }}>Trade-in</h2>
-          <p style={{ margin: '2px 0 0', color: 'var(--ink-3)', fontSize: 12 }}>Buying a device from the customer</p>
+          <h2 style={{ margin: 0, font: '700 20.5px Inter, sans-serif' }}>Trade-in</h2>
+          <p style={{ margin: '2px 0 0', color: 'var(--ink-3)', fontSize: 14 }}>Buying a device from the customer</p>
         </div>
         <button onClick={onClose} style={{ border: 'none', background: 'var(--line-soft)', borderRadius: 999, width: 28, height: 28 }}>
           <i className="bi bi-x" />
@@ -119,7 +119,7 @@ export function TradeInModal({
         <select
           value={rowId}
           onChange={(e) => setRowId(e.target.value === '' ? '' : Number(e.target.value))}
-          style={{ flex: 1, padding: '10px 12px', borderRadius: 10, border: '1px solid var(--line)', fontSize: 13, background: 'var(--card)' }}
+          style={{ flex: 1, padding: '10px 12px', borderRadius: 10, border: '1px solid var(--line)', fontSize: 15, background: 'var(--card)' }}
         >
           {book.map((b) => (
             <option key={b.id} value={b.id}>
@@ -131,11 +131,11 @@ export function TradeInModal({
           value={imei}
           onChange={(e) => setImei(e.target.value.replace(/[^0-9]/g, ''))}
           placeholder="Scan IMEI"
-          style={{ width: 130, padding: '10px 12px', borderRadius: 10, border: '1px solid var(--line)', fontSize: 13 }}
+          style={{ width: 130, padding: '10px 12px', borderRadius: 10, border: '1px solid var(--line)', fontSize: 15 }}
         />
       </div>
 
-      <div style={{ font: '600 10px Inter, sans-serif', color: 'var(--ink-4)', letterSpacing: '0.06em', margin: '14px 0 6px' }}>CONDITION</div>
+      <div style={{ font: '600 11.5px Inter, sans-serif', color: 'var(--ink-4)', letterSpacing: '0.06em', margin: '14px 0 6px' }}>CONDITION</div>
       <div style={{ display: 'flex', gap: 8 }}>
         {CONDITIONS.map((c) => (
           <button
@@ -150,16 +150,16 @@ export function TradeInModal({
               background: condition === c.id ? 'var(--orange-soft)' : 'var(--card)',
             }}
           >
-            <div style={{ font: '700 13px Inter, sans-serif' }}>{c.label}</div>
-            <div style={{ fontSize: 10.5, color: 'var(--ink-3)' }}>{c.sub}</div>
+            <div style={{ font: '700 15px Inter, sans-serif' }}>{c.label}</div>
+            <div style={{ fontSize: 12, color: 'var(--ink-3)' }}>{c.sub}</div>
           </button>
         ))}
       </div>
-      <div style={{ fontSize: 11, color: 'var(--ink-4)', marginTop: 5 }}>
+      <div style={{ fontSize: 12.5, color: 'var(--ink-4)', marginTop: 5 }}>
         {CONDITIONS.find((c) => c.id === condition)?.note}
       </div>
 
-      <div style={{ font: '600 10px Inter, sans-serif', color: 'var(--ink-4)', letterSpacing: '0.06em', margin: '14px 0 6px' }}>PAY OUT AS</div>
+      <div style={{ font: '600 11.5px Inter, sans-serif', color: 'var(--ink-4)', letterSpacing: '0.06em', margin: '14px 0 6px' }}>PAY OUT AS</div>
       <div style={{ display: 'flex', border: '1px solid var(--line)', borderRadius: 12, overflow: 'hidden' }}>
         {(
           [
@@ -176,7 +176,7 @@ export function TradeInModal({
               border: 'none',
               background: payout === id ? 'var(--navy)' : 'var(--card)',
               color: payout === id ? '#fff' : 'var(--ink)',
-              font: '600 13px Inter, sans-serif',
+              font: '600 15px Inter, sans-serif',
             }}
           >
             {label}
@@ -195,11 +195,11 @@ export function TradeInModal({
           alignItems: 'center',
         }}
       >
-        <div style={{ color: '#9aa1ad', fontSize: 11 }}>
-          <div style={{ font: '600 9px Inter, sans-serif', letterSpacing: '0.08em' }}>OFFER</div>
+        <div style={{ color: '#9aa1ad', fontSize: 12.5 }}>
+          <div style={{ font: '600 10.5px Inter, sans-serif', letterSpacing: '0.08em' }}>OFFER</div>
           {isManual ? `Manual override · suggested was ${suggested != null ? formatCents(suggested) : '—'}` : payout === 'credit' ? 'Store credit · includes bonus' : 'Cash from drawer'}
         </div>
-        <div style={{ color: 'var(--orange)', font: '800 30px Inter, sans-serif' }}>{formatCents(offerCents)}</div>
+        <div style={{ color: 'var(--orange)', font: '800 32px Inter, sans-serif' }}>{formatCents(offerCents)}</div>
       </div>
 
       {isManual ? (
@@ -209,7 +209,7 @@ export function TradeInModal({
             value={manual ?? ''}
             onChange={(e) => setManual(e.target.value.replace(/[^0-9.]/g, ''))}
             placeholder="Manual offer $"
-            style={{ flex: 1, padding: '10px 12px', borderRadius: 10, border: '1px solid var(--orange)', fontSize: 13 }}
+            style={{ flex: 1, padding: '10px 12px', borderRadius: 10, border: '1px solid var(--orange)', fontSize: 15 }}
           />
           <Button variant="ghost" onClick={() => setManual(null)}>
             Back to suggested
@@ -218,16 +218,16 @@ export function TradeInModal({
       ) : (
         <button
           onClick={() => setManual(suggested != null ? (suggested / 100).toFixed(2) : '')}
-          style={{ width: '100%', marginTop: 10, padding: '9px 0', borderRadius: 10, border: '1px dashed var(--line)', background: 'var(--card)', color: 'var(--ink-2)', font: '600 12px Inter, sans-serif' }}
+          style={{ width: '100%', marginTop: 10, padding: '9px 0', borderRadius: 10, border: '1px dashed var(--line)', background: 'var(--card)', color: 'var(--ink-2)', font: '600 14px Inter, sans-serif' }}
         >
           <i className="bi bi-pencil" /> Enter amount manually — manual amounts are logged against your ID
         </button>
       )}
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 10, fontSize: 11, color: 'var(--ink-4)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 10, fontSize: 12.5, color: 'var(--ink-4)' }}>
         <i className="bi bi-person-badge" /> ID checked and photographed · device added to Inventory › Trade-ins
       </div>
-      {error && <div style={{ color: 'var(--red)', fontSize: 12, marginTop: 8 }}>{error}</div>}
+      {error && <div style={{ color: 'var(--red)', fontSize: 14, marginTop: 8 }}>{error}</div>}
 
       <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
         <Button variant="ghost" style={{ flex: 1 }} onClick={() => { reset(); onClose(); }}>

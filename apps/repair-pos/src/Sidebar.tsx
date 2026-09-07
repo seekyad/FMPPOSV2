@@ -33,7 +33,7 @@ export function Sidebar({ onLock }: { onLock: () => void }) {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          font: '700 13px Inter, sans-serif',
+          font: '700 15px Inter, sans-serif',
           color: 'var(--navy)',
         }}
       >
@@ -57,8 +57,8 @@ export function Sidebar({ onLock }: { onLock: () => void }) {
               color: isActive ? 'var(--navy)' : '#9aa1ad',
             })}
           >
-            <i className={`bi ${item.icon}`} style={{ fontSize: 19 }} />
-            <span style={{ font: '600 8.5px Inter, sans-serif', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+            <i className={`bi ${item.icon}`} style={{ fontSize: 22 }} />
+            <span style={{ font: '600 10px Inter, sans-serif', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
               {item.label}
             </span>
           </NavLink>
@@ -80,8 +80,8 @@ export function Sidebar({ onLock }: { onLock: () => void }) {
           marginBottom: 14,
         }}
       >
-        <i className="bi bi-shop" style={{ fontSize: 18 }} />
-        <span style={{ font: '600 8.5px Inter, sans-serif', letterSpacing: '0.06em' }}>RETAIL</span>
+        <i className="bi bi-shop" style={{ fontSize: 20.5 }} />
+        <span style={{ font: '600 10px Inter, sans-serif', letterSpacing: '0.06em' }}>RETAIL</span>
       </button>
       <button
         onClick={onLock}
@@ -96,8 +96,8 @@ export function Sidebar({ onLock }: { onLock: () => void }) {
           gap: 5,
         }}
       >
-        <i className="bi bi-lock" style={{ fontSize: 18 }} />
-        <span style={{ font: '600 8.5px Inter, sans-serif', letterSpacing: '0.06em' }}>LOCK</span>
+        <i className="bi bi-lock" style={{ fontSize: 20.5 }} />
+        <span style={{ font: '600 10px Inter, sans-serif', letterSpacing: '0.06em' }}>LOCK</span>
       </button>
     </nav>
   );

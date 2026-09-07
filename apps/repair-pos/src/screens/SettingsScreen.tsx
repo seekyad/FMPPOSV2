@@ -125,7 +125,7 @@ export function CatalogTab() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ color: 'var(--ink-3)', fontSize: 12 }}>
+        <div style={{ color: 'var(--ink-3)', fontSize: 14 }}>
           Prices, part costs, labor and warranty per device model{isManager ? '' : ' — read-only (manager sign-in to edit)'}
         </div>
         <Button variant="secondary" disabled={!isManager} onClick={() => setAddingModel(true)}>
@@ -144,7 +144,7 @@ export function CatalogTab() {
               border: '1px solid var(--line)',
               background: modelId === m.id ? 'var(--navy)' : 'var(--card)',
               color: modelId === m.id ? '#fff' : 'var(--ink-2)',
-              font: '600 12px Inter, sans-serif',
+              font: '600 14px Inter, sans-serif',
             }}
           >
             {m.name}
@@ -155,7 +155,7 @@ export function CatalogTab() {
       <div style={{ marginTop: 14, background: 'var(--card)', borderRadius: 14, border: '1px solid var(--line-soft)', overflow: 'auto', flex: 1, padding: '6px 0' }}>
         {categories.map(([cat, catTypes]) => (
           <div key={cat}>
-            <div style={{ font: '600 10px Inter, sans-serif', color: 'var(--ink-4)', letterSpacing: '0.08em', padding: '12px 18px 4px' }}>
+            <div style={{ font: '600 11.5px Inter, sans-serif', color: 'var(--ink-4)', letterSpacing: '0.08em', padding: '12px 18px 4px' }}>
               {cat.toUpperCase()}
             </div>
             {catTypes.map((t) => {
@@ -174,7 +174,7 @@ export function CatalogTab() {
                     border: 'none',
                     background: 'transparent',
                     borderBottom: '1px solid var(--line-soft)',
-                    fontSize: 13,
+                    fontSize: 15,
                     textAlign: 'left',
                   }}
                 >
@@ -182,15 +182,15 @@ export function CatalogTab() {
                   <span style={{ display: 'flex', gap: 18, alignItems: 'center' }}>
                     {s ? (
                       <>
-                        <span style={{ fontSize: 11, color: 'var(--ink-4)' }}>
+                        <span style={{ fontSize: 12.5, color: 'var(--ink-4)' }}>
                           part {formatCents(s.partCostCents)} · labor {formatCents(s.laborCents)} · {s.warrantyDays}d
                         </span>
-                        <span style={{ font: '700 13px Inter, sans-serif' }}>{formatCents(s.priceCents)}</span>
+                        <span style={{ font: '700 15px Inter, sans-serif' }}>{formatCents(s.priceCents)}</span>
                       </>
                     ) : (
-                      <span style={{ fontSize: 11, color: 'var(--ink-4)' }}>not priced — quoted manually</span>
+                      <span style={{ fontSize: 12.5, color: 'var(--ink-4)' }}>not priced — quoted manually</span>
                     )}
-                    {isManager && <i className="bi bi-pencil" style={{ color: 'var(--ink-4)', fontSize: 12 }} />}
+                    {isManager && <i className="bi bi-pencil" style={{ color: 'var(--ink-4)', fontSize: 14 }} />}
                   </span>
                 </button>
               );
@@ -200,7 +200,7 @@ export function CatalogTab() {
       </div>
 
       <Modal open={editing !== null} onClose={() => setEditing(null)} width={380}>
-        <h2 style={{ margin: 0, font: '700 17px Inter, sans-serif' }}>
+        <h2 style={{ margin: 0, font: '700 19.5px Inter, sans-serif' }}>
           {models.find((m) => m.id === modelId)?.name} · {editing?.name}
         </h2>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 12 }}>
@@ -217,11 +217,11 @@ export function CatalogTab() {
               value={form[key]}
               onChange={(e) => setForm((prev) => ({ ...prev, [key]: e.target.value }))}
               placeholder={placeholder}
-              style={{ padding: '10px 12px', borderRadius: 10, border: '1px solid var(--line)', fontSize: 13 }}
+              style={{ padding: '10px 12px', borderRadius: 10, border: '1px solid var(--line)', fontSize: 15 }}
             />
           ))}
         </div>
-        {error && <div style={{ color: 'var(--red)', fontSize: 12, marginTop: 8 }}>{error}</div>}
+        {error && <div style={{ color: 'var(--red)', fontSize: 14, marginTop: 8 }}>{error}</div>}
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 14 }}>
           <Button variant="ghost" onClick={() => setEditing(null)}>Cancel</Button>
           <Button variant="primary" onClick={() => void saveService()}>Save pricing</Button>
@@ -229,9 +229,9 @@ export function CatalogTab() {
       </Modal>
 
       <Modal open={addingModel} onClose={() => setAddingModel(false)} width={360}>
-        <h2 style={{ margin: 0, font: '700 17px Inter, sans-serif' }}>Add device model</h2>
-        <input value={newBrand} onChange={(e) => setNewBrand(e.target.value)} placeholder="Brand — Apple" style={{ width: '100%', marginTop: 12, padding: '10px 12px', borderRadius: 10, border: '1px solid var(--line)', fontSize: 13 }} />
-        <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Model — iPhone 16" style={{ width: '100%', marginTop: 8, padding: '10px 12px', borderRadius: 10, border: '1px solid var(--line)', fontSize: 13 }} />
+        <h2 style={{ margin: 0, font: '700 19.5px Inter, sans-serif' }}>Add device model</h2>
+        <input value={newBrand} onChange={(e) => setNewBrand(e.target.value)} placeholder="Brand — Apple" style={{ width: '100%', marginTop: 12, padding: '10px 12px', borderRadius: 10, border: '1px solid var(--line)', fontSize: 15 }} />
+        <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Model — iPhone 16" style={{ width: '100%', marginTop: 8, padding: '10px 12px', borderRadius: 10, border: '1px solid var(--line)', fontSize: 15 }} />
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 14 }}>
           <Button variant="ghost" onClick={() => setAddingModel(false)}>Cancel</Button>
           <Button variant="primary" disabled={!newBrand.trim() || !newName.trim()} onClick={() => void addModel()}>Add model</Button>

@@ -37,23 +37,23 @@ export function PayoutModal({ open, onClose, onDone }: { open: boolean; onClose:
 
   return (
     <Modal open={open} onClose={onClose} width={360}>
-      <h2 style={{ margin: 0, font: '700 17px Inter, sans-serif' }}>Payout</h2>
-      <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--ink-3)' }}>
+      <h2 style={{ margin: 0, font: '700 19.5px Inter, sans-serif' }}>Payout</h2>
+      <p style={{ margin: '4px 0 0', fontSize: 14, color: 'var(--ink-3)' }}>
         Cash paid from the register — every payout is logged with your name.
       </p>
       <input
         value={amount}
         onChange={(e) => setAmount(e.target.value)}
         placeholder="Amount $ *"
-        style={{ width: '100%', marginTop: 12, padding: '10px 12px', borderRadius: 10, border: '1px solid var(--line)', fontSize: 13 }}
+        style={{ width: '100%', marginTop: 12, padding: '10px 12px', borderRadius: 10, border: '1px solid var(--line)', fontSize: 15 }}
       />
       <input
         value={reason}
         onChange={(e) => setReason(e.target.value)}
         placeholder="Reason * — e.g. parts run, window cleaner"
-        style={{ width: '100%', marginTop: 8, padding: '10px 12px', borderRadius: 10, border: '1px solid var(--line)', fontSize: 13 }}
+        style={{ width: '100%', marginTop: 8, padding: '10px 12px', borderRadius: 10, border: '1px solid var(--line)', fontSize: 15 }}
       />
-      {error && <div style={{ color: 'var(--red)', fontSize: 12, marginTop: 8 }}>{error}</div>}
+      {error && <div style={{ color: 'var(--red)', fontSize: 14, marginTop: 8 }}>{error}</div>}
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 14 }}>
         <Button variant="ghost" onClick={onClose}>Cancel</Button>
         <Button variant="primary" disabled={busy || cents <= 0} onClick={() => void pay()}>

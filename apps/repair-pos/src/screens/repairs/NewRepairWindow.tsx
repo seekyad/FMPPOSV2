@@ -224,13 +224,13 @@ export function NewRepairWindow({
   if (!open) return null;
 
   const col = { flex: 1, minWidth: 0, padding: '16px 18px', overflow: 'auto' as const };
-  const label = { font: '600 10px Inter, sans-serif', color: 'var(--ink-4)', letterSpacing: '0.06em', marginBottom: 6 };
+  const label = { font: '600 11.5px Inter, sans-serif', color: 'var(--ink-4)', letterSpacing: '0.06em', marginBottom: 6 };
   const inputStyle = {
     width: '100%',
     padding: '10px 12px',
     borderRadius: 10,
     border: '1px solid var(--line)',
-    fontSize: 13,
+    fontSize: 15,
   };
 
   return (
@@ -238,7 +238,7 @@ export function NewRepairWindow({
       <div style={{ width: 'min(1240px, calc(100vw - 32px))', height: 'min(780px, calc(100vh - 32px))', background: 'var(--card)', borderRadius: 18, boxShadow: 'var(--shadow)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 18px', borderBottom: '1px solid var(--line-soft)' }}>
-          <h2 style={{ margin: 0, font: '700 18px Inter, sans-serif' }}>New repair</h2>
+          <h2 style={{ margin: 0, font: '700 20.5px Inter, sans-serif' }}>New repair</h2>
           <div style={{ display: 'flex', gap: 6, flex: 1, overflow: 'auto' }}>
             {devices.map((d, i) => (
               <button
@@ -253,7 +253,7 @@ export function NewRepairWindow({
                   border: 'none',
                   background: activeDevice === i ? 'var(--navy)' : 'var(--line-soft)',
                   color: activeDevice === i ? '#fff' : 'var(--ink-2)',
-                  font: '600 12px Inter, sans-serif',
+                  font: '600 14px Inter, sans-serif',
                   whiteSpace: 'nowrap',
                 }}
               >
@@ -282,14 +282,14 @@ export function NewRepairWindow({
                 setDevices((prev) => [...prev, emptyDevice()]);
                 setActiveDevice(devices.length);
               }}
-              style={{ padding: '6px 12px', borderRadius: 999, border: 'none', background: 'var(--orange-soft)', color: 'var(--orange)', font: '600 12px Inter, sans-serif', whiteSpace: 'nowrap' }}
+              style={{ padding: '6px 12px', borderRadius: 999, border: 'none', background: 'var(--orange-soft)', color: 'var(--orange)', font: '600 14px Inter, sans-serif', whiteSpace: 'nowrap' }}
             >
               + Add device
             </button>
           </div>
           <Button variant="ghost" onClick={reset}>Clear</Button>
           <button onClick={() => { reset(); onClose(); }} style={{ border: 'none', background: 'var(--line-soft)', borderRadius: 999, width: 30, height: 30 }}>
-            <i className="bi bi-x-lg" style={{ fontSize: 12 }} />
+            <i className="bi bi-x-lg" style={{ fontSize: 14 }} />
           </button>
         </div>
 
@@ -301,10 +301,10 @@ export function NewRepairWindow({
             {customer ? (
               <div style={{ border: '1px solid var(--line)', borderRadius: 10, padding: '10px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
-                  <div style={{ font: '600 13px Inter, sans-serif' }}>{customer.name}</div>
-                  <div style={{ fontSize: 11, color: 'var(--ink-3)' }}>{customer.phone}</div>
+                  <div style={{ font: '600 15px Inter, sans-serif' }}>{customer.name}</div>
+                  <div style={{ fontSize: 12.5, color: 'var(--ink-3)' }}>{customer.phone}</div>
                 </div>
-                <button onClick={() => setCustomer(null)} style={{ border: 'none', background: 'none', color: 'var(--red)', fontSize: 11 }}>
+                <button onClick={() => setCustomer(null)} style={{ border: 'none', background: 'none', color: 'var(--red)', fontSize: 12.5 }}>
                   change
                 </button>
               </div>
@@ -316,7 +316,7 @@ export function NewRepairWindow({
                   <button
                     key={m.id}
                     onClick={() => setCustomer(m)}
-                    style={{ width: '100%', marginTop: 6, padding: '8px 12px', borderRadius: 10, border: '1px dashed var(--orange)', background: 'var(--orange-soft)', textAlign: 'left', fontSize: 12 }}
+                    style={{ width: '100%', marginTop: 6, padding: '8px 12px', borderRadius: 10, border: '1px dashed var(--orange)', background: 'var(--orange-soft)', textAlign: 'left', fontSize: 14 }}
                   >
                     <b>{m.name}</b> · {m.phone} — <span style={{ color: 'var(--orange)' }}>Use</span>
                   </button>
@@ -336,13 +336,13 @@ export function NewRepairWindow({
                 border: `1px solid ${callFlag ? 'var(--purple)' : 'var(--line)'}`,
                 background: callFlag ? 'var(--purple)' : 'var(--card)',
                 color: callFlag ? '#fff' : 'var(--ink-2)',
-                font: '600 12px Inter, sans-serif',
+                font: '600 14px Inter, sans-serif',
               }}
             >
               <i className={`bi ${callFlag ? 'bi-telephone-fill' : 'bi-telephone'}`} />
               {callFlag ? 'Call priority on' : 'Flag as call priority'}
             </button>
-            <div style={{ fontSize: 10.5, color: 'var(--ink-4)', marginTop: 4 }}>
+            <div style={{ fontSize: 12, color: 'var(--ink-4)', marginTop: 4 }}>
               {callFlag ? 'Ticket will show a Call flag on the Repairs board' : 'Customer wants a call as soon as it’s done'}
             </div>
 
@@ -362,7 +362,7 @@ export function NewRepairWindow({
                     border: '1px solid var(--line)',
                     background: device.powersOn === o.v ? 'var(--navy)' : 'var(--card)',
                     color: device.powersOn === o.v ? '#fff' : 'var(--ink-2)',
-                    font: '600 12px Inter, sans-serif',
+                    font: '600 14px Inter, sans-serif',
                   }}
                 >
                   <i className={`bi ${o.icon}`} /> {o.label}
@@ -390,7 +390,7 @@ export function NewRepairWindow({
                     border: '1px solid var(--line)',
                     background: device.unlockMethod === m ? 'var(--navy)' : 'var(--card)',
                     color: device.unlockMethod === m ? '#fff' : 'var(--ink-2)',
-                    font: '600 11px Inter, sans-serif',
+                    font: '600 12.5px Inter, sans-serif',
                     textTransform: 'capitalize',
                   }}
                 >
@@ -454,7 +454,7 @@ export function NewRepairWindow({
               style={{ ...inputStyle, marginTop: 8 }}
             />
             <div style={{ position: 'relative', marginTop: 10 }}>
-              <i className="bi bi-search" style={{ position: 'absolute', left: 12, top: 11, color: 'var(--ink-4)', fontSize: 13 }} />
+              <i className="bi bi-search" style={{ position: 'absolute', left: 12, top: 11, color: 'var(--ink-4)', fontSize: 15 }} />
               <input
                 value={typeQuery}
                 onChange={(e) => setTypeQuery(e.target.value)}
@@ -469,7 +469,7 @@ export function NewRepairWindow({
                   <div key={cat} style={{ marginBottom: 4 }}>
                     <button
                       onClick={() => setOpenCategory((prev) => (prev === cat ? null : cat))}
-                      style={{ width: '100%', display: 'flex', justifyContent: 'space-between', padding: '8px 10px', borderRadius: 8, border: 'none', background: expanded ? 'var(--line-soft)' : 'transparent', font: '600 12.5px Inter, sans-serif', color: 'var(--ink)' }}
+                      style={{ width: '100%', display: 'flex', justifyContent: 'space-between', padding: '8px 10px', borderRadius: 8, border: 'none', background: expanded ? 'var(--line-soft)' : 'transparent', font: '600 14.5px Inter, sans-serif', color: 'var(--ink)' }}
                     >
                       {cat}
                       <span style={{ color: 'var(--ink-4)', fontWeight: 500 }}>{types.length}</span>
@@ -491,7 +491,7 @@ export function NewRepairWindow({
                               borderRadius: 8,
                               border: 'none',
                               background: selected ? 'var(--orange-soft)' : 'transparent',
-                              fontSize: 12.5,
+                              fontSize: 14.5,
                               color: 'var(--ink-2)',
                             }}
                           >
@@ -499,7 +499,7 @@ export function NewRepairWindow({
                               <i className={`bi ${selected ? 'bi-check-circle-fill' : 'bi-circle'}`} style={{ color: selected ? 'var(--orange)' : 'var(--line)', marginRight: 8 }} />
                               {t.name}
                             </span>
-                            {cat2 && <span style={{ font: '600 11px Inter, sans-serif', color: 'var(--ink-3)' }}>{formatCents(cat2.priceCents)}</span>}
+                            {cat2 && <span style={{ font: '600 12.5px Inter, sans-serif', color: 'var(--ink-3)' }}>{formatCents(cat2.priceCents)}</span>}
                           </button>
                         );
                       })}
@@ -518,14 +518,14 @@ export function NewRepairWindow({
                 if (deviceLines.length === 0) return null;
                 return (
                   <div key={di} style={{ marginBottom: 14 }}>
-                    <div style={{ font: '600 10px Inter, sans-serif', color: 'var(--ink-4)', letterSpacing: '0.06em' }}>
+                    <div style={{ font: '600 11.5px Inter, sans-serif', color: 'var(--ink-4)', letterSpacing: '0.06em' }}>
                       DEVICE {di + 1} · {(d.label || 'Device').toUpperCase()}
                     </div>
                     {deviceLines.map((l, li) => (
                       <div key={li} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 8 }}>
                         <div>
-                          <div style={{ font: '600 13px Inter, sans-serif' }}>{l.description}</div>
-                          <div style={{ fontSize: 10.5, color: 'var(--ink-4)' }}>
+                          <div style={{ font: '600 15px Inter, sans-serif' }}>{l.description}</div>
+                          <div style={{ fontSize: 12, color: 'var(--ink-4)' }}>
                             {l.serviceCatalogId ? `OEM-grade · ${l.warrantyDays}-day warranty` : 'Custom price'}
                           </div>
                         </div>
@@ -535,7 +535,7 @@ export function NewRepairWindow({
                             const v = Math.round(parseFloat(e.target.value || '0') * 100);
                             setLines((prev) => prev.map((x) => (x === l ? { ...x, priceCents: Number.isFinite(v) ? Math.max(0, v) : 0 } : x)));
                           }}
-                          style={{ width: 72, textAlign: 'right', padding: '5px 8px', borderRadius: 8, border: '1px solid var(--line)', font: '700 13px Inter, sans-serif' }}
+                          style={{ width: 72, textAlign: 'right', padding: '5px 8px', borderRadius: 8, border: '1px solid var(--line)', font: '700 15px Inter, sans-serif' }}
                         />
                       </div>
                     ))}
@@ -543,23 +543,23 @@ export function NewRepairWindow({
                 );
               })}
               {lines.length === 0 && (
-                <div style={{ color: 'var(--ink-4)', fontSize: 12, marginTop: 20, textAlign: 'center' }}>
+                <div style={{ color: 'var(--ink-4)', fontSize: 14, marginTop: 20, textAlign: 'center' }}>
                   Pick repair types to build the ticket.
                 </div>
               )}
             </div>
             <div style={{ borderTop: '1px solid var(--line-soft)', paddingTop: 10 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--ink-3)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: 'var(--ink-3)' }}>
                 <span>Parts + labor</span>
                 <span>{formatCents(totals.subtotalCents)}</span>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--ink-3)', marginTop: 3 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: 'var(--ink-3)', marginTop: 3 }}>
                 <span>Tax 6%</span>
                 <span>{formatCents(totals.taxCents)}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}>
-                <span style={{ font: '700 14px Inter, sans-serif' }}>Ticket total</span>
-                <span style={{ font: '800 20px Inter, sans-serif' }}>{formatCents(totals.totalCents)}</span>
+                <span style={{ font: '700 16px Inter, sans-serif' }}>Ticket total</span>
+                <span style={{ font: '800 23px Inter, sans-serif' }}>{formatCents(totals.totalCents)}</span>
               </div>
             </div>
           </div>
@@ -567,7 +567,7 @@ export function NewRepairWindow({
 
         {/* Footer — payment exits */}
         <div style={{ borderTop: '1px solid var(--line-soft)', padding: '12px 18px', display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ flex: 1, fontSize: 11, color: 'var(--ink-3)' }}>
+          <div style={{ flex: 1, fontSize: 12.5, color: 'var(--ink-3)' }}>
             <b style={{ color: 'var(--ink)' }}>How is the customer paying?</b>
             <br />
             Paying now adds the devices to the current sale. Paying at pickup sends it to the Repairs board as unpaid.

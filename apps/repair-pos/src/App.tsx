@@ -14,7 +14,7 @@ import { ReportsScreen } from './screens/ReportsScreen';
 function Placeholder({ title }: { title: string }) {
   return (
     <div style={{ padding: 32 }}>
-      <h1 style={{ margin: 0, font: '700 26px Inter, sans-serif' }}>{title}</h1>
+      <h1 style={{ margin: 0, font: '700 30px Inter, sans-serif' }}>{title}</h1>
       <p style={{ color: 'var(--ink-3)' }}>Coming in the next phase.</p>
     </div>
   );
