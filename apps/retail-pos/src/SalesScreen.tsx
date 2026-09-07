@@ -9,6 +9,7 @@ import {
   CustomerModal,
   InventoryPickerModal,
   PaymentModal,
+  useNarrow,
   type CartCustomer,
   type CartLine,
   type PaymentDraft,
@@ -20,6 +21,7 @@ type OpenModal = null | 'custom' | 'customer' | 'accessory' | 'device' | 'paymen
 /** Retail register: device & accessory sales on the shared inventory. */
 export function SalesScreen() {
   const user = session.user;
+  const narrow = useNarrow();
   const [lines, setLines] = useState<CartLine[]>([]);
   const [customer, setCustomer] = useState<CartCustomer | null>(null);
   const [modal, setModal] = useState<OpenModal>(null);
@@ -107,8 +109,14 @@ export function SalesScreen() {
   ];
 
   return (
-    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
-      <div style={{ flex: 1, minWidth: 0, padding: '22px 24px', overflow: 'auto' }}>
+    <div
+      style={
+        narrow
+          ? { display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'auto' }
+          : { display: 'flex', height: '100vh', overflow: 'hidden' }
+      }
+    >
+      <div style={{ flex: narrow ? '0 0 auto' : 1, minWidth: 0, padding: '22px 24px', overflow: narrow ? 'visible' : 'auto' }}>
         <h1 style={{ margin: 0, font: '700 27.5px Inter, sans-serif' }}>New sale</h1>
         <div style={{ color: 'var(--ink-3)', fontSize: 14, marginTop: 2 }}>
           {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })} · {user?.name}
@@ -128,7 +136,17 @@ export function SalesScreen() {
         </div>
       </div>
 
-      <div style={{ width: 340, flexShrink: 0, background: 'var(--card)', borderLeft: '1px solid var(--line-soft)', display: 'flex', flexDirection: 'column' }}>
+      <div
+        style={{
+          width: narrow ? '100%' : 340,
+          flexShrink: 0,
+          background: 'var(--card)',
+          borderLeft: narrow ? 'none' : '1px solid var(--line-soft)',
+          borderTop: narrow ? '1px solid var(--line-soft)' : 'none',
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+      >
         <div style={{ padding: '20px 20px 12px', borderBottom: '1px solid var(--line-soft)' }}>
           <h2 style={{ margin: 0, font: '700 20.5px Inter, sans-serif' }}>Current sale</h2>
           <div style={{ fontSize: 12.5, color: 'var(--ink-3)', marginTop: 2 }}>

@@ -6,4 +6,6 @@ export { PaymentModal, type PaymentDraft } from './PaymentModal';
 export { CustomerModal } from './CustomerModal';
 export { InventoryPickerModal, type PickableItem } from './InventoryPickerModal';
 export { CustomersScreen } from './CustomersScreen';
+export { useNarrow } from './useNarrow';
+export { SidePanel } from './SidePanel';
 export { InventoryScreen } from './InventoryScreen';

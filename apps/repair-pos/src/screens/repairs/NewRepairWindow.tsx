@@ -454,10 +454,10 @@ export function NewRepairWindow({
           </div>
         </div>
 
-        {/* Body */}
-        <div className="flex min-h-0 flex-1">
+        {/* Body — stacks vertically on tablet portrait */}
+        <div className="flex min-h-0 flex-1 max-[1080px]:flex-col max-[1080px]:overflow-y-auto">
           {/* 1 · Customer + condition */}
-          <div className="w-[360px] shrink-0 overflow-y-auto border-r border-line-soft p-5 max-xl:w-[300px] max-xl:p-4">
+          <div className="w-[360px] shrink-0 overflow-y-auto border-r border-line-soft p-5 max-xl:w-[300px] max-xl:p-4 max-[1080px]:w-full max-[1080px]:overflow-visible max-[1080px]:border-r-0 max-[1080px]:border-b">
             <div className={sectionCls}>1 · CUSTOMER</div>
             {customer ? (
               <div className="mt-3 flex items-center justify-between rounded-[10px] border border-line px-3.5 py-3">
@@ -575,7 +575,7 @@ export function NewRepairWindow({
           </div>
 
           {/* 2 · Device picker → repair types (tap-first flow) */}
-          <div className="flex min-w-0 flex-1 flex-col border-r border-line-soft">
+          <div className="flex min-w-0 flex-1 flex-col border-r border-line-soft max-[1080px]:min-h-[540px] max-[1080px]:border-r-0 max-[1080px]:border-b">
             {!deviceChosen ? (
               <>
                 <div className="flex items-center justify-between px-5 pt-5">
@@ -780,7 +780,7 @@ export function NewRepairWindow({
           </div>
 
           {/* 3 · Ticket summary */}
-          <div className="flex w-[400px] shrink-0 flex-col overflow-y-auto p-5 max-xl:w-[330px] max-xl:p-4">
+          <div className="flex w-[400px] shrink-0 flex-col overflow-y-auto p-5 max-xl:w-[330px] max-xl:p-4 max-[1080px]:w-full max-[1080px]:overflow-visible">
             <div className={sectionCls}>4 · TICKET SUMMARY</div>
             <div className="min-h-0 flex-1">
               {devices.map((d, di) => {

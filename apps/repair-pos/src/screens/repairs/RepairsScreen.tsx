@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { formatCents } from '@fmp/shared';
 import { Button, DataTable, Modal, StatusChip } from '@fmp/ui';
-import { api } from '@fmp/pos-client';
+import { api, SidePanel } from '@fmp/pos-client';
 import { DepositModal } from './DepositModal';
 import { NewRepairWindow, type CreatedTicket } from './NewRepairWindow';
 import { printTicketLabel } from './labels';
@@ -289,7 +289,8 @@ export function RepairsScreen() {
       </div>
 
       {/* Detail panel */}
-      <div style={{ width: 340, flexShrink: 0, background: 'var(--card)', borderLeft: '1px solid var(--line-soft)', overflow: 'auto', padding: '22px 20px' }}>
+      <SidePanel open={detailId !== null} onClose={() => setDetailId(null)}>
+        <div style={{ padding: '22px 20px' }}>
         {detail ? (
           <>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
@@ -435,7 +436,8 @@ export function RepairsScreen() {
         ) : (
           <div style={{ color: 'var(--ink-4)', fontSize: 15, marginTop: 40, textAlign: 'center' }}>Select a ticket.</div>
         )}
-      </div>
+        </div>
+      </SidePanel>
 
       <NewRepairWindow open={newOpen} onClose={() => setNewOpen(false)} onCreated={handleCreated} />
       <DepositModal ticket={depositTicket} onClose={() => setDepositTicket(null)} onDone={() => void refreshAll()} />

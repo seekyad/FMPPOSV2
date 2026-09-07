@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { formatCents } from '@fmp/shared';
 import { Button, DataTable, Modal, StatusChip } from '@fmp/ui';
 import { api } from './api';
+import { SidePanel } from './SidePanel';
 
 interface CustomerRow {
   id: number;
@@ -163,7 +164,8 @@ export function CustomersScreen() {
       </div>
 
       {/* Drill-in */}
-      <div style={{ width: 340, flexShrink: 0, background: 'var(--card)', borderLeft: '1px solid var(--line-soft)', overflow: 'auto', padding: '22px 20px' }}>
+      <SidePanel open={selectedId !== null} onClose={() => setSelectedId(null)}>
+        <div style={{ padding: '22px 20px' }}>
         {detail ? (
           <>
             <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
@@ -232,7 +234,8 @@ export function CustomersScreen() {
         ) : (
           <div style={{ color: 'var(--ink-4)', fontSize: 15, marginTop: 40, textAlign: 'center' }}>Select a customer.</div>
         )}
-      </div>
+        </div>
+      </SidePanel>
 
       <Modal open={creating} onClose={() => setCreating(false)} width={400}>
         <h2 style={{ margin: 0, font: '700 20.5px Inter, sans-serif' }}>New customer</h2>

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { computeTotals, formatCents } from '@fmp/shared';
 import { Button, Modal } from '@fmp/ui';
-import { api, session } from '@fmp/pos-client';
+import { api, session, useNarrow } from '@fmp/pos-client';
 import { lineKey, type CartCustomer, type CartLine } from '@fmp/pos-client';
 import { CustomItemModal } from '@fmp/pos-client';
 import { CustomerModal } from '@fmp/pos-client';
@@ -29,6 +29,7 @@ type OpenModal = null | 'custom' | 'customer' | 'accessory' | 'device' | 'paymen
 
 export function RegisterScreen() {
   const user = session.user;
+  const narrow = useNarrow();
   const [lines, setLines] = useState<CartLine[]>([]);
   const [customer, setCustomer] = useState<CartCustomer | null>(null);
   const [modal, setModal] = useState<OpenModal>(null);
@@ -220,9 +221,24 @@ export function RegisterScreen() {
   ];
 
   return (
-    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
+    <div
+      style={
+        narrow
+          ? { display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'auto' }
+          : { display: 'flex', height: '100vh', overflow: 'hidden' }
+      }
+    >
       {/* Left: actions + search + strip */}
-      <div style={{ flex: 1, minWidth: 0, padding: '22px 24px', display: 'flex', flexDirection: 'column', overflow: 'auto' }}>
+      <div
+        style={{
+          flex: narrow ? '0 0 auto' : 1,
+          minWidth: 0,
+          padding: '22px 24px',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: narrow ? 'visible' : 'auto',
+        }}
+      >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <h1 style={{ margin: 0, font: '700 27.5px Inter, sans-serif' }}>New sale</h1>
@@ -304,13 +320,14 @@ export function RegisterScreen() {
         </div>
       </div>
 
-      {/* Right: current sale */}
+      {/* Right (portrait: below): current sale */}
       <div
         style={{
-          width: 360,
+          width: narrow ? '100%' : 360,
           flexShrink: 0,
           background: 'var(--card)',
-          borderLeft: '1px solid var(--line-soft)',
+          borderLeft: narrow ? 'none' : '1px solid var(--line-soft)',
+          borderTop: narrow ? '1px solid var(--line-soft)' : 'none',
           display: 'flex',
           flexDirection: 'column',
         }}

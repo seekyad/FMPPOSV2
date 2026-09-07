@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { formatCents } from '@fmp/shared';
 import { Button, Modal } from '@fmp/ui';
-import { api, session } from '@fmp/pos-client';
+import { api, session, SidePanel } from '@fmp/pos-client';
 
 interface ParkedLine {
   id: number;
@@ -178,7 +178,8 @@ export function PendingSalesScreen() {
       </div>
 
       {/* Detail panel */}
-      <div style={{ width: 340, flexShrink: 0, background: 'var(--card)', borderLeft: '1px solid var(--line-soft)', display: 'flex', flexDirection: 'column', padding: '22px 20px' }}>
+      <SidePanel open={selected !== null} onClose={() => setSelected(null)}>
+        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, padding: '22px 20px' }}>
         {selected ? (
           <>
             <h2 style={{ margin: 0, font: '700 20.5px Inter, sans-serif' }}>{selected.customerName ?? 'Walk-in'}</h2>
@@ -232,7 +233,8 @@ export function PendingSalesScreen() {
         ) : (
           <div style={{ color: 'var(--ink-4)', fontSize: 15, marginTop: 40, textAlign: 'center' }}>Select a held sale.</div>
         )}
-      </div>
+        </div>
+      </SidePanel>
 
       <Modal open={voiding !== null} onClose={() => setVoiding(null)} width={360}>
         <h2 style={{ margin: 0, font: '700 19.5px Inter, sans-serif' }}>Delete this held sale?</h2>

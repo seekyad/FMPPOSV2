@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNarrow } from '@fmp/pos-client';
 import { PricebookTab } from './PricebookTab';
 import { StaffTab } from './StaffTab';
 import { TimeClockTab } from './TimeClockTab';
@@ -18,15 +19,24 @@ type SectionId = (typeof SECTIONS)[number]['id'];
 
 /** Settings: vertical sections navigation, matching the approved design. */
 export function SettingsHub() {
+  const narrow = useNarrow();
   const [section, setSection] = useState<SectionId>('store');
   const active = SECTIONS.find((s) => s.id === section)!;
 
   return (
-    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
-      <div style={{ width: 264, flexShrink: 0, borderRight: '1px solid var(--line-soft)', background: 'var(--card)', padding: '24px 16px', overflow: 'auto' }}>
-        <div style={{ font: '600 11.5px Inter, sans-serif', color: 'var(--ink-4)', letterSpacing: '0.08em', padding: '0 12px', marginBottom: 10 }}>
-          SECTIONS
-        </div>
+    <div style={{ display: 'flex', flexDirection: narrow ? 'column' : 'row', height: '100vh', overflow: 'hidden' }}>
+      <div
+        style={
+          narrow
+            ? { display: 'flex', gap: 6, overflowX: 'auto', flexShrink: 0, padding: '14px 16px', borderBottom: '1px solid var(--line-soft)', background: 'var(--card)' }
+            : { width: 264, flexShrink: 0, borderRight: '1px solid var(--line-soft)', background: 'var(--card)', padding: '24px 16px', overflow: 'auto' }
+        }
+      >
+        {!narrow && (
+          <div style={{ font: '600 11.5px Inter, sans-serif', color: 'var(--ink-4)', letterSpacing: '0.08em', padding: '0 12px', marginBottom: 10 }}>
+            SECTIONS
+          </div>
+        )}
         {SECTIONS.map((s) => {
           const isActive = section === s.id;
           return (
@@ -36,16 +46,18 @@ export function SettingsHub() {
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: 12,
-                width: '100%',
-                padding: '13px 12px',
-                borderRadius: 12,
+                gap: narrow ? 8 : 12,
+                width: narrow ? 'auto' : '100%',
+                whiteSpace: 'nowrap',
+                padding: narrow ? '10px 16px' : '13px 12px',
+                borderRadius: narrow ? 999 : 12,
                 border: 'none',
-                background: isActive ? 'var(--orange-soft)' : 'transparent',
+                background: isActive ? 'var(--orange-soft)' : narrow ? 'var(--line-soft)' : 'transparent',
                 color: isActive ? 'var(--orange)' : 'var(--ink-2)',
-                font: `600 15px Inter, sans-serif`,
+                font: `600 ${narrow ? 14 : 15}px Inter, sans-serif`,
                 textAlign: 'left',
-                marginBottom: 2,
+                marginBottom: narrow ? 0 : 2,
+                flexShrink: 0,
               }}
             >
               <i className={`bi ${s.icon}`} style={{ fontSize: 17 }} />

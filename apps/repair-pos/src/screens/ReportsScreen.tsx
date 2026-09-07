@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { formatCents, parseDollars } from '@fmp/shared';
 import { Button, Modal } from '@fmp/ui';
-import { api, session } from '@fmp/pos-client';
+import { api, session, useNarrow } from '@fmp/pos-client';
 
 interface Summary {
   range: string;
@@ -50,6 +50,7 @@ const CATEGORY_META: Array<{ key: keyof Summary['revenueByCategory']; label: str
 ];
 
 export function ReportsScreen() {
+  const narrow = useNarrow();
   const [range, setRange] = useState<string>('today');
   const [data, setData] = useState<Summary | null>(null);
   const [closing, setClosing] = useState(false);
@@ -167,7 +168,7 @@ export function ReportsScreen() {
       </div>
 
       {/* KPI tiles */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginTop: 14 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: narrow ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: 12, marginTop: 14 }}>
         <div style={card}>
           <div style={{ font: '600 11.5px Inter, sans-serif', color: 'var(--ink-4)', letterSpacing: '0.06em' }}>GROSS SALES</div>
           <div style={{ font: '800 30px Inter, sans-serif', marginTop: 4 }}>{formatCents(data.grossSalesCents)}</div>
@@ -198,7 +199,7 @@ export function ReportsScreen() {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 12, marginTop: 12, alignItems: 'start' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: narrow ? '1fr' : '1.4fr 1fr', gap: 12, marginTop: 12, alignItems: 'start' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div style={card}>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>

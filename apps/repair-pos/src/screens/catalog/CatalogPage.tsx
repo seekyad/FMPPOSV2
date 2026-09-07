@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { formatCents, parseDollars } from '@fmp/shared';
 import { Button, DataTable, Modal, StatusChip, type Column } from '@fmp/ui';
-import { api, session } from '@fmp/pos-client';
+import { api, session, SidePanel } from '@fmp/pos-client';
 
 export interface ServiceRow {
   id: number;
@@ -167,7 +167,8 @@ export function CatalogPage() {
       </div>
 
       {/* Detail panel */}
-      <div style={{ width: 360, flexShrink: 0, background: 'var(--card)', borderLeft: '1px solid var(--line-soft)', overflow: 'auto', padding: '24px 22px', display: 'flex', flexDirection: 'column' }}>
+      <SidePanel open={selectedId !== null} onClose={() => setSelectedId(null)} width={360}>
+        <div style={{ padding: '24px 22px', display: 'flex', flexDirection: 'column', flex: 1 }}>
         {selected ? (
           <>
             <div style={{ color: 'var(--orange)', font: '600 13px Inter, sans-serif' }}>{selected.category}</div>
@@ -246,7 +247,8 @@ export function CatalogPage() {
         ) : (
           <div style={{ color: 'var(--ink-4)', fontSize: 15, marginTop: 40, textAlign: 'center' }}>Select a service.</div>
         )}
-      </div>
+        </div>
+      </SidePanel>
 
       <ServiceEditorModal
         editing={editing}
