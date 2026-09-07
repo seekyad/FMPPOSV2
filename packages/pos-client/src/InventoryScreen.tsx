@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { formatCents, parseDollars } from '@fmp/shared';
-import { Button, Modal, StatusChip } from '@fmp/ui';
+import { Button, DataTable, Modal, StatusChip, type Column } from '@fmp/ui';
 import { api, session } from './api';
 
 interface Item {
@@ -50,16 +50,25 @@ export function InventoryScreen() {
   const [tab, setTab] = useState<TabId>('phones');
   const [rows, setRows] = useState<Item[]>([]);
   const [counts, setCounts] = useState<Record<string, number>>({});
-  const [query, setQuery] = useState('');
+  const [totals, setTotals] = useState({ unitsOnHand: 0, costCents: 0, retailCents: 0 });
+  const [storeName, setStoreName] = useState('');
   const [adding, setAdding] = useState(false);
   const [adjusting, setAdjusting] = useState<Item | null>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
   const isManager = session.user?.role === 'manager';
 
   async function load() {
-    const res = await api<{ rows: Item[]; counts: Array<{ kind: string; fromTradeIn: boolean; status: string; n: number }> }>(
-      `/api/inventory?tab=${tab}&query=${encodeURIComponent(query)}`,
-    ).catch(() => ({ rows: [], counts: [] }));
+    const res = await api<{
+      rows: Item[];
+      counts: Array<{ kind: string; fromTradeIn: boolean; status: string; n: number }>;
+      totals: { unitsOnHand: number; costCents: number; retailCents: number };
+    }>(`/api/inventory?tab=${tab}`).catch(() => ({
+      rows: [],
+      counts: [],
+      totals: { unitsOnHand: 0, costCents: 0, retailCents: 0 },
+    }));
     setRows(res.rows);
+    setTotals(res.totals);
     const c = { phones: 0, parts: 0, accessories: 0, tradeins: 0, sold: 0 };
     for (const row of res.counts) {
       const n = Number(row.n);
@@ -74,108 +83,161 @@ export function InventoryScreen() {
   }
 
   useEffect(() => {
-    const t = setTimeout(() => void load(), 150);
-    return () => clearTimeout(t);
-  }, [tab, query]);
+    void load();
+  }, [tab]);
 
-  const retailValue = useMemo(() => rows.reduce((s, r) => s + r.priceCents * (r.kind === 'device' ? 1 : r.qty), 0), [rows]);
+  useEffect(() => {
+    void api<{ name: string }>('/api/settings/store')
+      .then((s) => setStoreName(s.name))
+      .catch(() => {});
+  }, []);
+
+  const shownRetailValue = useMemo(
+    () => rows.reduce((s, r) => s + r.priceCents * (r.kind === 'device' ? 1 : r.qty), 0),
+    [rows],
+  );
+
+  const isDeviceTab = tab === 'phones' || tab === 'tradeins' || tab === 'sold';
+  const columns: Array<Column<Item>> = [
+    {
+      key: 'model',
+      label: 'Model',
+      sortValue: (r) => r.name,
+      render: (r) => <span style={{ font: '600 15px Inter, sans-serif' }}>{r.name}</span>,
+    },
+    isDeviceTab
+      ? {
+          key: 'storage',
+          label: 'Storage',
+          sortValue: (r) => r.storage ?? '',
+          render: (r) => <span style={{ color: 'var(--ink-2)' }}>{r.storage ?? '—'}</span>,
+        }
+      : {
+          key: 'sku',
+          label: 'SKU',
+          sortValue: (r) => r.sku ?? '',
+          render: (r) => <span style={{ color: 'var(--ink-3)' }}>{r.sku ?? '—'}</span>,
+        },
+    isDeviceTab
+      ? {
+          key: 'imei',
+          label: 'IMEI',
+          sortValue: (r) => r.imei ?? '',
+          render: (r) => <span style={{ color: 'var(--ink-3)' }}>{r.imei ? `…${r.imei.slice(-5)}` : '—'}</span>,
+        }
+      : {
+          key: 'qty',
+          label: 'Qty',
+          align: 'right',
+          sortValue: (r) => r.qty,
+          render: (r) => r.qty,
+        },
+    {
+      key: 'condition',
+      label: 'Condition',
+      sortValue: (r) => `${r.conditionGrade ?? ''} ${r.carrier ?? ''}`,
+      render: (r) =>
+        r.kind === 'device' ? (
+          <span style={{ color: 'var(--ink-2)' }}>
+            {r.conditionGrade ?? '?'} · {r.carrier ?? '—'}
+          </span>
+        ) : (
+          <span style={{ color: 'var(--ink-4)' }}>—</span>
+        ),
+    },
+    {
+      key: 'cost',
+      label: 'Cost',
+      align: 'right',
+      sortValue: (r) => r.costCents,
+      render: (r) => <span style={{ color: 'var(--ink-3)' }}>{formatCents(r.costCents)}</span>,
+    },
+    {
+      key: 'price',
+      label: 'Price',
+      align: 'right',
+      sortValue: (r) => r.priceCents,
+      render: (r) => <b>{formatCents(r.priceCents)}</b>,
+    },
+    {
+      key: 'age',
+      label: 'Age',
+      align: 'right',
+      sortValue: (r) => ageDays(r),
+      render: (r) => {
+        const age = ageDays(r);
+        return <span style={{ color: age >= AGING_DAYS ? 'var(--red)' : 'var(--ink-3)' }}>{age} d</span>;
+      },
+    },
+    {
+      key: 'status',
+      label: 'Status',
+      sortValue: (r) => r.status,
+      render: (r) => statusChip(r),
+    },
+    {
+      key: 'actions',
+      label: '',
+      align: 'right',
+      render: (r) =>
+        r.status !== 'sold' ? (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setAdjusting(r);
+            }}
+            title={isManager ? 'Adjust / remove' : 'Manager only'}
+            disabled={!isManager}
+            style={{ border: 'none', background: 'none', color: isManager ? 'var(--ink-3)' : 'var(--line)', fontSize: 16 }}
+          >
+            <i className="bi bi-three-dots" />
+          </button>
+        ) : null,
+    },
+  ];
 
   return (
     <div style={{ padding: '22px 24px', height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
         <div>
           <h1 style={{ margin: 0, font: '700 27.5px Inter, sans-serif' }}>Inventory</h1>
           <div style={{ color: 'var(--ink-3)', fontSize: 14, marginTop: 2 }}>
-            {rows.length} shown · retail value {formatCents(retailValue)}
+            {storeName || '…'} · {totals.unitsOnHand} units on hand · {formatCents(totals.costCents)} at cost
           </div>
         </div>
-        <Button variant="primary" onClick={() => setAdding(true)}>
-          <i className="bi bi-plus-lg" /> Add item
-        </Button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <Button variant="secondary" onClick={() => searchRef.current?.focus()}>
+            <i className="bi bi-upc-scan" /> Scan in
+          </Button>
+          <Button variant="primary" onClick={() => setAdding(true)}>
+            <i className="bi bi-plus-lg" /> {tab === 'parts' ? 'Add part' : tab === 'accessories' ? 'Add accessory' : 'Add phone'}
+          </Button>
+        </div>
       </div>
 
-      <div style={{ position: 'relative', marginTop: 16 }}>
-        <i className="bi bi-search" style={{ position: 'absolute', left: 14, top: 13, color: 'var(--ink-4)', fontSize: 16 }} />
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search model, IMEI, SKU, or serial"
-          style={{ width: '100%', padding: '12px 14px 12px 38px', borderRadius: 12, border: '1px solid var(--line)', background: 'var(--card)', fontSize: 15 }}
-        />
-      </div>
-
-      <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
-            style={{
-              padding: '8px 14px',
-              borderRadius: 999,
-              border: '1px solid var(--line)',
-              background: tab === t.id ? 'var(--navy)' : 'var(--card)',
-              color: tab === t.id ? '#fff' : 'var(--ink-2)',
-              font: '600 14px Inter, sans-serif',
-            }}
-          >
-            {t.label}{' '}
-            <span style={{ opacity: 0.6, marginLeft: 2 }}>{counts[t.id] ?? 0}</span>
-          </button>
-        ))}
-      </div>
-
-      <div style={{ marginTop: 14, background: 'var(--card)', borderRadius: 14, border: '1px solid var(--line-soft)', overflow: 'auto', flex: 1 }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 15 }}>
-          <thead>
-            <tr style={{ textAlign: 'left', color: 'var(--ink-4)', font: '600 11.5px Inter, sans-serif', letterSpacing: '0.06em' }}>
-              {['ITEM', tab === 'phones' || tab === 'tradeins' || tab === 'sold' ? 'IMEI' : 'SKU', 'CONDITION', 'QTY', 'COST', 'PRICE', 'AGE', 'STATUS', ''].map((h, i) => (
-                <th key={i} style={{ padding: '15px 16px', borderBottom: '1px solid var(--line-soft)', position: 'sticky', top: 0, background: 'var(--card)' }}>
-                  {h}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((item) => {
-              const age = ageDays(item);
-              return (
-                <tr key={item.id}>
-                  <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--line-soft)', font: '600 15px Inter, sans-serif' }}>
-                    {item.name}
-                    {item.storage ? <span style={{ color: 'var(--ink-3)', fontWeight: 500 }}> · {item.storage}</span> : null}
-                  </td>
-                  <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--line-soft)', color: 'var(--ink-3)' }}>
-                    {item.kind === 'device' ? (item.imei ? `…${item.imei.slice(-5)}` : '—') : (item.sku ?? '—')}
-                  </td>
-                  <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--line-soft)', color: 'var(--ink-2)' }}>
-                    {item.kind === 'device' ? `${item.conditionGrade ?? '?'} · ${item.carrier ?? '—'}` : '—'}
-                  </td>
-                  <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--line-soft)' }}>{item.kind === 'device' ? '1' : item.qty}</td>
-                  <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--line-soft)', color: 'var(--ink-3)' }}>{formatCents(item.costCents)}</td>
-                  <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--line-soft)', font: '700 15px Inter, sans-serif' }}>{formatCents(item.priceCents)}</td>
-                  <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--line-soft)', color: age >= AGING_DAYS ? 'var(--red)' : 'var(--ink-3)' }}>
-                    {age} d
-                  </td>
-                  <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--line-soft)' }}>{statusChip(item)}</td>
-                  <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--line-soft)', textAlign: 'right' }}>
-                    {item.status !== 'sold' && (
-                      <button
-                        onClick={() => setAdjusting(item)}
-                        title={isManager ? 'Adjust / remove' : 'Manager only'}
-                        disabled={!isManager}
-                        style={{ border: 'none', background: 'none', color: isManager ? 'var(--ink-3)' : 'var(--line)', fontSize: 16 }}
-                      >
-                        <i className="bi bi-three-dots" />
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-        {rows.length === 0 && <div style={{ padding: 24, color: 'var(--ink-4)', fontSize: 15 }}>Nothing here.</div>}
-      </div>
+      <DataTable
+        columns={columns}
+        rows={rows}
+        rowKey={(r) => r.id}
+        searchText={(r) => `${r.name} ${r.imei ?? ''} ${r.sku ?? ''} ${r.storage ?? ''} ${r.carrier ?? ''}`}
+        searchPlaceholder="Search model, IMEI, SKU, or serial"
+        searchInputRef={searchRef}
+        filters={TABS.map((t) => ({ id: t.id, label: t.label, count: counts[t.id] ?? 0 }))}
+        activeFilter={tab}
+        onFilterChange={(id) => setTab(id as TabId)}
+        initialSort={{ key: 'model', dir: 'asc' }}
+        emptyText="Nothing in this tab yet."
+        footer={
+          <>
+            <span>
+              Showing {rows.length} of {counts[tab] ?? rows.length} {TABS.find((t) => t.id === tab)?.label.toLowerCase()}
+            </span>
+            <span>
+              Retail value on hand · <b style={{ color: 'var(--ink)' }}>{formatCents(shownRetailValue)}</b>
+            </span>
+          </>
+        }
+      />
 
       <AddItemModal open={adding} onClose={() => setAdding(false)} onSaved={() => void load()} defaultKind={tab === 'parts' ? 'part' : tab === 'accessories' ? 'accessory' : 'device'} />
       <AdjustModal item={adjusting} onClose={() => setAdjusting(null)} onSaved={() => void load()} />

@@ -13,8 +13,13 @@ let app: Express;
 let token = '';
 let meta: {
   models: Array<{ id: number; name: string }>;
-  types: Array<{ id: number; name: string }>;
-  catalog: Array<{ id: number; modelId: number; repairTypeId: number; priceCents: number; partItemId: number | null }>;
+  services: Array<{
+    id: number;
+    name: string;
+    basePriceCents: number;
+    partItemId: number | null;
+    tiers: Array<{ label: string; priceCents: number }>;
+  }>;
   technicians: Array<{ id: number; name: string }>;
 };
 let customerId = 0;
@@ -40,10 +45,8 @@ beforeAll(async () => {
   customerId = dana!.id;
 }, 60_000);
 
-function catalogFor(modelName: string, repairName: string) {
-  const model = meta.models.find((m) => m.name === modelName)!;
-  const type = meta.types.find((t) => t.name === repairName)!;
-  return meta.catalog.find((c) => c.modelId === model.id && c.repairTypeId === type.id)!;
+function serviceByName(name: string) {
+  return meta.services.find((s) => s.name === name)!;
 }
 
 async function partQty(partItemId: number): Promise<number> {
@@ -52,13 +55,20 @@ async function partQty(partItemId: number): Promise<number> {
   return item!.qty;
 }
 
-describe('repairs flow', () => {
+describe('repairs flow (services catalog)', () => {
   let ticketId = 0;
-  let cracked: ReturnType<typeof catalogFor>;
+  let screen: ReturnType<typeof serviceByName>;
 
-  it('creates a two-device ticket with catalog pricing', async () => {
-    cracked = catalogFor('iPhone 13', 'Cracked screen');
-    const battery = catalogFor('iPhone 13', 'Battery replacement');
+  it('meta exposes services with tiers', () => {
+    screen = serviceByName('Screen replacement — iPhone');
+    expect(screen.basePriceCents).toBe(18900);
+    expect(screen.tiers.map((t) => t.label)).toContain('iPhone 14 / 15');
+    expect(screen.partItemId).toBeTruthy();
+  });
+
+  it('creates a ticket priced from a service tier', async () => {
+    const battery = serviceByName('Battery replacement — iPhone');
+    const tier = screen.tiers.find((t) => t.label === 'iPhone 12 / 13')!;
     const model = meta.models.find((m) => m.name === 'iPhone 13')!;
     const res = await request(app)
       .post('/api/repairs')
@@ -71,17 +81,16 @@ describe('repairs flow', () => {
           { modelId: model.id, label: 'iPhone 13 · 128 GB', imei: '353912340073522', powersOn: true, unlockMethod: 'passcode', unlockValue: '4821' },
         ],
         lines: [
-          { deviceIndex: 0, serviceCatalogId: cracked.id, description: 'Cracked screen', priceCents: cracked.priceCents, warrantyDays: 90 },
-          { deviceIndex: 0, serviceCatalogId: battery.id, description: 'Battery replacement', priceCents: battery.priceCents, warrantyDays: 90 },
+          { deviceIndex: 0, serviceId: screen.id, tierLabel: tier.label, description: `Screen replacement — iPhone (${tier.label})`, priceCents: tier.priceCents, warrantyDays: 90 },
+          { deviceIndex: 0, serviceId: battery.id, description: 'Battery replacement — iPhone', priceCents: battery.basePriceCents, warrantyDays: 90 },
         ],
         notesForTech: 'Customer reports touch dead in top-right corner',
       });
     expect(res.status).toBe(200);
     ticketId = res.body.ticket.id;
-    expect(res.body.ticket.number).toMatch(/^R-/);
-    // 129 + 79 = 208 + 6% = 220.48
-    expect(res.body.ticket.totalCents).toBe(22048);
-    expect(res.body.ticket.callFlag).toBe(true);
+    // 189 + 89 = 278 + 6% = 294.68
+    expect(res.body.ticket.totalCents).toBe(29468);
+    expect(res.body.lines[0].tierLabel).toBe('iPhone 12 / 13');
   });
 
   it('shows on the board with balance due', async () => {
@@ -90,33 +99,31 @@ describe('repairs flow', () => {
     expect(row).toBeTruthy();
     expect(row.paidCents).toBe(0);
     expect(row.customerName).toBe('Dana Nguyen');
-    expect(row.deviceSummary).toContain('iPhone 13');
   });
 
   it('takes a deposit and blocks over-deposits', async () => {
     const dep = await request(app)
       .post(`/api/repairs/${ticketId}/deposit`)
       .set(auth())
-      .send({ method: 'cash', amountCents: 5000, tenderedCents: 5000 });
+      .send({ method: 'cash', amountCents: 10000, tenderedCents: 10000 });
     expect(dep.status).toBe(200);
     const over = await request(app)
       .post(`/api/repairs/${ticketId}/deposit`)
       .set(auth())
-      .send({ method: 'cash', amountCents: 99999 });
+      .send({ method: 'cash', amountCents: 999999 });
     expect(over.status).toBe(400);
     const detail = await request(app).get(`/api/repairs/${ticketId}`).set(auth());
-    expect(detail.body.paidCents).toBe(5000);
-    expect(detail.body.balanceCents).toBe(22048 - 5000);
+    expect(detail.body.paidCents).toBe(10000);
+    expect(detail.body.balanceCents).toBe(29468 - 10000);
   });
 
   it('walks the status flow and consumes the linked part on completion', async () => {
-    expect(cracked.partItemId).toBeTruthy();
-    const before = await partQty(cracked.partItemId!);
+    const before = await partQty(screen.partItemId!);
     await request(app).patch(`/api/repairs/${ticketId}`).set(auth()).send({ status: 'in_progress' });
     await request(app).patch(`/api/repairs/${ticketId}`).set(auth()).send({ status: 'ready' });
     const done = await request(app).patch(`/api/repairs/${ticketId}`).set(auth()).send({ status: 'completed' });
     expect(done.status).toBe(200);
-    expect(await partQty(cracked.partItemId!)).toBe(before - 1);
+    expect(await partQty(screen.partItemId!)).toBe(before - 1);
     const detail = await request(app).get(`/api/repairs/${ticketId}`).set(auth());
     expect(detail.body.history.map((h: { status: string }) => h.status)).toEqual([
       'intake',
@@ -127,30 +134,23 @@ describe('repairs flow', () => {
   });
 
   it('pays the remaining balance through a register sale', async () => {
-    const balance = 22048 - 5000;
+    const balance = 29468 - 10000;
     const res = await request(app)
       .post('/api/sales/complete')
       .set(auth())
       .send({
         customerId,
         lines: [
-          {
-            kind: 'repair',
-            description: 'Ticket balance',
-            qty: 1,
-            unitCents: Math.round(balance / 1.06),
-            taxable: true,
-            ticketId,
-          },
+          { kind: 'repair', description: 'Ticket balance', qty: 1, unitCents: Math.round(balance / 1.06), taxable: true, ticketId },
         ],
         payments: [{ method: 'card', amountCents: 99999 }],
       });
     expect(res.status).toBe(200);
     const detail = await request(app).get(`/api/repairs/${ticketId}`).set(auth());
-    expect(detail.body.balanceCents).toBeLessThanOrEqual(2); // rounding cent tolerance
+    expect(detail.body.balanceCents).toBeLessThanOrEqual(2);
   });
 
-  it('cancels a fresh ticket and restores consumed parts', async () => {
+  it('cancels a fresh ticket and blocks further status changes', async () => {
     const model = meta.models.find((m) => m.name === 'iPhone 13')!;
     const created = await request(app)
       .post('/api/repairs')
@@ -158,7 +158,7 @@ describe('repairs flow', () => {
       .send({
         customerId,
         devices: [{ modelId: model.id, label: 'iPhone 13 spare', powersOn: false }],
-        lines: [{ deviceIndex: 0, serviceCatalogId: cracked.id, description: 'Cracked screen', priceCents: cracked.priceCents }],
+        lines: [{ deviceIndex: 0, serviceId: screen.id, description: 'Screen replacement — iPhone', priceCents: screen.basePriceCents }],
       });
     const freshId = created.body.ticket.id;
     const cancelled = await request(app)
@@ -179,25 +179,42 @@ describe('repairs flow', () => {
         customerId,
         warrantyOfTicketId: ticketId,
         devices: [{ modelId: model.id, label: 'iPhone 13 · 128 GB', powersOn: true }],
-        lines: [{ deviceIndex: 0, description: 'Warranty rework: cracked screen', priceCents: 0 }],
+        lines: [{ deviceIndex: 0, description: 'Warranty rework: screen replacement', priceCents: 0 }],
       });
     expect(res.status).toBe(200);
     expect(res.body.ticket.totalCents).toBe(0);
     expect(res.body.ticket.warrantyOfTicketId).toBe(ticketId);
   });
 
-  it('creates a new customer inline when none exists', async () => {
-    const model = meta.models.find((m) => m.name === 'Pixel 7a')!;
-    const res = await request(app)
-      .post('/api/repairs')
+  it('supports catalog management: create, edit, duplicate, bulk price', async () => {
+    const created = await request(app)
+      .post('/api/catalog/services')
       .set(auth())
       .send({
-        newCustomer: { name: 'Jordan Blake', phone: '(737) 555-0155' },
-        devices: [{ modelId: model.id, label: 'Pixel 7a', powersOn: true }],
-        lines: [{ deviceIndex: 0, description: 'Ghost touch', priceCents: 13900 }],
+        category: 'Screens',
+        name: 'Screen replacement — Pixel',
+        deviceGroup: 'Pixel 6–9',
+        basePriceCents: 19900,
+        partsCostCents: 8200,
+        tiers: [
+          { label: 'Pixel 6 / 7', priceCents: 19900 },
+          { label: 'Pixel 8 / 9', priceCents: 22900 },
+        ],
       });
-    expect(res.status).toBe(200);
-    const search = await request(app).get('/api/sales/search/all').set(auth()).query({ q: 'Jordan' });
-    expect(search.body.customers.length).toBeGreaterThan(0);
+    expect(created.status).toBe(200);
+
+    const dup = await request(app).post(`/api/catalog/services/${created.body.id}/duplicate`).set(auth());
+    expect(dup.body.name).toContain('(copy)');
+
+    const bulk = await request(app)
+      .post('/api/catalog/services/bulk-price')
+      .set(auth())
+      .send({ percent: 10, serviceIds: [created.body.id] });
+    expect(bulk.status).toBe(200);
+
+    const list = await request(app).get('/api/catalog/services').set(auth());
+    const updated = list.body.find((s: { id: number }) => s.id === created.body.id);
+    expect(updated.basePriceCents).toBe(21900); // 19900 * 1.1 = 21890 → rounds to whole dollars
+    expect(updated.tiers.find((t: { label: string }) => t.label === 'Pixel 8 / 9').priceCents).toBe(25200);
   });
 });

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { formatCents } from '@fmp/shared';
-import { Button, Modal, StatusChip } from '@fmp/ui';
+import { Button, DataTable, Modal, StatusChip } from '@fmp/ui';
 import { api } from '@fmp/pos-client';
 import { DepositModal } from './DepositModal';
 import { NewRepairWindow, type CreatedTicket } from './NewRepairWindow';
@@ -71,7 +71,6 @@ export function RepairsScreen() {
   const [filter, setFilter] = useState<string>('today');
   const [rows, setRows] = useState<BoardRow[]>([]);
   const [counts, setCounts] = useState<{ open: number; inProgress: number; waiting: number; call: number; ready: number; completed: number; today: number }>({ open: 0, inProgress: 0, waiting: 0, call: 0, ready: 0, completed: 0, today: 0 });
-  const [query, setQuery] = useState('');
   const [detailId, setDetailId] = useState<number | null>(null);
   const [detail, setDetail] = useState<TicketDetail | null>(null);
   const [newOpen, setNewOpen] = useState(false);
@@ -82,7 +81,7 @@ export function RepairsScreen() {
 
   async function load() {
     const res = await api<{ rows: BoardRow[]; counts: Array<{ status: string; callFlag: boolean; n: number }>; todayCount: number }>(
-      `/api/repairs?filter=${filter}&query=${encodeURIComponent(query)}`,
+      `/api/repairs?filter=${filter}`,
     ).catch(() => null);
     if (!res) return;
     setRows(res.rows);
@@ -101,9 +100,8 @@ export function RepairsScreen() {
   }
 
   useEffect(() => {
-    const t = setTimeout(() => void load(), 150);
-    return () => clearTimeout(t);
-  }, [filter, query]);
+    void load();
+  }, [filter]);
 
   useEffect(() => {
     if (detailId == null) {
@@ -182,79 +180,111 @@ export function RepairsScreen() {
           </Button>
         </div>
 
-        <div style={{ position: 'relative', marginTop: 16 }}>
-          <i className="bi bi-search" style={{ position: 'absolute', left: 14, top: 13, color: 'var(--ink-4)', fontSize: 16 }} />
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search ticket #, customer, phone, IMEI, or device"
-            style={{ width: '100%', padding: '12px 14px 12px 38px', borderRadius: 12, border: '1px solid var(--line)', background: 'var(--card)', fontSize: 15 }}
-          />
-        </div>
-
-        <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
-          {FILTERS.map((f) => (
-            <button
-              key={f.id}
-              onClick={() => setFilter(f.id)}
-              style={{
-                padding: '8px 14px',
-                borderRadius: 999,
-                border: '1px solid var(--line)',
-                background: filter === f.id ? 'var(--navy)' : 'var(--card)',
-                color: filter === f.id ? '#fff' : 'var(--ink-2)',
-                font: '600 14px Inter, sans-serif',
-              }}
-            >
-              {f.id === 'call' && <i className="bi bi-telephone-fill" style={{ marginRight: 4, fontSize: 11.5 }} />}
-              {f.label} <span style={{ opacity: 0.6, marginLeft: 2 }}>{filterCount(f.id)}</span>
-            </button>
-          ))}
-        </div>
-
-        <div style={{ marginTop: 14, background: 'var(--card)', borderRadius: 14, border: '1px solid var(--line-soft)', overflow: 'auto', flex: 1 }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 15 }}>
-            <thead>
-              <tr style={{ textAlign: 'left', color: 'var(--ink-4)', font: '600 11.5px Inter, sans-serif', letterSpacing: '0.06em' }}>
-                {['TICKET', 'CUSTOMER', 'DEVICE', 'SERVICE', 'DATE & TIME', 'TOTAL', 'BALANCE', 'STATUS'].map((h) => (
-                  <th key={h} style={{ padding: '15px 16px', borderBottom: '1px solid var(--line-soft)', position: 'sticky', top: 0, background: 'var(--card)' }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => {
-                const late = pastPromised(row);
-                const balance = row.totalCents - row.paidCents;
-                return (
-                  <tr key={row.id} onClick={() => setDetailId(row.id)} style={{ cursor: 'pointer', background: detailId === row.id ? 'var(--orange-soft)' : 'transparent' }}>
-                    <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--line-soft)', font: '700 15px Inter, sans-serif' }}>{row.number}</td>
-                    <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--line-soft)' }}>{row.customerName}</td>
-                    <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--line-soft)', color: 'var(--ink-2)' }}>{row.deviceSummary}</td>
-                    <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--line-soft)', color: 'var(--ink-2)', maxWidth: 180, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.serviceSummary}</td>
-                    <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--line-soft)', color: late ? 'var(--red)' : 'var(--ink-3)', fontWeight: late ? 600 : 400 }}>
-                      {row.promisedAt
-                        ? new Date(row.promisedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
-                        : new Date(row.createdAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
-                    </td>
-                    <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--line-soft)', font: '700 15px Inter, sans-serif' }}>{formatCents(row.totalCents)}</td>
-                    <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--line-soft)', color: balance > 0 ? 'var(--red)' : 'var(--green)', fontWeight: 600 }}>
+        <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+          <DataTable
+            columns={[
+              {
+                key: 'ticket',
+                label: 'Ticket',
+                sortValue: (r: BoardRow) => r.number,
+                render: (r: BoardRow) => <span style={{ font: '700 15px Inter, sans-serif' }}>{r.number}</span>,
+              },
+              {
+                key: 'customer',
+                label: 'Customer',
+                sortValue: (r: BoardRow) => r.customerName ?? '',
+                render: (r: BoardRow) => r.customerName,
+              },
+              {
+                key: 'device',
+                label: 'Device',
+                sortValue: (r: BoardRow) => r.deviceSummary ?? '',
+                render: (r: BoardRow) => <span style={{ color: 'var(--ink-2)' }}>{r.deviceSummary}</span>,
+              },
+              {
+                key: 'service',
+                label: 'Service',
+                sortValue: (r: BoardRow) => r.serviceSummary ?? '',
+                render: (r: BoardRow) => (
+                  <span style={{ color: 'var(--ink-2)', display: 'inline-block', maxWidth: 260, overflowWrap: 'anywhere' }}>
+                    {r.serviceSummary}
+                  </span>
+                ),
+              },
+              {
+                key: 'when',
+                label: 'Date & time',
+                sortValue: (r: BoardRow) => new Date(r.promisedAt ?? r.createdAt).getTime(),
+                render: (r: BoardRow) => {
+                  const late = pastPromised(r);
+                  return (
+                    <span style={{ color: late ? 'var(--red)' : 'var(--ink-3)', fontWeight: late ? 600 : 400 }}>
+                      {new Date(r.promisedAt ?? r.createdAt).toLocaleString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        hour: 'numeric',
+                        minute: '2-digit',
+                      })}
+                    </span>
+                  );
+                },
+              },
+              {
+                key: 'total',
+                label: 'Total',
+                align: 'right',
+                sortValue: (r: BoardRow) => r.totalCents,
+                render: (r: BoardRow) => <b>{formatCents(r.totalCents)}</b>,
+              },
+              {
+                key: 'balance',
+                label: 'Balance',
+                align: 'right',
+                sortValue: (r: BoardRow) => r.totalCents - r.paidCents,
+                render: (r: BoardRow) => {
+                  const balance = r.totalCents - r.paidCents;
+                  return (
+                    <span style={{ color: balance > 0 ? 'var(--red)' : 'var(--green)', fontWeight: 600 }}>
                       {balance > 0 ? `${formatCents(balance)} due` : 'Paid'}
-                    </td>
-                    <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--line-soft)' }}>
-                      <span style={{ display: 'inline-flex', gap: 4 }}>
-                        {late && <StatusChip tone="red">Past promised</StatusChip>}
-                        {row.callFlag && !['completed', 'cancelled'].includes(row.status) && (
-                          <StatusChip tone="purple"><i className="bi bi-telephone-fill" style={{ fontSize: 10.5 }} /> Call</StatusChip>
-                        )}
-                        {!late && <StatusChip tone={STATUS_TONES[row.status] ?? 'neutral'}>{statusLabel(row.status)}</StatusChip>}
-                      </span>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-          {rows.length === 0 && <div style={{ padding: 24, color: 'var(--ink-4)', fontSize: 15 }}>No tickets in this view.</div>}
+                    </span>
+                  );
+                },
+              },
+              {
+                key: 'status',
+                label: 'Status',
+                sortValue: (r: BoardRow) => (pastPromised(r) ? 'zz past promised' : r.status),
+                render: (r: BoardRow) => {
+                  const late = pastPromised(r);
+                  return (
+                    <span style={{ display: 'inline-flex', gap: 4, flexWrap: 'wrap' }}>
+                      {late && <StatusChip tone="red">Past promised</StatusChip>}
+                      {r.callFlag && !['completed', 'cancelled'].includes(r.status) && (
+                        <StatusChip tone="purple">
+                          <i className="bi bi-telephone-fill" style={{ fontSize: 10.5 }} /> Call
+                        </StatusChip>
+                      )}
+                      {!late && <StatusChip tone={STATUS_TONES[r.status] ?? 'neutral'}>{statusLabel(r.status)}</StatusChip>}
+                    </span>
+                  );
+                },
+              },
+            ]}
+            rows={rows}
+            rowKey={(r) => r.id}
+            onRowClick={(r) => setDetailId(r.id)}
+            selectedKey={detailId}
+            searchText={(r) =>
+              `${r.number} ${r.customerName ?? ''} ${r.customerPhone ?? ''} ${r.deviceSummary ?? ''} ${r.serviceSummary ?? ''}`
+            }
+            searchPlaceholder="Search ticket #, customer, phone, or device"
+            filters={FILTERS.map((f) => ({ id: f.id, label: f.label, count: filterCount(f.id) }))}
+            activeFilter={filter}
+            onFilterChange={setFilter}
+            initialSort={{ key: 'when', dir: 'desc' }}
+            emptyText="No tickets in this view."
+            footer={<span>Showing {rows.length} tickets · {rows.filter(pastPromised).length} past promised</span>}
+          />
         </div>
       </div>
 

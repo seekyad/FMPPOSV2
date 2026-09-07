@@ -93,17 +93,16 @@ reportsRouter.get('/summary', async (req, res) => {
   const last30 = new Date(Date.now() - 30 * 86400_000);
   const topRepairs = await db
     .select({
-      name: schema.repairTypes.name,
+      name: schema.services.name,
       jobs: sql<number>`count(*)`,
       revenue: sql<number>`coalesce(sum(${schema.ticketLines.priceCents}), 0)`,
-      partCost: sql<number>`coalesce(sum(${schema.serviceCatalog.partCostCents}), 0)`,
+      partCost: sql<number>`coalesce(sum(${schema.services.partsCostCents}), 0)`,
     })
     .from(schema.ticketLines)
     .innerJoin(schema.repairTickets, eq(schema.ticketLines.ticketId, schema.repairTickets.id))
-    .innerJoin(schema.serviceCatalog, eq(schema.ticketLines.serviceCatalogId, schema.serviceCatalog.id))
-    .innerJoin(schema.repairTypes, eq(schema.serviceCatalog.repairTypeId, schema.repairTypes.id))
+    .innerJoin(schema.services, eq(schema.ticketLines.serviceId, schema.services.id))
     .where(and(eq(schema.repairTickets.storeId, storeId), gte(schema.repairTickets.createdAt, last30)))
-    .groupBy(schema.repairTypes.name)
+    .groupBy(schema.services.name)
     .orderBy(sql`coalesce(sum(${schema.ticketLines.priceCents}), 0) desc`)
     .limit(6);
 

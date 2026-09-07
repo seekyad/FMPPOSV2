@@ -10,6 +10,7 @@ import { InventoryScreen } from '@fmp/pos-client';
 import { RepairsScreen } from './screens/repairs/RepairsScreen';
 import { SettingsHub } from './screens/settings/SettingsHub';
 import { ReportsScreen } from './screens/ReportsScreen';
+import { CatalogPage } from './screens/catalog/CatalogPage';
 
 function Placeholder({ title }: { title: string }) {
   return (
@@ -44,7 +45,9 @@ export function App() {
           <Route path="/inventory" element={<InventoryScreen />} />
           <Route path="/customers" element={<CustomersScreen />} />
           <Route path="/reports" element={<ReportsScreen />} />
-          <Route path="/more" element={<SettingsHub />} />
+          <Route path="/catalog" element={<CatalogPage />} />
+          <Route path="/settings" element={<SettingsHub />} />
+          <Route path="/more" element={<Navigate to="/settings" replace />} />
         </Routes>
       </main>
     </div>

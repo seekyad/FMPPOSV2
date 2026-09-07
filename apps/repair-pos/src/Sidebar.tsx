@@ -4,10 +4,11 @@ import { switchSystemUrl } from '@fmp/pos-client';
 const NAV = [
   { to: '/register', icon: 'bi-cash-stack', label: 'Register' },
   { to: '/repairs', icon: 'bi-wrench-adjustable', label: 'Repairs' },
+  { to: '/catalog', icon: 'bi-tag', label: 'Catalog' },
   { to: '/inventory', icon: 'bi-box-seam', label: 'Inventory' },
   { to: '/customers', icon: 'bi-people', label: 'Customers' },
   { to: '/reports', icon: 'bi-bar-chart', label: 'Reports' },
-  { to: '/more', icon: 'bi-three-dots', label: 'More' },
+  { to: '/settings', icon: 'bi-gear', label: 'Settings' },
 ];
 
 export function Sidebar({ onLock }: { onLock: () => void }) {

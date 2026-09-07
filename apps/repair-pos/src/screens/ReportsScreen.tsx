@@ -326,7 +326,7 @@ export function ReportsScreen() {
       <Modal open={closing} onClose={() => setClosing(false)} width={380}>
         <h2 style={{ margin: 0, font: '700 19.5px Inter, sans-serif' }}>Close drawer</h2>
         <p style={{ fontSize: 14, color: 'var(--ink-3)' }}>
-          Count the cash, enter the total. Expected: <b>{formatCents(data.drawer.expectedCents)}</b>. Parked sales clear on close.
+          Count the cash, enter the total. Expected: <b>{formatCents(data.drawer.expectedCents)}</b>. Held sales clear on close.
         </p>
         <input
           value={counted}

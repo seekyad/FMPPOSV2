@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { formatCents } from '@fmp/shared';
-import { Button, Modal, StatusChip } from '@fmp/ui';
+import { Button, DataTable, Modal, StatusChip } from '@fmp/ui';
 import { api } from './api';
 
 interface CustomerRow {
@@ -37,22 +37,20 @@ function flagFor(row: CustomerRow): { tone: 'green' | 'red' | 'purple' | 'blue' 
 
 export function CustomersScreen() {
   const [rows, setRows] = useState<CustomerRow[]>([]);
-  const [query, setQuery] = useState('');
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [detail, setDetail] = useState<CustomerDetail | null>(null);
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState({ name: '', phone: '', email: '' });
 
   async function load() {
-    const data = await api<CustomerRow[]>(`/api/customers?query=${encodeURIComponent(query)}`).catch(() => []);
+    const data = await api<CustomerRow[]>('/api/customers').catch(() => []);
     setRows(data);
     if (data.length > 0 && !data.some((d) => d.id === selectedId)) setSelectedId(data[0]!.id);
   }
 
   useEffect(() => {
-    const t = setTimeout(() => void load(), 200);
-    return () => clearTimeout(t);
-  }, [query]);
+    void load();
+  }, []);
 
   useEffect(() => {
     if (selectedId == null) {
@@ -89,57 +87,78 @@ export function CustomersScreen() {
           </Button>
         </div>
 
-        <div style={{ position: 'relative', marginTop: 16 }}>
-          <i className="bi bi-search" style={{ position: 'absolute', left: 14, top: 13, color: 'var(--ink-4)', fontSize: 16 }} />
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search name, phone, email, or IMEI"
-            style={{ width: '100%', padding: '12px 14px 12px 38px', borderRadius: 12, border: '1px solid var(--line)', background: 'var(--card)', fontSize: 15 }}
+        <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+          <DataTable
+            columns={[
+              {
+                key: 'name',
+                label: 'Name',
+                sortValue: (r: CustomerRow) => r.name,
+                render: (r: CustomerRow) => <span style={{ font: '600 15px Inter, sans-serif' }}>{r.name}</span>,
+              },
+              {
+                key: 'phone',
+                label: 'Phone',
+                sortValue: (r: CustomerRow) => r.phone ?? '',
+                render: (r: CustomerRow) => <span style={{ color: 'var(--ink-2)' }}>{r.phone ?? '—'}</span>,
+              },
+              {
+                key: 'visits',
+                label: 'Visits',
+                align: 'right',
+                sortValue: (r: CustomerRow) => r.visits,
+                render: (r: CustomerRow) => r.visits,
+              },
+              {
+                key: 'open',
+                label: 'Open',
+                align: 'right',
+                sortValue: (r: CustomerRow) => r.openTickets,
+                render: (r: CustomerRow) => (
+                  <span style={{ color: r.openTickets > 0 ? 'var(--blue)' : 'var(--ink-4)' }}>{r.openTickets || '—'}</span>
+                ),
+              },
+              {
+                key: 'lifetime',
+                label: 'Lifetime',
+                align: 'right',
+                sortValue: (r: CustomerRow) => r.lifetimeCents,
+                render: (r: CustomerRow) => <b>{formatCents(r.lifetimeCents)}</b>,
+              },
+              {
+                key: 'lastSeen',
+                label: 'Last seen',
+                sortValue: (r: CustomerRow) => (r.lastSeen ? new Date(r.lastSeen).getTime() : 0),
+                render: (r: CustomerRow) => (
+                  <span style={{ color: 'var(--ink-3)' }}>
+                    {r.lastSeen ? new Date(r.lastSeen).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}
+                  </span>
+                ),
+              },
+              {
+                key: 'flag',
+                label: 'Flag',
+                sortValue: (r: CustomerRow) => flagFor(r).label,
+                render: (r: CustomerRow) => {
+                  const flag = flagFor(r);
+                  return flag.label === '—' ? (
+                    <span style={{ color: 'var(--ink-4)' }}>—</span>
+                  ) : (
+                    <StatusChip tone={flag.tone}>{flag.label}</StatusChip>
+                  );
+                },
+              },
+            ]}
+            rows={rows}
+            rowKey={(r) => r.id}
+            onRowClick={(r) => setSelectedId(r.id)}
+            selectedKey={selectedId}
+            searchText={(r) => `${r.name} ${r.phone ?? ''} ${r.email ?? ''}`}
+            searchPlaceholder="Search name, phone, or email"
+            initialSort={{ key: 'lifetime', dir: 'desc' }}
+            emptyText="No customers match."
+            footer={<span>Showing {rows.length} customers</span>}
           />
-        </div>
-
-        <div style={{ marginTop: 14, background: 'var(--card)', borderRadius: 14, border: '1px solid var(--line-soft)', overflow: 'auto', flex: 1 }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 15 }}>
-            <thead>
-              <tr style={{ textAlign: 'left', color: 'var(--ink-4)', font: '600 11.5px Inter, sans-serif', letterSpacing: '0.06em' }}>
-                {['NAME', 'PHONE', 'VISITS', 'OPEN', 'LIFETIME', 'LAST SEEN', 'FLAG'].map((h) => (
-                  <th key={h} style={{ padding: '15px 16px', borderBottom: '1px solid var(--line-soft)', position: 'sticky', top: 0, background: 'var(--card)' }}>
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => {
-                const flag = flagFor(row);
-                return (
-                  <tr
-                    key={row.id}
-                    onClick={() => setSelectedId(row.id)}
-                    style={{ cursor: 'pointer', background: selectedId === row.id ? 'var(--orange-soft)' : 'transparent' }}
-                  >
-                    <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--line-soft)', font: '600 15px Inter, sans-serif' }}>{row.name}</td>
-                    <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--line-soft)', color: 'var(--ink-2)' }}>{row.phone}</td>
-                    <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--line-soft)' }}>{row.visits}</td>
-                    <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--line-soft)', color: row.openTickets > 0 ? 'var(--blue)' : 'var(--ink-4)' }}>
-                      {row.openTickets || '—'}
-                    </td>
-                    <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--line-soft)', font: '700 15px Inter, sans-serif' }}>
-                      {formatCents(row.lifetimeCents)}
-                    </td>
-                    <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--line-soft)', color: 'var(--ink-3)' }}>
-                      {row.lastSeen ? new Date(row.lastSeen).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}
-                    </td>
-                    <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--line-soft)' }}>
-                      {flag.label === '—' ? <span style={{ color: 'var(--ink-4)' }}>—</span> : <StatusChip tone={flag.tone}>{flag.label}</StatusChip>}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-          {rows.length === 0 && <div style={{ padding: 24, color: 'var(--ink-4)', fontSize: 15 }}>No customers match.</div>}
         </div>
       </div>
 

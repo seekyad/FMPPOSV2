@@ -3,7 +3,7 @@ import type { CSSProperties, ReactNode } from 'react';
 export function Modal({
   open,
   onClose,
-  width = 560,
+  width = 640,
   children,
   style,
 }: {
@@ -37,7 +37,7 @@ export function Modal({
           background: 'var(--card)',
           borderRadius: 20,
           boxShadow: 'var(--shadow)',
-          padding: 24,
+          padding: 28,
           ...style,
         }}
       >

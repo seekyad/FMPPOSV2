@@ -233,7 +233,7 @@ export function RegisterScreen() {
           <div style={{ display: 'flex', gap: 8 }}>
             <Link to="/pending" style={{ textDecoration: 'none' }}>
               <Button variant="secondary">
-                Pending Sale{' '}
+                On Hold{' '}
                 <span style={{ background: 'var(--line-soft)', borderRadius: 999, padding: '1px 8px', fontSize: 12.5 }}>{parkedCount}</span>
               </Button>
             </Link>
@@ -413,7 +413,7 @@ export function RegisterScreen() {
           </Button>
           <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
             <Button variant="secondary" style={{ flex: 1 }} disabled={lines.length === 0 || busy} onClick={() => void park()}>
-              <i className="bi bi-pause-circle" /> Park sale
+              <i className="bi bi-pause-circle" /> Hold sale
             </Button>
             <Button variant="ghost" style={{ flex: 1 }} disabled={lines.length === 0} onClick={clearSale}>
               Clear
@@ -503,7 +503,7 @@ export function RegisterScreen() {
           value={note}
           onChange={(e) => setNote(e.target.value)}
           rows={3}
-          placeholder="Shown on the parked sale"
+          placeholder="Shown on the held sale"
           style={{ width: '100%', marginTop: 12, padding: '11px 13px', borderRadius: 10, border: '1px solid var(--line)', fontSize: 15, resize: 'none' }}
         />
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 10 }}>

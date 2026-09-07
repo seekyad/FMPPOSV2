@@ -142,6 +142,35 @@ export const serviceCatalog = pgTable(
   (t) => [uniqueIndex('service_catalog_model_repair_idx').on(t.modelId, t.repairTypeId)],
 );
 
+/**
+ * The service catalog (v2, matches the approved design): a service is defined
+ * once with a device group and base price; optional per-model tiers override
+ * the price ("iPhone 14 / 15 — $219").
+ */
+export const services = pgTable('services', {
+  id: serial('id').primaryKey(),
+  category: text('category').notNull(),
+  name: text('name').notNull(),
+  deviceGroup: text('device_group').notNull().default('Any device'),
+  timeMinutes: integer('time_minutes').notNull().default(45),
+  timeLabel: text('time_label'),
+  partsCostCents: integer('parts_cost_cents').notNull().default(0),
+  basePriceCents: integer('base_price_cents').notNull(),
+  warrantyDays: integer('warranty_days').notNull().default(90),
+  intakeNotes: text('intake_notes'),
+  partItemId: integer('part_item_id'),
+  active: boolean('active').notNull().default(true),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+});
+
+export const serviceTiers = pgTable('service_tiers', {
+  id: serial('id').primaryKey(),
+  serviceId: integer('service_id').notNull().references(() => services.id),
+  label: text('label').notNull(),
+  priceCents: integer('price_cents').notNull(),
+  sortOrder: integer('sort_order').notNull().default(0),
+});
+
 export const tradeinPricebook = pgTable(
   'tradein_pricebook',
   {
@@ -324,6 +353,8 @@ export const ticketLines = pgTable('ticket_lines', {
   ticketId: integer('ticket_id').notNull().references(() => repairTickets.id),
   ticketDeviceId: integer('ticket_device_id').references(() => ticketDevices.id),
   serviceCatalogId: integer('service_catalog_id').references(() => serviceCatalog.id),
+  serviceId: integer('service_id').references(() => services.id),
+  tierLabel: text('tier_label'),
   description: text('description').notNull(),
   priceCents: integer('price_cents').notNull(),
   warrantyDays: integer('warranty_days').notNull().default(90),

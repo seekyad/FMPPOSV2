@@ -45,7 +45,24 @@ inventoryRouter.get('/', async (req, res) => {
     .where(eq(i.storeId, req.session!.storeId))
     .groupBy(i.kind, i.fromTradeIn, i.status);
 
-  res.json({ rows, counts });
+  const [totals] = await db
+    .select({
+      unitsOnHand: sql<number>`coalesce(sum(${i.qty}), 0)`,
+      costCents: sql<number>`coalesce(sum(${i.qty} * ${i.costCents}), 0)`,
+      retailCents: sql<number>`coalesce(sum(${i.qty} * ${i.priceCents}), 0)`,
+    })
+    .from(i)
+    .where(and(eq(i.storeId, req.session!.storeId), ne(i.status, 'sold'), ne(i.status, 'removed')));
+
+  res.json({
+    rows,
+    counts,
+    totals: {
+      unitsOnHand: Number(totals?.unitsOnHand ?? 0),
+      costCents: Number(totals?.costCents ?? 0),
+      retailCents: Number(totals?.retailCents ?? 0),
+    },
+  });
 });
 
 const itemBody = z.object({

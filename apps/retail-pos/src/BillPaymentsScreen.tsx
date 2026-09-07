@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { formatCents, parseDollars } from '@fmp/shared';
-import { Button, Modal } from '@fmp/ui';
+import { Button, DataTable, Modal } from '@fmp/ui';
 import { api, CustomerModal, type CartCustomer } from '@fmp/pos-client';
 
 interface BillPayment {
@@ -17,7 +17,6 @@ interface BillPayment {
 export function BillPaymentsScreen() {
   const [rows, setRows] = useState<BillPayment[]>([]);
   const [today, setToday] = useState({ count: 0, amountCents: 0, feeCents: 0 });
-  const [query, setQuery] = useState('');
   const [taking, setTaking] = useState(false);
   const [customer, setCustomer] = useState<CartCustomer | null>(null);
   const [pickingCustomer, setPickingCustomer] = useState(false);
@@ -26,9 +25,7 @@ export function BillPaymentsScreen() {
   const [error, setError] = useState('');
 
   async function load() {
-    const res = await api<{ rows: BillPayment[]; today: typeof today }>(
-      `/api/retail/bill-payments?query=${encodeURIComponent(query)}`,
-    ).catch(() => null);
+    const res = await api<{ rows: BillPayment[]; today: typeof today }>('/api/retail/bill-payments').catch(() => null);
     if (res) {
       setRows(res.rows);
       setToday(res.today);
@@ -36,9 +33,8 @@ export function BillPaymentsScreen() {
   }
 
   useEffect(() => {
-    const t = setTimeout(() => void load(), 200);
-    return () => clearTimeout(t);
-  }, [query]);
+    void load();
+  }, []);
 
   const amountCents = parseDollars(form.amount || '0') ?? 0;
   const feeCents = parseDollars(form.fee || '0') ?? 0;
@@ -89,44 +85,70 @@ export function BillPaymentsScreen() {
         </Button>
       </div>
 
-      <div style={{ position: 'relative', marginTop: 16 }}>
-        <i className="bi bi-search" style={{ position: 'absolute', left: 14, top: 13, color: 'var(--ink-4)', fontSize: 16 }} />
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search customer, account #, or carrier"
-          style={{ width: '100%', padding: '12px 14px 12px 38px', borderRadius: 12, border: '1px solid var(--line)', background: 'var(--card)', fontSize: 15 }}
-        />
-      </div>
-
-      <div style={{ marginTop: 14, background: 'var(--card)', borderRadius: 14, border: '1px solid var(--line-soft)', overflow: 'auto', flex: 1 }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 15 }}>
-          <thead>
-            <tr style={{ textAlign: 'left', color: 'var(--ink-4)', font: '600 11.5px Inter, sans-serif', letterSpacing: '0.06em' }}>
-              {['DATE', 'CUSTOMER', 'CARRIER', 'ACCOUNT #', 'AMOUNT', 'FEE', 'TAKEN BY'].map((h) => (
-                <th key={h} style={{ padding: '15px 16px', borderBottom: '1px solid var(--line-soft)', position: 'sticky', top: 0, background: 'var(--card)' }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.id}>
-                <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--line-soft)', color: 'var(--ink-3)' }}>
+      <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+        <DataTable
+          columns={[
+            {
+              key: 'date',
+              label: 'Date',
+              sortValue: (r: BillPayment) => new Date(r.createdAt).getTime(),
+              render: (r: BillPayment) => (
+                <span style={{ color: 'var(--ink-3)' }}>
                   {new Date(r.createdAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
-                </td>
-                <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--line-soft)', font: '600 15px Inter, sans-serif' }}>
-                  {r.customerName ?? 'Walk-in'}
-                </td>
-                <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--line-soft)' }}>{r.carrier}</td>
-                <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--line-soft)', color: 'var(--ink-3)' }}>…{r.accountNumber.slice(-4)}</td>
-                <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--line-soft)', font: '700 15px Inter, sans-serif' }}>{formatCents(r.amountCents)}</td>
-                <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--line-soft)' }}>{r.feeCents > 0 ? formatCents(r.feeCents) : '—'}</td>
-                <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--line-soft)', color: 'var(--ink-3)' }}>{r.userName}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {rows.length === 0 && <div style={{ padding: 24, color: 'var(--ink-4)', fontSize: 15 }}>No bill payments recorded.</div>}
+                </span>
+              ),
+            },
+            {
+              key: 'customer',
+              label: 'Customer',
+              sortValue: (r: BillPayment) => r.customerName ?? 'Walk-in',
+              render: (r: BillPayment) => <span style={{ font: '600 15px Inter, sans-serif' }}>{r.customerName ?? 'Walk-in'}</span>,
+            },
+            {
+              key: 'carrier',
+              label: 'Carrier',
+              sortValue: (r: BillPayment) => r.carrier,
+              render: (r: BillPayment) => r.carrier,
+            },
+            {
+              key: 'account',
+              label: 'Account #',
+              sortValue: (r: BillPayment) => r.accountNumber,
+              render: (r: BillPayment) => <span style={{ color: 'var(--ink-3)' }}>…{r.accountNumber.slice(-4)}</span>,
+            },
+            {
+              key: 'amount',
+              label: 'Amount',
+              align: 'right',
+              sortValue: (r: BillPayment) => r.amountCents,
+              render: (r: BillPayment) => <b>{formatCents(r.amountCents)}</b>,
+            },
+            {
+              key: 'fee',
+              label: 'Fee',
+              align: 'right',
+              sortValue: (r: BillPayment) => r.feeCents,
+              render: (r: BillPayment) => (r.feeCents > 0 ? formatCents(r.feeCents) : '—'),
+            },
+            {
+              key: 'takenBy',
+              label: 'Taken by',
+              sortValue: (r: BillPayment) => r.userName ?? '',
+              render: (r: BillPayment) => <span style={{ color: 'var(--ink-3)' }}>{r.userName}</span>,
+            },
+          ]}
+          rows={rows}
+          rowKey={(r) => r.id}
+          searchText={(r) => `${r.customerName ?? ''} ${r.accountNumber} ${r.carrier}`}
+          searchPlaceholder="Search customer, account #, or carrier"
+          initialSort={{ key: 'date', dir: 'desc' }}
+          emptyText="No bill payments recorded."
+          footer={
+            <span>
+              Today: {today.count} payments · {formatCents(today.amountCents)} remitted · {formatCents(today.feeCents)} in fees
+            </span>
+          }
+        />
       </div>
 
       <Modal open={taking} onClose={() => setTaking(false)} width={420}>

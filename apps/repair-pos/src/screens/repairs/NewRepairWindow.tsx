@@ -4,17 +4,20 @@ import { Button } from '@fmp/ui';
 import { api } from '@fmp/pos-client';
 import type { CartCustomer } from '@fmp/pos-client';
 
+export interface CatalogService {
+  id: number;
+  category: string;
+  name: string;
+  deviceGroup: string;
+  basePriceCents: number;
+  warrantyDays: number;
+  intakeNotes: string | null;
+  tiers: Array<{ id: number; label: string; priceCents: number }>;
+}
+
 export interface RepairMeta {
   models: Array<{ id: number; brand: string; name: string; kind: string }>;
-  types: Array<{ id: number; category: string; name: string }>;
-  catalog: Array<{
-    id: number;
-    modelId: number;
-    repairTypeId: number;
-    priceCents: number;
-    warrantyDays: number;
-    turnaroundMinutes: number;
-  }>;
+  services: CatalogService[];
   technicians: Array<{ id: number; name: string }>;
 }
 
@@ -30,11 +33,12 @@ interface DraftDevice {
 
 interface DraftLine {
   deviceIndex: number;
-  serviceCatalogId: number | null;
-  repairTypeId: number | null;
+  serviceId: number | null;
+  tierLabel: string | null;
   description: string;
   priceCents: number;
   warrantyDays: number;
+  tiers: Array<{ label: string; priceCents: number }>;
 }
 
 export interface CreatedTicket {
@@ -78,7 +82,7 @@ export function NewRepairWindow({
   const [technicianId, setTechnicianId] = useState<number | ''>('');
   const [notesForTech, setNotesForTech] = useState('');
   const [typeQuery, setTypeQuery] = useState('');
-  const [openCategory, setOpenCategory] = useState<string | null>('Screen & Display');
+  const [openCategory, setOpenCategory] = useState<string | null>('Screens');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -103,19 +107,13 @@ export function NewRepairWindow({
   }, [custName, custPhone, customer]);
 
   const device = devices[activeDevice] ?? devices[0]!;
-  const model = meta?.models.find((m) => m.id === device.modelId);
-
-  const catalogForActive = useMemo(() => {
-    const map = new Map<number, RepairMeta['catalog'][number]>();
-    if (!meta || !device.modelId) return map;
-    for (const c of meta.catalog) if (c.modelId === device.modelId) map.set(c.repairTypeId, c);
-    return map;
-  }, [meta, device.modelId]);
 
   const categories = useMemo(() => {
     if (!meta) return [];
     const q = typeQuery.trim().toLowerCase();
-    const filtered = q ? meta.types.filter((t) => t.name.toLowerCase().includes(q)) : meta.types;
+    const filtered = q
+      ? meta.services.filter((s) => `${s.name} ${s.deviceGroup} ${s.category}`.toLowerCase().includes(q))
+      : meta.services;
     const byCat = new Map<string, typeof filtered>();
     for (const t of filtered) {
       if (!byCat.has(t.category)) byCat.set(t.category, []);
@@ -129,22 +127,37 @@ export function NewRepairWindow({
     TAX_RATE_BP,
   );
 
-  function toggleLine(typeId: number, typeName: string) {
-    const existing = lines.find((l) => l.deviceIndex === activeDevice && l.repairTypeId === typeId);
+  function toggleLine(service: CatalogService) {
+    const existing = lines.find((l) => l.deviceIndex === activeDevice && l.serviceId === service.id);
     if (existing) {
       setLines((prev) => prev.filter((l) => l !== existing));
       return;
     }
-    const cat = catalogForActive.get(typeId);
+    // auto-pick the tier matching the active device's model: exact name first,
+    // then the longest partial match so "iPhone 13" never grabs "iPhone 13 mini"
+    const deviceName = device.label.toLowerCase().trim();
+    let matched: (typeof service.tiers)[number] | undefined;
+    if (deviceName.length > 2) {
+      matched = service.tiers.find((t) => t.label.toLowerCase().trim() === deviceName);
+      if (!matched) {
+        const partials = service.tiers.filter((t) => {
+          const label = t.label.toLowerCase().trim();
+          return deviceName.includes(label) || label.includes(deviceName);
+        });
+        matched = partials.sort((a, b) => Math.abs(a.label.length - deviceName.length) - Math.abs(b.label.length - deviceName.length))[0];
+      }
+    }
+    const chosen = matched ?? service.tiers[0];
     setLines((prev) => [
       ...prev,
       {
         deviceIndex: activeDevice,
-        serviceCatalogId: cat?.id ?? null,
-        repairTypeId: typeId,
-        description: typeName,
-        priceCents: cat?.priceCents ?? 0,
-        warrantyDays: cat?.warrantyDays ?? 90,
+        serviceId: service.id,
+        tierLabel: chosen?.label ?? null,
+        description: service.name,
+        priceCents: chosen?.priceCents ?? service.basePriceCents,
+        warrantyDays: service.warrantyDays,
+        tiers: service.tiers.map((t) => ({ label: t.label, priceCents: t.priceCents })),
       },
     ]);
   }
@@ -197,8 +210,9 @@ export function NewRepairWindow({
           })),
           lines: lines.map((l) => ({
             deviceIndex: l.deviceIndex,
-            serviceCatalogId: l.serviceCatalogId,
-            description: l.description,
+            serviceId: l.serviceId,
+            tierLabel: l.tierLabel,
+            description: l.tierLabel ? `${l.description} (${l.tierLabel})` : l.description,
             priceCents: l.priceCents,
             warrantyDays: l.warrantyDays,
           })),
@@ -458,12 +472,12 @@ export function NewRepairWindow({
               <input
                 value={typeQuery}
                 onChange={(e) => setTypeQuery(e.target.value)}
-                placeholder={`Search ${meta?.types.length ?? ''} repair types`}
+                placeholder={`Search ${meta?.services.length ?? ''} services`}
                 style={{ ...inputStyle, paddingLeft: 34 }}
               />
             </div>
             <div style={{ marginTop: 10 }}>
-              {categories.map(([cat, types]) => {
+              {categories.map(([cat, catServices]) => {
                 const expanded = typeQuery.trim() !== '' || openCategory === cat;
                 return (
                   <div key={cat} style={{ marginBottom: 4 }}>
@@ -472,34 +486,38 @@ export function NewRepairWindow({
                       style={{ width: '100%', display: 'flex', justifyContent: 'space-between', padding: '8px 10px', borderRadius: 8, border: 'none', background: expanded ? 'var(--line-soft)' : 'transparent', font: '600 14.5px Inter, sans-serif', color: 'var(--ink)' }}
                     >
                       {cat}
-                      <span style={{ color: 'var(--ink-4)', fontWeight: 500 }}>{types.length}</span>
+                      <span style={{ color: 'var(--ink-4)', fontWeight: 500 }}>{catServices.length}</span>
                     </button>
                     {expanded &&
-                      types.map((t) => {
-                        const selected = lines.some((l) => l.deviceIndex === activeDevice && l.repairTypeId === t.id);
-                        const cat2 = catalogForActive.get(t.id);
+                      catServices.map((s) => {
+                        const selected = lines.some((l) => l.deviceIndex === activeDevice && l.serviceId === s.id);
                         return (
                           <button
-                            key={t.id}
-                            onClick={() => toggleLine(t.id, t.name)}
+                            key={s.id}
+                            onClick={() => toggleLine(s)}
                             style={{
                               width: '100%',
                               display: 'flex',
                               justifyContent: 'space-between',
                               alignItems: 'center',
-                              padding: '8px 10px 8px 22px',
+                              gap: 8,
+                              padding: '9px 10px 9px 22px',
                               borderRadius: 8,
                               border: 'none',
                               background: selected ? 'var(--orange-soft)' : 'transparent',
                               fontSize: 14.5,
                               color: 'var(--ink-2)',
+                              textAlign: 'left',
                             }}
                           >
-                            <span>
+                            <span style={{ minWidth: 0 }}>
                               <i className={`bi ${selected ? 'bi-check-circle-fill' : 'bi-circle'}`} style={{ color: selected ? 'var(--orange)' : 'var(--line)', marginRight: 8 }} />
-                              {t.name}
+                              {s.name}
+                              <span style={{ display: 'block', marginLeft: 24, fontSize: 12, color: 'var(--ink-4)' }}>{s.deviceGroup}</span>
                             </span>
-                            {cat2 && <span style={{ font: '600 12.5px Inter, sans-serif', color: 'var(--ink-3)' }}>{formatCents(cat2.priceCents)}</span>}
+                            <span style={{ font: '600 13px Inter, sans-serif', color: 'var(--ink-3)', whiteSpace: 'nowrap' }}>
+                              {s.tiers.length > 0 ? `from ${formatCents(Math.min(...s.tiers.map((t) => t.priceCents)))}` : formatCents(s.basePriceCents)}
+                            </span>
                           </button>
                         );
                       })}
@@ -522,21 +540,46 @@ export function NewRepairWindow({
                       DEVICE {di + 1} · {(d.label || 'Device').toUpperCase()}
                     </div>
                     {deviceLines.map((l, li) => (
-                      <div key={li} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 8 }}>
-                        <div>
-                          <div style={{ font: '600 15px Inter, sans-serif' }}>{l.description}</div>
-                          <div style={{ fontSize: 12, color: 'var(--ink-4)' }}>
-                            {l.serviceCatalogId ? `OEM-grade · ${l.warrantyDays}-day warranty` : 'Custom price'}
+                      <div key={li} style={{ marginTop: 8 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ font: '600 15px Inter, sans-serif' }}>{l.description}</div>
+                            <div style={{ fontSize: 12, color: 'var(--ink-4)' }}>
+                              {l.serviceId ? `${l.warrantyDays}-day warranty` : 'Custom price'}
+                            </div>
                           </div>
+                          <input
+                            value={(l.priceCents / 100).toFixed(2)}
+                            onChange={(e) => {
+                              const v = Math.round(parseFloat(e.target.value || '0') * 100);
+                              setLines((prev) => prev.map((x) => (x === l ? { ...x, priceCents: Number.isFinite(v) ? Math.max(0, v) : 0, tierLabel: null } : x)));
+                            }}
+                            style={{ width: 78, textAlign: 'right', padding: '5px 8px', borderRadius: 8, border: '1px solid var(--line)', font: '700 15px Inter, sans-serif' }}
+                          />
                         </div>
-                        <input
-                          value={(l.priceCents / 100).toFixed(2)}
-                          onChange={(e) => {
-                            const v = Math.round(parseFloat(e.target.value || '0') * 100);
-                            setLines((prev) => prev.map((x) => (x === l ? { ...x, priceCents: Number.isFinite(v) ? Math.max(0, v) : 0 } : x)));
-                          }}
-                          style={{ width: 72, textAlign: 'right', padding: '5px 8px', borderRadius: 8, border: '1px solid var(--line)', font: '700 15px Inter, sans-serif' }}
-                        />
+                        {l.tiers.length > 0 && (
+                          <select
+                            value={l.tierLabel ?? ''}
+                            onChange={(e) => {
+                              const tier = l.tiers.find((t) => t.label === e.target.value);
+                              setLines((prev) =>
+                                prev.map((x) =>
+                                  x === l
+                                    ? { ...x, tierLabel: tier?.label ?? null, priceCents: tier?.priceCents ?? x.priceCents }
+                                    : x,
+                                ),
+                              );
+                            }}
+                            style={{ width: '100%', marginTop: 6, padding: '8px 10px', borderRadius: 8, border: '1px solid var(--line)', fontSize: 13.5, background: 'var(--card)' }}
+                          >
+                            {l.tierLabel === null && <option value="">Custom price</option>}
+                            {l.tiers.map((t) => (
+                              <option key={t.label} value={t.label}>
+                                {t.label} — {formatCents(t.priceCents)}
+                              </option>
+                            ))}
+                          </select>
+                        )}
                       </div>
                     ))}
                   </div>

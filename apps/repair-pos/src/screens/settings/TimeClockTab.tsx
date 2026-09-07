@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button, Modal, StatusChip } from '@fmp/ui';
+import { Button, DataTable, Modal, StatusChip } from '@fmp/ui';
 import { api, session } from '@fmp/pos-client';
 
 interface Entry {
@@ -123,55 +123,76 @@ export function TimeClockTab() {
         </div>
       </div>
 
-      <div style={{ background: 'var(--card)', borderRadius: 14, border: '1px solid var(--line-soft)', overflow: 'auto', flex: 1 }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 15 }}>
-          <thead>
-            <tr style={{ textAlign: 'left', color: 'var(--ink-4)', font: '600 11.5px Inter, sans-serif', letterSpacing: '0.06em' }}>
-              {['STAFF', 'CLOCK IN', 'CLOCK OUT', 'HOURS', 'FLAGS', ''].map((h, i) => (
-                <th key={i} style={{ padding: '15px 16px', borderBottom: '1px solid var(--line-soft)' }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {entries.map((e) => (
-              <tr key={e.id}>
-                <td style={{ padding: '13px 16px', borderBottom: '1px solid var(--line-soft)', font: '600 15px Inter, sans-serif' }}>{e.userName}</td>
-                <td style={{ padding: '13px 16px', borderBottom: '1px solid var(--line-soft)' }}>
-                  {new Date(e.clockIn).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
-                </td>
-                <td style={{ padding: '13px 16px', borderBottom: '1px solid var(--line-soft)' }}>
-                  {e.clockOut
-                    ? new Date(e.clockOut).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
-                    : '—'}
-                </td>
-                <td style={{ padding: '13px 16px', borderBottom: '1px solid var(--line-soft)' }}>{hours(e)}</td>
-                <td style={{ padding: '13px 16px', borderBottom: '1px solid var(--line-soft)' }}>
-                  <span style={{ display: 'inline-flex', gap: 4 }}>
-                    {e.flagged && <StatusChip tone="red">Check</StatusChip>}
-                    {e.editNote && <StatusChip tone="amber" style={{ cursor: 'help' }}>Edited</StatusChip>}
-                  </span>
-                </td>
-                <td style={{ padding: '13px 16px', borderBottom: '1px solid var(--line-soft)', textAlign: 'right' }}>
-                  {isManager && (
-                    <button
-                      onClick={() => {
-                        setEditing(e);
-                        setEditIn(toLocalInput(e.clockIn));
-                        setEditOut(toLocalInput(e.clockOut));
-                        setEditNote('');
-                      }}
-                      style={{ border: 'none', background: 'none', color: 'var(--ink-3)' }}
-                    >
-                      <i className="bi bi-pencil" />
-                    </button>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {entries.length === 0 && <div style={{ padding: 24, color: 'var(--ink-4)', fontSize: 15 }}>No time entries in the last 14 days.</div>}
-      </div>
+      <DataTable
+        columns={[
+          {
+            key: 'staff',
+            label: 'Staff',
+            sortValue: (e: Entry) => e.userName,
+            render: (e: Entry) => <span style={{ font: '600 15px Inter, sans-serif' }}>{e.userName}</span>,
+          },
+          {
+            key: 'in',
+            label: 'Clock in',
+            sortValue: (e: Entry) => new Date(e.clockIn).getTime(),
+            render: (e: Entry) =>
+              new Date(e.clockIn).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }),
+          },
+          {
+            key: 'out',
+            label: 'Clock out',
+            sortValue: (e: Entry) => (e.clockOut ? new Date(e.clockOut).getTime() : 0),
+            render: (e: Entry) =>
+              e.clockOut
+                ? new Date(e.clockOut).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+                : '—',
+          },
+          {
+            key: 'hours',
+            label: 'Hours',
+            align: 'right',
+            sortValue: (e: Entry) => parseFloat(hours(e)),
+            render: (e: Entry) => hours(e),
+          },
+          {
+            key: 'flags',
+            label: 'Flags',
+            sortValue: (e: Entry) => (e.flagged ? 0 : 1),
+            render: (e: Entry) => (
+              <span style={{ display: 'inline-flex', gap: 4 }}>
+                {e.flagged && <StatusChip tone="red">Check</StatusChip>}
+                {e.editNote && <StatusChip tone="amber" style={{ cursor: 'help' }}>Edited</StatusChip>}
+              </span>
+            ),
+          },
+          {
+            key: 'edit',
+            label: '',
+            align: 'right',
+            render: (e: Entry) =>
+              isManager ? (
+                <button
+                  onClick={(ev) => {
+                    ev.stopPropagation();
+                    setEditing(e);
+                    setEditIn(toLocalInput(e.clockIn));
+                    setEditOut(toLocalInput(e.clockOut));
+                    setEditNote('');
+                  }}
+                  style={{ border: 'none', background: 'none', color: 'var(--ink-3)' }}
+                >
+                  <i className="bi bi-pencil" />
+                </button>
+              ) : null,
+          },
+        ]}
+        rows={entries}
+        rowKey={(e) => e.id}
+        searchText={(e) => e.userName}
+        searchPlaceholder="Search staff"
+        initialSort={{ key: 'in', dir: 'desc' }}
+        emptyText="No time entries in the last 14 days."
+      />
 
       <Modal open={editing !== null} onClose={() => setEditing(null)} width={380}>
         <h2 style={{ margin: 0, font: '700 19.5px Inter, sans-serif' }}>Edit entry · {editing?.userName}</h2>

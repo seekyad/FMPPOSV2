@@ -7,7 +7,8 @@ import {
   deviceModels,
   inventoryItems,
   repairTypes,
-  serviceCatalog,
+  services,
+  serviceTiers,
   stores,
   tradeinPricebook,
   users,
@@ -115,28 +116,51 @@ export async function seedIfEmpty(db: Db) {
     )
     .returning();
 
-  // Service catalog: seed common combos for phone models so the repair flow works out of the box.
-  const phoneModels = modelRows.filter((m) => m.kind === 'phone');
-  const commonRepairs = repairRows.filter((r) =>
-    ['Cracked screen', 'Battery replacement', 'Charging port replacement', 'Back glass replacement', 'Water damage treatment'].includes(r.name),
+  // Service catalog v2: services with device groups and per-model price tiers.
+  const SERVICE_SEED: Array<{
+    category: string;
+    name: string;
+    deviceGroup: string;
+    timeMinutes: number;
+    timeLabel?: string;
+    partsCostCents: number;
+    basePriceCents: number;
+    intakeNotes?: string;
+    tiers?: Array<[string, number]>;
+  }> = [
+    {
+      category: 'Screens', name: 'Screen replacement — iPhone', deviceGroup: 'iPhone 12–16', timeMinutes: 45,
+      partsCostCents: 7800, basePriceCents: 18900,
+      intakeNotes: 'Quote the tier price at intake and confirm the exact model from the IMEI. Water-exposed devices get a diagnostic first — never quote a flat repair.',
+      tiers: [['iPhone 12 / 13', 18900], ['iPhone 14 / 15', 21900], ['iPhone 16 Pro Max', 28900]],
+    },
+    { category: 'Screens', name: 'Screen replacement — Samsung', deviceGroup: 'Galaxy S21–S24', timeMinutes: 60, partsCostCents: 9600, basePriceCents: 22900 },
+    { category: 'Screens', name: 'Screen replacement — iPad', deviceGroup: 'iPad 8–10, Air', timeMinutes: 90, partsCostCents: 8400, basePriceCents: 21900 },
+    { category: 'Batteries', name: 'Battery replacement — iPhone', deviceGroup: 'iPhone 11–16', timeMinutes: 30, partsCostCents: 2200, basePriceCents: 8900 },
+    { category: 'Batteries', name: 'Battery replacement — Android', deviceGroup: 'Most Android', timeMinutes: 45, partsCostCents: 2600, basePriceCents: 9900 },
+    { category: 'Charge ports', name: 'Charge port repair', deviceGroup: 'iPhone / Android', timeMinutes: 50, partsCostCents: 1800, basePriceCents: 10900 },
+    { category: 'Charge ports', name: 'Charge port clean-out', deviceGroup: 'Any device', timeMinutes: 15, partsCostCents: 0, basePriceCents: 2900 },
+    { category: 'Water damage', name: 'Water damage treatment', deviceGroup: 'Any device', timeMinutes: 1440, timeLabel: '24 hr hold', partsCostCents: 1200, basePriceCents: 12900 },
+    { category: 'Water damage', name: 'Liquid damage diagnostic', deviceGroup: 'Any device', timeMinutes: 30, partsCostCents: 0, basePriceCents: 4500 },
+    { category: 'Software', name: 'Data transfer & backup', deviceGroup: 'Any device', timeMinutes: 60, partsCostCents: 0, basePriceCents: 6900 },
+    { category: 'Software', name: 'Software restore / unbrick', deviceGroup: 'iOS / Android', timeMinutes: 75, partsCostCents: 0, basePriceCents: 7900 },
+    { category: 'Software', name: 'Passcode / account unlock', deviceGroup: 'Owner-verified', timeMinutes: 45, partsCostCents: 0, basePriceCents: 5900 },
+    { category: 'Board level', name: 'Back glass replacement', deviceGroup: 'iPhone 8–16', timeMinutes: 120, timeLabel: '2 hr', partsCostCents: 3400, basePriceCents: 14900 },
+    { category: 'Board level', name: 'Micro-soldering — board repair', deviceGroup: 'Bench only', timeMinutes: 180, timeLabel: '3 hr', partsCostCents: 2500, basePriceCents: 24900 },
+  ];
+  const serviceRows = await db
+    .insert(services)
+    .values(SERVICE_SEED.map(({ tiers, ...s }) => s))
+    .returning();
+  const tierValues = SERVICE_SEED.flatMap((s, i) =>
+    (s.tiers ?? []).map(([label, priceCents], order) => ({
+      serviceId: serviceRows[i]!.id,
+      label,
+      priceCents,
+      sortOrder: order,
+    })),
   );
-  const priceFor = (repair: string): [number, number, number] => {
-    switch (repair) {
-      case 'Cracked screen': return [12900, 4500, 4000];
-      case 'Battery replacement': return [7900, 2500, 3000];
-      case 'Charging port replacement': return [8900, 1500, 4500];
-      case 'Back glass replacement': return [9900, 2000, 4500];
-      default: return [9900, 0, 6000];
-    }
-  };
-  await db.insert(serviceCatalog).values(
-    phoneModels.flatMap((m) =>
-      commonRepairs.map((r) => {
-        const [price, part, labor] = priceFor(r.name);
-        return { modelId: m.id, repairTypeId: r.id, priceCents: price, partCostCents: part, laborCents: labor };
-      }),
-    ),
-  );
+  if (tierValues.length > 0) await db.insert(serviceTiers).values(tierValues);
 
   // Trade-in pricebook seed
   const pricebookSeed: Array<[string, string, number]> = [
@@ -186,18 +210,14 @@ export async function seedIfEmpty(db: Db) {
     { storeId: store.id, kind: 'part', name: 'iPhone 13 OLED assembly', sku: 'PRT-13-OLED', qty: 6, costCents: 4500, priceCents: 0, taxable: false },
   ]);
 
-  // Link the stocked OLED to the iPhone 13 cracked-screen service so part consumption is live.
+  // Link the stocked OLED to the iPhone screen-replacement service so part consumption is live.
   const [oled] = await db
     .select()
     .from(inventoryItems)
     .where(eq(inventoryItems.sku, 'PRT-13-OLED'));
-  const iphone13 = modelRows.find((m) => m.name === 'iPhone 13');
-  const crackedScreen = repairRows.find((r) => r.name === 'Cracked screen');
-  if (oled && iphone13 && crackedScreen) {
-    await db
-      .update(serviceCatalog)
-      .set({ partItemId: oled.id })
-      .where(and(eq(serviceCatalog.modelId, iphone13.id), eq(serviceCatalog.repairTypeId, crackedScreen.id)));
+  const screenService = serviceRows.find((s) => s.name === 'Screen replacement — iPhone');
+  if (oled && screenService) {
+    await db.update(services).set({ partItemId: oled.id }).where(eq(services.id, screenService.id));
   }
 
   return true;

@@ -17,7 +17,7 @@ async function nextRepairNumber(db: Awaited<ReturnType<typeof getDb>>): Promise<
   return `R-${2264 + Number(row?.n ?? 0)}`;
 }
 
-/** Catalog metadata for the New Repair window. */
+/** Catalog metadata for the New Repair window: services with price tiers. */
 repairsRouter.get('/meta', async (_req, res) => {
   const db = await getDb();
   const models = await db
@@ -25,17 +25,21 @@ repairsRouter.get('/meta', async (_req, res) => {
     .from(schema.deviceModels)
     .where(eq(schema.deviceModels.active, true))
     .orderBy(asc(schema.deviceModels.brand), asc(schema.deviceModels.name));
-  const types = await db
+  const serviceRows = await db
     .select()
-    .from(schema.repairTypes)
-    .where(eq(schema.repairTypes.active, true))
-    .orderBy(asc(schema.repairTypes.category), asc(schema.repairTypes.sortOrder));
-  const catalog = await db.select().from(schema.serviceCatalog).where(eq(schema.serviceCatalog.active, true));
+    .from(schema.services)
+    .where(eq(schema.services.active, true))
+    .orderBy(asc(schema.services.category), asc(schema.services.name));
+  const tiers = await db.select().from(schema.serviceTiers).orderBy(asc(schema.serviceTiers.sortOrder));
   const technicians = await db
     .select({ id: schema.users.id, name: schema.users.name })
     .from(schema.users)
     .where(and(eq(schema.users.active, true), eq(schema.users.isTechnician, true)));
-  res.json({ models, types, catalog, technicians });
+  res.json({
+    models,
+    services: serviceRows.map((s) => ({ ...s, tiers: tiers.filter((t) => t.serviceId === s.id) })),
+    technicians,
+  });
 });
 
 /** Board list with filters. */
@@ -162,7 +166,8 @@ const deviceSchema = z.object({
 
 const ticketLineSchema = z.object({
   deviceIndex: z.number().int().min(0),
-  serviceCatalogId: z.number().int().optional().nullable(),
+  serviceId: z.number().int().optional().nullable(),
+  tierLabel: z.string().max(80).optional().nullable(),
   description: z.string().min(1).max(200),
   priceCents: z.number().int().min(0),
   warrantyDays: z.number().int().min(0).default(90),
@@ -237,7 +242,8 @@ repairsRouter.post('/', async (req, res) => {
       body.data.lines.map((l) => ({
         ticketId: ticket!.id,
         ticketDeviceId: deviceRows[l.deviceIndex]?.id ?? null,
-        serviceCatalogId: l.serviceCatalogId ?? null,
+        serviceId: l.serviceId ?? null,
+        tierLabel: l.tierLabel ?? null,
         description: l.description,
         priceCents: l.priceCents,
         warrantyDays: l.warrantyDays,
@@ -335,9 +341,9 @@ repairsRouter.patch('/:id', async (req, res) => {
 /** Consume linked catalog parts exactly once when work is completed. */
 async function consumeParts(db: Awaited<ReturnType<typeof getDb>>, userId: number, ticketId: number) {
   const lines = await db
-    .select({ line: schema.ticketLines, partItemId: schema.serviceCatalog.partItemId })
+    .select({ line: schema.ticketLines, partItemId: schema.services.partItemId })
     .from(schema.ticketLines)
-    .leftJoin(schema.serviceCatalog, eq(schema.ticketLines.serviceCatalogId, schema.serviceCatalog.id))
+    .leftJoin(schema.services, eq(schema.ticketLines.serviceId, schema.services.id))
     .where(eq(schema.ticketLines.ticketId, ticketId));
   for (const { line, partItemId } of lines) {
     if (!partItemId || line.partConsumed) continue;
@@ -421,9 +427,9 @@ repairsRouter.post('/:id/cancel', async (req, res) => {
   }
   // restore any consumed parts
   const lines = await db
-    .select({ line: schema.ticketLines, partItemId: schema.serviceCatalog.partItemId })
+    .select({ line: schema.ticketLines, partItemId: schema.services.partItemId })
     .from(schema.ticketLines)
-    .leftJoin(schema.serviceCatalog, eq(schema.ticketLines.serviceCatalogId, schema.serviceCatalog.id))
+    .leftJoin(schema.services, eq(schema.ticketLines.serviceId, schema.services.id))
     .where(eq(schema.ticketLines.ticketId, id));
   for (const { line, partItemId } of lines) {
     if (!partItemId || !line.partConsumed) continue;

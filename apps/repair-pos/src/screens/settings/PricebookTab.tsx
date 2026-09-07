@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { formatCents, parseDollars } from '@fmp/shared';
-import { Button, Modal } from '@fmp/ui';
+import { Button, DataTable, Modal } from '@fmp/ui';
 import { api, session } from '@fmp/pos-client';
 
 interface Row {
@@ -72,44 +72,62 @@ export function PricebookTab() {
           <i className="bi bi-plus-lg" /> Add entry
         </Button>
       </div>
-      <div style={{ background: 'var(--card)', borderRadius: 14, border: '1px solid var(--line-soft)', overflow: 'auto', flex: 1 }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 15 }}>
-          <thead>
-            <tr style={{ textAlign: 'left', color: 'var(--ink-4)', font: '600 11.5px Inter, sans-serif', letterSpacing: '0.06em' }}>
-              {['DEVICE', 'STORAGE', 'BASE VALUE', 'GOOD / FAIR / BROKEN', ''].map((h, i) => (
-                <th key={i} style={{ padding: '15px 16px', borderBottom: '1px solid var(--line-soft)', position: 'sticky', top: 0, background: 'var(--card)' }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.id}>
-                <td style={{ padding: '13px 16px', borderBottom: '1px solid var(--line-soft)', font: '600 15px Inter, sans-serif' }}>
-                  {r.brand} {r.modelName}
-                </td>
-                <td style={{ padding: '13px 16px', borderBottom: '1px solid var(--line-soft)' }}>{r.storage}</td>
-                <td style={{ padding: '13px 16px', borderBottom: '1px solid var(--line-soft)', font: '700 15px Inter, sans-serif' }}>
-                  {formatCents(r.baseValueCents)}
-                </td>
-                <td style={{ padding: '13px 16px', borderBottom: '1px solid var(--line-soft)', color: 'var(--ink-3)', fontSize: 14 }}>
-                  {formatCents(r.baseValueCents)} / {formatCents(Math.round(r.baseValueCents * 0.75))} / {formatCents(Math.round(r.baseValueCents * 0.4))}
-                </td>
-                <td style={{ padding: '13px 16px', borderBottom: '1px solid var(--line-soft)', textAlign: 'right' }}>
-                  <button
-                    disabled={!isManager}
-                    onClick={() =>
-                      setEditing({ modelId: r.modelId, storage: r.storage, value: (r.baseValueCents / 100).toFixed(2), title: `${r.modelName} · ${r.storage}` })
-                    }
-                    style={{ border: 'none', background: 'none', color: isManager ? 'var(--ink-3)' : 'var(--line)' }}
-                  >
-                    <i className="bi bi-pencil" />
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        columns={[
+          {
+            key: 'device',
+            label: 'Device',
+            sortValue: (r: Row) => `${r.brand} ${r.modelName}`,
+            render: (r: Row) => <span style={{ font: '600 15px Inter, sans-serif' }}>{r.brand} {r.modelName}</span>,
+          },
+          {
+            key: 'storage',
+            label: 'Storage',
+            sortValue: (r: Row) => r.storage,
+            render: (r: Row) => r.storage,
+          },
+          {
+            key: 'base',
+            label: 'Base value',
+            align: 'right',
+            sortValue: (r: Row) => r.baseValueCents,
+            render: (r: Row) => <b>{formatCents(r.baseValueCents)}</b>,
+          },
+          {
+            key: 'split',
+            label: 'Good / fair / broken',
+            render: (r: Row) => (
+              <span style={{ color: 'var(--ink-3)', fontSize: 14 }}>
+                {formatCents(r.baseValueCents)} / {formatCents(Math.round(r.baseValueCents * 0.75))} / {formatCents(Math.round(r.baseValueCents * 0.4))}
+              </span>
+            ),
+          },
+          {
+            key: 'edit',
+            label: '',
+            align: 'right',
+            render: (r: Row) => (
+              <button
+                disabled={!isManager}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setEditing({ modelId: r.modelId, storage: r.storage, value: (r.baseValueCents / 100).toFixed(2), title: `${r.modelName} · ${r.storage}` });
+                }}
+                style={{ border: 'none', background: 'none', color: isManager ? 'var(--ink-3)' : 'var(--line)' }}
+              >
+                <i className="bi bi-pencil" />
+              </button>
+            ),
+          },
+        ]}
+        rows={rows}
+        rowKey={(r) => r.id}
+        searchText={(r) => `${r.brand} ${r.modelName} ${r.storage}`}
+        searchPlaceholder="Search device or storage"
+        initialSort={{ key: 'device', dir: 'asc' }}
+        emptyText="No pricebook entries yet."
+        footer={<span>{rows.length} entries</span>}
+      />
 
       <Modal open={editing !== null} onClose={() => setEditing(null)} width={380}>
         <h2 style={{ margin: 0, font: '700 19.5px Inter, sans-serif' }}>{editing?.title}</h2>

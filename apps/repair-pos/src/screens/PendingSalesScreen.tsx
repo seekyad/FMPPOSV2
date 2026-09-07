@@ -91,9 +91,9 @@ export function PendingSalesScreen() {
       <div style={{ flex: 1, minWidth: 0, padding: '22px 24px', overflow: 'auto' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
-            <h1 style={{ margin: 0, font: '700 27.5px Inter, sans-serif' }}>Pending sales</h1>
+            <h1 style={{ margin: 0, font: '700 27.5px Inter, sans-serif' }}>Sales on hold</h1>
             <div style={{ color: 'var(--ink-3)', fontSize: 14, marginTop: 2 }}>
-              {rows.length} parked ticket{rows.length === 1 ? '' : 's'} · nothing charged yet
+              {rows.length} sale{rows.length === 1 ? '' : 's'} on hold · nothing charged yet
             </div>
           </div>
           <Button variant="dark" onClick={() => navigate('/register')}>
@@ -106,13 +106,13 @@ export function PendingSalesScreen() {
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search parked sales by ticket, name, or phone"
+            placeholder="Search held sales by ticket, name, or phone"
             style={{ width: '100%', padding: '12px 14px 12px 38px', borderRadius: 12, border: '1px solid var(--line)', background: 'var(--card)', fontSize: 15 }}
           />
         </div>
 
         <div style={{ font: '600 11.5px Inter, sans-serif', color: 'var(--ink-4)', letterSpacing: '0.08em', margin: '18px 0 8px' }}>
-          PARKED TODAY
+          ON HOLD TODAY
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {filtered.map((sale) => (
@@ -154,14 +154,14 @@ export function PendingSalesScreen() {
                   {sale.customerName ?? 'Walk-in'}{' '}
                   <span style={{ color: 'var(--ink-4)', font: '500 12.5px Inter, sans-serif' }}>#{sale.ticketNumber}</span>
                 </div>
-                <div style={{ fontSize: 12.5, color: 'var(--ink-3)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                <div style={{ fontSize: 12.5, color: 'var(--ink-3)', overflowWrap: 'anywhere' }}>
                   {sale.lines.map((l) => l.description).join(' · ')} · {sale.lines.length} item{sale.lines.length === 1 ? '' : 's'}
                 </div>
               </div>
               <div style={{ textAlign: 'right' }}>
                 <div style={{ font: '700 16px Inter, sans-serif' }}>{formatCents(sale.totalCents)}</div>
                 <div style={{ fontSize: 11.5, color: 'var(--ink-4)' }}>
-                  Parked {new Date(sale.createdAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })} · {sale.cashierName}
+                  Held {new Date(sale.createdAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })} · {sale.cashierName}
                 </div>
               </div>
               <Button variant="secondary" onClick={(e) => { e.stopPropagation(); resume(sale); }}>
@@ -169,11 +169,11 @@ export function PendingSalesScreen() {
               </Button>
             </div>
           ))}
-          {filtered.length === 0 && <div style={{ color: 'var(--ink-4)', fontSize: 15, marginTop: 30, textAlign: 'center' }}>No parked sales.</div>}
+          {filtered.length === 0 && <div style={{ color: 'var(--ink-4)', fontSize: 15, marginTop: 30, textAlign: 'center' }}>No sales on hold.</div>}
         </div>
 
         <div style={{ marginTop: 24, fontSize: 12.5, color: 'var(--ink-4)', display: 'flex', gap: 6, alignItems: 'center' }}>
-          <i className="bi bi-info-circle" /> Parked sales clear at end-of-day close. Resuming one replaces whatever is in the current sale.
+          <i className="bi bi-info-circle" /> Held sales clear when the drawer is closed for the day. Resuming one replaces whatever is in the current sale.
         </div>
       </div>
 
@@ -183,7 +183,7 @@ export function PendingSalesScreen() {
           <>
             <h2 style={{ margin: 0, font: '700 20.5px Inter, sans-serif' }}>{selected.customerName ?? 'Walk-in'}</h2>
             <div style={{ fontSize: 12.5, color: 'var(--ink-3)', marginTop: 2 }}>
-              #{selected.ticketNumber} · parked {new Date(selected.createdAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+              #{selected.ticketNumber} · held {new Date(selected.createdAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
             </div>
             <div style={{ marginTop: 14, flex: 1, overflow: 'auto' }}>
               {selected.lines.map((l) => (
@@ -230,12 +230,12 @@ export function PendingSalesScreen() {
             </div>
           </>
         ) : (
-          <div style={{ color: 'var(--ink-4)', fontSize: 15, marginTop: 40, textAlign: 'center' }}>Select a parked sale.</div>
+          <div style={{ color: 'var(--ink-4)', fontSize: 15, marginTop: 40, textAlign: 'center' }}>Select a held sale.</div>
         )}
       </div>
 
       <Modal open={voiding !== null} onClose={() => setVoiding(null)} width={360}>
-        <h2 style={{ margin: 0, font: '700 19.5px Inter, sans-serif' }}>Void parked sale?</h2>
+        <h2 style={{ margin: 0, font: '700 19.5px Inter, sans-serif' }}>Delete this held sale?</h2>
         <p style={{ fontSize: 15, color: 'var(--ink-2)' }}>
           #{voiding?.ticketNumber} · {formatCents(voiding?.totalCents ?? 0)} — this can't be undone.
         </p>

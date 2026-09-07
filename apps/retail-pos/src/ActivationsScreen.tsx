@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { formatCents, parseDollars } from '@fmp/shared';
-import { Button, Modal, StatusChip } from '@fmp/ui';
+import { Button, DataTable, Modal, StatusChip } from '@fmp/ui';
 import { api, CustomerModal, type CartCustomer } from '@fmp/pos-client';
 
 interface Activation {
@@ -30,7 +30,6 @@ const KIND_LABELS: Record<string, string> = {
 
 export function ActivationsScreen() {
   const [rows, setRows] = useState<Activation[]>([]);
-  const [query, setQuery] = useState('');
   const [creating, setCreating] = useState(false);
   const [customer, setCustomer] = useState<CartCustomer | null>(null);
   const [pickingCustomer, setPickingCustomer] = useState(false);
@@ -46,13 +45,12 @@ export function ActivationsScreen() {
   const [error, setError] = useState('');
 
   async function load() {
-    setRows(await api<Activation[]>(`/api/retail/activations?query=${encodeURIComponent(query)}`).catch(() => []));
+    setRows(await api<Activation[]>('/api/retail/activations').catch(() => []));
   }
 
   useEffect(() => {
-    const t = setTimeout(() => void load(), 200);
-    return () => clearTimeout(t);
-  }, [query]);
+    void load();
+  }, []);
 
   async function create() {
     if (!customer || !form.carrier.trim()) {
@@ -106,49 +104,80 @@ export function ActivationsScreen() {
         </Button>
       </div>
 
-      <div style={{ position: 'relative', marginTop: 16 }}>
-        <i className="bi bi-search" style={{ position: 'absolute', left: 14, top: 13, color: 'var(--ink-4)', fontSize: 16 }} />
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search customer, account #, phone, or carrier"
-          style={{ width: '100%', padding: '12px 14px 12px 38px', borderRadius: 12, border: '1px solid var(--line)', background: 'var(--card)', fontSize: 15 }}
-        />
-      </div>
-
-      <div style={{ marginTop: 14, background: 'var(--card)', borderRadius: 14, border: '1px solid var(--line-soft)', overflow: 'auto', flex: 1 }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 15 }}>
-          <thead>
-            <tr style={{ textAlign: 'left', color: 'var(--ink-4)', font: '600 11.5px Inter, sans-serif', letterSpacing: '0.06em' }}>
-              {['CUSTOMER', 'TYPE', 'CARRIER / PLAN', 'ACCOUNT #', 'LINE', 'MONTHLY', 'DATE', 'STATUS'].map((h) => (
-                <th key={h} style={{ padding: '15px 16px', borderBottom: '1px solid var(--line-soft)', position: 'sticky', top: 0, background: 'var(--card)' }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.id}>
-                <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--line-soft)', font: '600 15px Inter, sans-serif' }}>{r.customerName}</td>
-                <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--line-soft)' }}>{KIND_LABELS[r.kind] ?? r.kind}</td>
-                <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--line-soft)', color: 'var(--ink-2)' }}>
-                  {r.carrier}{r.planName ? ` · ${r.planName}` : ''}
-                </td>
-                <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--line-soft)', color: 'var(--ink-3)' }}>{r.accountNumber ?? '—'}</td>
-                <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--line-soft)', color: 'var(--ink-3)' }}>{r.phoneNumber ?? '—'}</td>
-                <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--line-soft)' }}>{r.monthlyCents > 0 ? `${formatCents(r.monthlyCents)}/mo` : '—'}</td>
-                <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--line-soft)', color: 'var(--ink-3)' }}>
+      <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+        <DataTable
+          columns={[
+            {
+              key: 'customer',
+              label: 'Customer',
+              sortValue: (r: Activation) => r.customerName,
+              render: (r: Activation) => <span style={{ font: '600 15px Inter, sans-serif' }}>{r.customerName}</span>,
+            },
+            {
+              key: 'type',
+              label: 'Type',
+              sortValue: (r: Activation) => KIND_LABELS[r.kind] ?? r.kind,
+              render: (r: Activation) => KIND_LABELS[r.kind] ?? r.kind,
+            },
+            {
+              key: 'carrier',
+              label: 'Carrier / plan',
+              sortValue: (r: Activation) => `${r.carrier} ${r.planName ?? ''}`,
+              render: (r: Activation) => (
+                <span style={{ color: 'var(--ink-2)' }}>
+                  {r.carrier}
+                  {r.planName ? ` · ${r.planName}` : ''}
+                </span>
+              ),
+            },
+            {
+              key: 'account',
+              label: 'Account #',
+              sortValue: (r: Activation) => r.accountNumber ?? '',
+              render: (r: Activation) => <span style={{ color: 'var(--ink-3)' }}>{r.accountNumber ?? '—'}</span>,
+            },
+            {
+              key: 'line',
+              label: 'Line',
+              sortValue: (r: Activation) => r.phoneNumber ?? '',
+              render: (r: Activation) => <span style={{ color: 'var(--ink-3)' }}>{r.phoneNumber ?? '—'}</span>,
+            },
+            {
+              key: 'monthly',
+              label: 'Monthly',
+              align: 'right',
+              sortValue: (r: Activation) => r.monthlyCents,
+              render: (r: Activation) => (r.monthlyCents > 0 ? `${formatCents(r.monthlyCents)}/mo` : '—'),
+            },
+            {
+              key: 'date',
+              label: 'Date',
+              sortValue: (r: Activation) => new Date(r.createdAt).getTime(),
+              render: (r: Activation) => (
+                <span style={{ color: 'var(--ink-3)' }}>
                   {new Date(r.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                </td>
-                <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--line-soft)' }}>
-                  <StatusChip tone={r.status === 'active' ? 'green' : r.status === 'pending' ? 'amber' : 'red'}>
-                    {r.status}
-                  </StatusChip>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {rows.length === 0 && <div style={{ padding: 24, color: 'var(--ink-4)', fontSize: 15 }}>No activations yet.</div>}
+                </span>
+              ),
+            },
+            {
+              key: 'status',
+              label: 'Status',
+              sortValue: (r: Activation) => r.status,
+              render: (r: Activation) => (
+                <StatusChip tone={r.status === 'active' ? 'green' : r.status === 'pending' ? 'amber' : 'red'}>
+                  {r.status}
+                </StatusChip>
+              ),
+            },
+          ]}
+          rows={rows}
+          rowKey={(r) => r.id}
+          searchText={(r) => `${r.customerName} ${r.accountNumber ?? ''} ${r.phoneNumber ?? ''} ${r.carrier} ${r.planName ?? ''}`}
+          searchPlaceholder="Search customer, account #, phone, or carrier"
+          initialSort={{ key: 'date', dir: 'desc' }}
+          emptyText="No activations yet."
+          footer={<span>Showing {rows.length} activations</span>}
+        />
       </div>
 
       <Modal open={creating} onClose={() => setCreating(false)} width={460}>
