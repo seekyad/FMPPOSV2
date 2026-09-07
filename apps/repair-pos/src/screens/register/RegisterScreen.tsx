@@ -8,15 +8,19 @@ import { CustomItemModal } from './CustomItemModal';
 import { CustomerModal } from './CustomerModal';
 import { InventoryPickerModal, type PickableItem } from './InventoryPickerModal';
 import { PaymentModal, type PaymentDraft } from './PaymentModal';
+import { NewRepairWindow, type CreatedTicket } from '../repairs/NewRepairWindow';
+import { DepositModal } from '../repairs/DepositModal';
 
 const TAX_RATE_BP = 600; // store-configurable in Settings (Phase 3); seed value shown until then
 
-interface RecentSale {
+interface TakenInToday {
   id: number;
-  ticketNumber: string;
-  totalCents: number;
-  customerName: string | null;
+  number: string;
+  status: string;
   createdAt: string;
+  customerName: string | null;
+  customerPhone: string | null;
+  deviceSummary: string | null;
 }
 
 type OpenModal = null | 'custom' | 'customer' | 'accessory' | 'device' | 'payment' | 'note';
@@ -29,7 +33,9 @@ export function RegisterScreen() {
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [parkedCount, setParkedCount] = useState(0);
-  const [recent, setRecent] = useState<RecentSale[]>([]);
+  const [takenIn, setTakenIn] = useState<TakenInToday[]>([]);
+  const [repairOpen, setRepairOpen] = useState(false);
+  const [depositTicket, setDepositTicket] = useState<{ id: number; number: string; balanceCents: number } | null>(null);
   const [done, setDone] = useState<null | { changeCents: number | null; receiptText: string; printed: boolean }>(null);
   const [error, setError] = useState('');
   const [resumedSaleId, setResumedSaleId] = useState<number | null>(null);
@@ -44,12 +50,34 @@ export function RegisterScreen() {
   );
 
   async function refreshSide() {
-    const [parked, recentRows] = await Promise.all([
+    const [parked, taken] = await Promise.all([
       api<unknown[]>('/api/sales/parked').catch(() => []),
-      api<RecentSale[]>('/api/sales/recent').catch(() => []),
+      api<TakenInToday[]>('/api/repairs/taken-today').catch(() => []),
     ]);
     setParkedCount(parked.length);
-    setRecent(recentRows.slice(0, 6));
+    setTakenIn(taken);
+  }
+
+  function handleRepairCreated(ticket: CreatedTicket, exit: 'board' | 'deposit' | 'sale') {
+    setRepairOpen(false);
+    if (exit === 'deposit') {
+      setDepositTicket({ id: ticket.id, number: ticket.number, balanceCents: ticket.totalCents });
+    } else if (exit === 'sale') {
+      setLines((prev) => [
+        ...prev,
+        ...ticket.lines.map((l) => ({
+          key: lineKey(),
+          kind: 'repair' as const,
+          description: `${ticket.number} · ${l.description}`,
+          qty: 1,
+          unitCents: l.priceCents,
+          discountCents: 0,
+          taxable: true,
+          ticketId: ticket.id,
+        })),
+      ]);
+    }
+    void refreshSide();
   }
 
   useEffect(() => {
@@ -170,7 +198,7 @@ export function RegisterScreen() {
     onClick?: () => void;
     disabled?: boolean;
   }> = [
-    { icon: 'bi-wrench-adjustable', title: 'New repair', caption: 'Start a repair ticket', bg: 'var(--orange-soft)', disabled: true },
+    { icon: 'bi-wrench-adjustable', title: 'New repair', caption: 'Start a repair ticket', bg: 'var(--orange-soft)', onClick: () => setRepairOpen(true) },
     { icon: 'bi-lightning-charge', title: 'Accessory', caption: 'Cases, chargers, glass', bg: 'var(--blue-bg)', onClick: () => setModal('accessory') },
     { icon: 'bi-phone', title: 'Device sale', caption: 'Sell a used or new phone', bg: 'var(--green-bg)', onClick: () => setModal('device') },
     { icon: 'bi-arrow-left-right', title: 'Trade-in', caption: 'Buy or exchange a device', bg: 'var(--purple-bg)', disabled: true },
@@ -201,7 +229,7 @@ export function RegisterScreen() {
             </Link>
             <Link to="/repairs" style={{ textDecoration: 'none' }}>
               <Button variant="dark">
-                Repairs <span style={{ background: 'var(--orange)', borderRadius: 999, padding: '1px 8px', fontSize: 11 }}>–</span>
+                Repairs <span style={{ background: 'var(--orange)', borderRadius: 999, padding: '1px 8px', fontSize: 11 }}>{takenIn.length}</span>
               </Button>
             </Link>
           </div>
@@ -240,24 +268,29 @@ export function RegisterScreen() {
 
         <div style={{ display: 'flex', justifyContent: 'space-between', margin: '20px 0 8px' }}>
           <span style={{ font: '600 10px Inter, sans-serif', color: 'var(--ink-4)', letterSpacing: '0.08em' }}>
-            RECENT SALES TODAY
+            TAKEN IN TODAY{' '}
+            <span style={{ color: 'var(--orange)' }}>
+              {takenIn.filter((t) => !['completed', 'cancelled', 'abandoned'].includes(t.status)).length} open
+            </span>
           </span>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
-          {recent.map((s) => (
-            <div key={s.id} style={{ background: 'var(--card)', borderRadius: 12, border: '1px solid var(--line-soft)', padding: '10px 12px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ font: '600 12px Inter, sans-serif' }}>{s.customerName ?? 'Walk-in'}</span>
-                <span style={{ fontSize: 10, color: 'var(--ink-4)' }}>
-                  {new Date(s.createdAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
-                </span>
+          {takenIn.map((t) => (
+            <Link key={t.id} to="/repairs" style={{ textDecoration: 'none', color: 'inherit' }}>
+              <div style={{ background: 'var(--card)', borderRadius: 12, border: '1px solid var(--line-soft)', padding: '10px 12px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ font: '600 12px Inter, sans-serif' }}>{t.customerName}</span>
+                  <span style={{ fontSize: 10, color: 'var(--ink-4)' }}>
+                    {new Date(t.createdAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                  </span>
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--ink-3)', marginTop: 3 }}>
+                  <i className="bi bi-phone" style={{ fontSize: 10 }} /> {t.deviceSummary ?? t.number}
+                </div>
               </div>
-              <div style={{ fontSize: 11, color: 'var(--ink-3)', marginTop: 3 }}>
-                #{s.ticketNumber} · {formatCents(s.totalCents)}
-              </div>
-            </div>
+            </Link>
           ))}
-          {recent.length === 0 && <div style={{ fontSize: 12, color: 'var(--ink-4)' }}>No sales yet today.</div>}
+          {takenIn.length === 0 && <div style={{ fontSize: 12, color: 'var(--ink-4)' }}>No repairs taken in yet.</div>}
         </div>
       </div>
 
@@ -413,6 +446,9 @@ export function RegisterScreen() {
         onClose={() => setModal(null)}
         onComplete={(p) => void complete(p)}
       />
+
+      <NewRepairWindow open={repairOpen} onClose={() => setRepairOpen(false)} onCreated={handleRepairCreated} />
+      <DepositModal ticket={depositTicket} onClose={() => setDepositTicket(null)} onDone={() => void refreshSide()} />
 
       <Modal open={modal === 'note'} onClose={() => setModal(null)} width={380}>
         <h2 style={{ margin: 0, font: '700 18px Inter, sans-serif' }}>Quick note</h2>

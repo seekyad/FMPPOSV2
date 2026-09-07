@@ -10,6 +10,8 @@ export interface CartLine {
   discountCents: number;
   taxable: boolean;
   inventoryItemId?: number | null;
+  /** repair lines: ticket whose balance this pays */
+  ticketId?: number | null;
   /** serialized devices can't have qty > 1 */
   serialized?: boolean;
 }

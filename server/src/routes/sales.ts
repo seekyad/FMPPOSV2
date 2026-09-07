@@ -18,6 +18,8 @@ const lineSchema = z.object({
   discountCents: z.number().int().min(0).default(0),
   taxable: z.boolean().default(true),
   inventoryItemId: z.number().int().optional().nullable(),
+  /** repair lines: the ticket whose balance this line pays down */
+  ticketId: z.number().int().optional().nullable(),
 });
 
 const paymentSchema = z.object({
@@ -218,6 +220,26 @@ salesRouter.post('/complete', async (req, res) => {
   await db.insert(schema.payments).values(paymentRows);
 
   await applyInventoryForSale(db, req.session!.id, sale.id, lines);
+
+  // Repair lines pay down their ticket: record a ticket payment (line total + its tax share).
+  const taxRate = await getTaxRate(db, req.session!.storeId);
+  const primaryMethod = payments[0]!.method;
+  const byTicket = new Map<number, number>();
+  for (const line of lines) {
+    if (line.kind !== 'repair' || !line.ticketId) continue;
+    const lineTotal = line.qty * line.unitCents - line.discountCents;
+    const withTax = line.taxable ? lineTotal + Math.round((lineTotal * taxRate) / 10000) : lineTotal;
+    byTicket.set(line.ticketId, (byTicket.get(line.ticketId) ?? 0) + withTax);
+  }
+  for (const [ticketId, amountCents] of byTicket) {
+    await db.insert(schema.payments).values({
+      saleId: sale.id,
+      ticketId,
+      method: primaryMethod,
+      amountCents,
+      userId: req.session!.id,
+    });
+  }
 
   // Resuming a parked sale: mark the parked row consumed.
   if (body.data.parkedSaleId) {

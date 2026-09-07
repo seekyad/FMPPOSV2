@@ -7,6 +7,8 @@ import { RegisterScreen } from './screens/register/RegisterScreen';
 import { PendingSalesScreen } from './screens/PendingSalesScreen';
 import { CustomersScreen } from './screens/CustomersScreen';
 import { InventoryScreen } from './screens/InventoryScreen';
+import { RepairsScreen } from './screens/repairs/RepairsScreen';
+import { SettingsScreen } from './screens/SettingsScreen';
 
 function Placeholder({ title }: { title: string }) {
   return (
@@ -37,11 +39,11 @@ export function App() {
           <Route path="/" element={<Navigate to="/register" replace />} />
           <Route path="/register" element={<RegisterScreen />} />
           <Route path="/pending" element={<PendingSalesScreen />} />
-          <Route path="/repairs" element={<Placeholder title="Repairs" />} />
+          <Route path="/repairs" element={<RepairsScreen />} />
           <Route path="/inventory" element={<InventoryScreen />} />
           <Route path="/customers" element={<CustomersScreen />} />
           <Route path="/reports" element={<Placeholder title="Reports" />} />
-          <Route path="/more" element={<Placeholder title="More" />} />
+          <Route path="/more" element={<SettingsScreen />} />
         </Routes>
       </main>
     </div>

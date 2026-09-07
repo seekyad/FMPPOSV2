@@ -1,5 +1,5 @@
 import bcrypt from 'bcryptjs';
-import { count } from 'drizzle-orm';
+import { and, count, eq } from 'drizzle-orm';
 import type { Db } from './index';
 import {
   customers,
@@ -185,6 +185,20 @@ export async function seedIfEmpty(db: Db) {
     { storeId: store.id, kind: 'accessory', name: 'USB-C cable 1m', sku: 'ACC-CBL-C1', qty: 30, costCents: 250, priceCents: 1200 },
     { storeId: store.id, kind: 'part', name: 'iPhone 13 OLED assembly', sku: 'PRT-13-OLED', qty: 6, costCents: 4500, priceCents: 0, taxable: false },
   ]);
+
+  // Link the stocked OLED to the iPhone 13 cracked-screen service so part consumption is live.
+  const [oled] = await db
+    .select()
+    .from(inventoryItems)
+    .where(eq(inventoryItems.sku, 'PRT-13-OLED'));
+  const iphone13 = modelRows.find((m) => m.name === 'iPhone 13');
+  const crackedScreen = repairRows.find((r) => r.name === 'Cracked screen');
+  if (oled && iphone13 && crackedScreen) {
+    await db
+      .update(serviceCatalog)
+      .set({ partItemId: oled.id })
+      .where(and(eq(serviceCatalog.modelId, iphone13.id), eq(serviceCatalog.repairTypeId, crackedScreen.id)));
+  }
 
   return true;
 }
