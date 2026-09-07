@@ -240,9 +240,16 @@ export function SalesScreen() {
         <div style={{ flex: 1, overflow: 'auto', padding: '12px 20px' }}>
           {lines.map((l) => (
             <div key={l.key} style={{ borderBottom: '1px solid var(--line-soft)', padding: '10px 0' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <span style={{ font: '600 15px Inter, sans-serif' }}>{l.description}</span>
-                <span style={{ font: '700 15px Inter, sans-serif' }}>{formatCents(l.qty * l.unitCents)}</span>
+                <span style={{ textAlign: 'right' }}>
+                  <span style={{ font: '700 15px Inter, sans-serif' }}>{formatCents(l.qty * l.unitCents)}</span>
+                  <span style={{ display: 'block', fontSize: 12.5, color: 'var(--ink-3)' }}>
+                    {l.taxable
+                      ? `Tax ${formatCents(Math.round(((l.qty * l.unitCents - l.discountCents) * taxRateBp) / 10000))}`
+                      : 'No tax'}
+                  </span>
+                </span>
               </div>
               {l.detail && <div style={{ fontSize: 12.5, color: 'var(--ink-3)' }}>{l.detail}</div>}
               <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
