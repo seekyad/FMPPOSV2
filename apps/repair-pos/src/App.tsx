@@ -8,7 +8,8 @@ import { PendingSalesScreen } from './screens/PendingSalesScreen';
 import { CustomersScreen } from './screens/CustomersScreen';
 import { InventoryScreen } from './screens/InventoryScreen';
 import { RepairsScreen } from './screens/repairs/RepairsScreen';
-import { SettingsScreen } from './screens/SettingsScreen';
+import { SettingsHub } from './screens/settings/SettingsHub';
+import { ReportsScreen } from './screens/ReportsScreen';
 
 function Placeholder({ title }: { title: string }) {
   return (
@@ -42,8 +43,8 @@ export function App() {
           <Route path="/repairs" element={<RepairsScreen />} />
           <Route path="/inventory" element={<InventoryScreen />} />
           <Route path="/customers" element={<CustomersScreen />} />
-          <Route path="/reports" element={<Placeholder title="Reports" />} />
-          <Route path="/more" element={<SettingsScreen />} />
+          <Route path="/reports" element={<ReportsScreen />} />
+          <Route path="/more" element={<SettingsHub />} />
         </Routes>
       </main>
     </div>

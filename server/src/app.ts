@@ -5,9 +5,15 @@ import { fileURLToPath } from 'node:url';
 import { authRouter } from './routes/auth';
 import { catalogRouter } from './routes/catalog';
 import { customersRouter } from './routes/customers';
+import { drawerRouter } from './routes/drawer';
 import { inventoryRouter } from './routes/inventory';
 import { repairsRouter } from './routes/repairs';
+import { reportsRouter } from './routes/reports';
 import { salesRouter } from './routes/sales';
+import { settingsRouter } from './routes/settings';
+import { terminalRouter } from './routes/terminal';
+import { timeclockRouter } from './routes/timeclock';
+import { tradeinRouter } from './routes/tradein';
 
 /** Express app without the HTTP listener so tests can drive it with supertest. */
 export function createApp() {
@@ -22,6 +28,12 @@ export function createApp() {
   app.use('/api/sales', salesRouter);
   app.use('/api/repairs', repairsRouter);
   app.use('/api/catalog', catalogRouter);
+  app.use('/api/drawer', drawerRouter);
+  app.use('/api/tradein', tradeinRouter);
+  app.use('/api/timeclock', timeclockRouter);
+  app.use('/api/settings', settingsRouter);
+  app.use('/api/reports', reportsRouter);
+  app.use('/api/terminal', terminalRouter);
 
   // Production: serve the built repair-pos SPA.
   const dirname = path.dirname(fileURLToPath(import.meta.url));

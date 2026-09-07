@@ -25,8 +25,8 @@ interface ServiceRow {
   warrantyDays: number;
 }
 
-/** "More" → catalog administration: device models, repair types, per-model pricing. */
-export function SettingsScreen() {
+/** Settings → catalog administration: device models, repair types, per-model pricing. */
+export function CatalogTab() {
   const isManager = session.user?.role === 'manager';
   const [models, setModels] = useState<Model[]>([]);
   const [types, setTypes] = useState<RepairType[]>([]);
@@ -123,20 +123,17 @@ export function SettingsScreen() {
   }, [types]);
 
   return (
-    <div style={{ padding: '22px 24px', height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
-          <h1 style={{ margin: 0, font: '700 24px Inter, sans-serif' }}>Service catalog</h1>
-          <div style={{ color: 'var(--ink-3)', fontSize: 12, marginTop: 2 }}>
-            Prices, part costs, labor and warranty per device model{isManager ? '' : ' — read-only (manager sign-in to edit)'}
-          </div>
+        <div style={{ color: 'var(--ink-3)', fontSize: 12 }}>
+          Prices, part costs, labor and warranty per device model{isManager ? '' : ' — read-only (manager sign-in to edit)'}
         </div>
         <Button variant="secondary" disabled={!isManager} onClick={() => setAddingModel(true)}>
           <i className="bi bi-plus-lg" /> Add device model
         </Button>
       </div>
 
-      <div style={{ display: 'flex', gap: 8, marginTop: 16, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
         {models.map((m) => (
           <button
             key={m.id}

@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { formatCents } from '@fmp/shared';
 import { Button, Keypad, Modal } from '@fmp/ui';
+import { api } from '../../api';
 import type { CartCustomer } from '../../cart';
 
 export interface PaymentDraft {
@@ -33,6 +34,17 @@ export function PaymentModal({
   const [method, setMethod] = useState<PaymentDraft['method']>('cash');
   const [tendered, setTendered] = useState(0);
   const [partial, setPartial] = useState<number | null>(null); // null = pay the remainder
+  const [terminalConfigured, setTerminalConfigured] = useState(false);
+  const [terminalState, setTerminalState] = useState<'idle' | 'waiting' | 'declined'>('idle');
+  const [terminalMsg, setTerminalMsg] = useState('');
+
+  useEffect(() => {
+    if (open) {
+      void api<{ configured: boolean }>('/api/terminal/status')
+        .then((s) => setTerminalConfigured(s.configured))
+        .catch(() => setTerminalConfigured(false));
+    }
+  }, [open]);
 
   const remaining = dueCents - taken.reduce((s, p) => s + p.amountCents, 0);
   const amount = partial ?? remaining;
@@ -223,10 +235,56 @@ export function PaymentModal({
             color: 'var(--ink-2)',
           }}
         >
-          <i className="bi bi-credit-card-2-front" /> Run {formatCents(amount)} on the terminal, then confirm below.
-          <div style={{ fontSize: 11, color: 'var(--ink-4)', marginTop: 4 }}>
-            Automatic send-to-Dejavoo arrives in a later update.
-          </div>
+          {terminalConfigured ? (
+            <>
+              <Button
+                variant="dark"
+                style={{ width: '100%' }}
+                disabled={terminalState === 'waiting'}
+                onClick={async () => {
+                  setTerminalState('waiting');
+                  setTerminalMsg('');
+                  try {
+                    const res = await api<{ approved: boolean; responseMessage: string }>('/api/terminal/charge', {
+                      method: 'POST',
+                      body: JSON.stringify({ amountCents: amount }),
+                    });
+                    if (res.approved) {
+                      setTerminalState('idle');
+                      confirmCurrent();
+                    } else {
+                      setTerminalState('declined');
+                      setTerminalMsg(res.responseMessage);
+                    }
+                  } catch (e) {
+                    setTerminalState('declined');
+                    setTerminalMsg(e instanceof Error ? e.message : 'Terminal error');
+                  }
+                }}
+              >
+                {terminalState === 'waiting' ? (
+                  <>Waiting for card on terminal…</>
+                ) : (
+                  <>
+                    <i className="bi bi-credit-card-2-front" /> Send {formatCents(amount)} to Dejavoo terminal
+                  </>
+                )}
+              </Button>
+              {terminalState === 'declined' && (
+                <div style={{ color: 'var(--red)', fontSize: 12, marginTop: 6 }}>{terminalMsg}</div>
+              )}
+              <div style={{ fontSize: 11, color: 'var(--ink-4)', marginTop: 6 }}>
+                Or run it on the terminal yourself and confirm below.
+              </div>
+            </>
+          ) : (
+            <>
+              <i className="bi bi-credit-card-2-front" /> Run {formatCents(amount)} on the terminal, then confirm below.
+              <div style={{ fontSize: 11, color: 'var(--ink-4)', marginTop: 4 }}>
+                Add Dejavoo credentials in More → Store & payments to send the amount automatically.
+              </div>
+            </>
+          )}
         </div>
       )}
 

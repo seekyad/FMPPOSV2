@@ -10,8 +10,10 @@ import { InventoryPickerModal, type PickableItem } from './InventoryPickerModal'
 import { PaymentModal, type PaymentDraft } from './PaymentModal';
 import { NewRepairWindow, type CreatedTicket } from '../repairs/NewRepairWindow';
 import { DepositModal } from '../repairs/DepositModal';
+import { TradeInModal } from './TradeInModal';
+import { PayoutModal } from './PayoutModal';
 
-const TAX_RATE_BP = 600; // store-configurable in Settings (Phase 3); seed value shown until then
+let cachedTaxRateBp = 600;
 
 interface TakenInToday {
   id: number;
@@ -23,7 +25,7 @@ interface TakenInToday {
   deviceSummary: string | null;
 }
 
-type OpenModal = null | 'custom' | 'customer' | 'accessory' | 'device' | 'payment' | 'note';
+type OpenModal = null | 'custom' | 'customer' | 'accessory' | 'device' | 'payment' | 'note' | 'tradein' | 'payout';
 
 export function RegisterScreen() {
   const user = session.user;
@@ -35,6 +37,8 @@ export function RegisterScreen() {
   const [parkedCount, setParkedCount] = useState(0);
   const [takenIn, setTakenIn] = useState<TakenInToday[]>([]);
   const [repairOpen, setRepairOpen] = useState(false);
+  const [toast, setToast] = useState('');
+  const [taxRateBp, setTaxRateBp] = useState(cachedTaxRateBp);
   const [depositTicket, setDepositTicket] = useState<{ id: number; number: string; balanceCents: number } | null>(null);
   const [done, setDone] = useState<null | { changeCents: number | null; receiptText: string; printed: boolean }>(null);
   const [error, setError] = useState('');
@@ -44,7 +48,7 @@ export function RegisterScreen() {
     () =>
       computeTotals(
         lines.map((l) => ({ qty: l.qty, unitCents: l.unitCents, taxable: l.taxable, discountCents: l.discountCents })),
-        TAX_RATE_BP,
+        taxRateBp,
       ),
     [lines],
   );
@@ -82,6 +86,12 @@ export function RegisterScreen() {
 
   useEffect(() => {
     void refreshSide();
+    void api<{ taxRateBp: number }>('/api/settings/store')
+      .then((s) => {
+        cachedTaxRateBp = s.taxRateBp;
+        setTaxRateBp(s.taxRateBp);
+      })
+      .catch(() => {});
     // resume support: PendingSales stashes a sale here before navigating over
     const stash = sessionStorage.getItem('fmp.resumeSale');
     if (stash) {
@@ -201,9 +211,9 @@ export function RegisterScreen() {
     { icon: 'bi-wrench-adjustable', title: 'New repair', caption: 'Start a repair ticket', bg: 'var(--orange-soft)', onClick: () => setRepairOpen(true) },
     { icon: 'bi-lightning-charge', title: 'Accessory', caption: 'Cases, chargers, glass', bg: 'var(--blue-bg)', onClick: () => setModal('accessory') },
     { icon: 'bi-phone', title: 'Device sale', caption: 'Sell a used or new phone', bg: 'var(--green-bg)', onClick: () => setModal('device') },
-    { icon: 'bi-arrow-left-right', title: 'Trade-in', caption: 'Buy or exchange a device', bg: 'var(--purple-bg)', disabled: true },
+    { icon: 'bi-arrow-left-right', title: 'Trade-in', caption: 'Buy or exchange a device', bg: 'var(--purple-bg)', onClick: () => setModal('tradein') },
     { icon: 'bi-search', title: 'Check IMEI', caption: 'Carrier and blacklist status', bg: 'var(--card)', disabled: true },
-    { icon: 'bi-cash-coin', title: 'Payout', caption: 'Cash paid from register', bg: 'var(--red-bg)', disabled: true },
+    { icon: 'bi-cash-coin', title: 'Payout', caption: 'Cash paid from register', bg: 'var(--red-bg)', onClick: () => setModal('payout') },
     { icon: 'bi-pencil-square', title: 'Quick note', caption: 'Add a register note', bg: 'var(--card)', onClick: () => setModal('note') },
     { icon: 'bi-person', title: 'Customer', caption: 'Find or create customer', bg: 'var(--card)', onClick: () => setModal('customer') },
     { icon: 'bi-plus-circle', title: 'Custom item', caption: 'Enter description and price', bg: 'var(--card)', onClick: () => setModal('custom') },
@@ -385,7 +395,7 @@ export function RegisterScreen() {
             <span>{formatCents(totals.subtotalCents)}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--ink-3)', marginTop: 3 }}>
-            <span>Tax {(TAX_RATE_BP / 100).toFixed(0)}%</span>
+            <span>Tax {(taxRateBp / 100).toFixed(taxRateBp % 100 === 0 ? 0 : 2)}%</span>
             <span>{formatCents(totals.taxCents)}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, alignItems: 'baseline' }}>
@@ -414,7 +424,7 @@ export function RegisterScreen() {
 
       <CustomItemModal
         open={modal === 'custom'}
-        taxRateBp={TAX_RATE_BP}
+        taxRateBp={taxRateBp}
         onClose={() => setModal(null)}
         onAdd={(item) =>
           setLines((prev) => [
@@ -448,6 +458,43 @@ export function RegisterScreen() {
       />
 
       <NewRepairWindow open={repairOpen} onClose={() => setRepairOpen(false)} onCreated={handleRepairCreated} />
+      <TradeInModal
+        open={modal === 'tradein'}
+        customer={customer}
+        onClose={() => setModal(null)}
+        onDone={(msg) => {
+          setToast(msg);
+          setTimeout(() => setToast(''), 6000);
+        }}
+      />
+      <PayoutModal
+        open={modal === 'payout'}
+        onClose={() => setModal(null)}
+        onDone={(msg) => {
+          setToast(msg);
+          setTimeout(() => setToast(''), 6000);
+        }}
+      />
+      {toast && (
+        <div
+          style={{
+            position: 'fixed',
+            bottom: 24,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: 'var(--navy)',
+            color: '#fff',
+            borderRadius: 12,
+            padding: '12px 20px',
+            font: '600 13px Inter, sans-serif',
+            boxShadow: 'var(--shadow)',
+            zIndex: 200,
+          }}
+        >
+          <i className="bi bi-check-circle" style={{ color: 'var(--green)', marginRight: 8 }} />
+          {toast}
+        </div>
+      )}
       <DepositModal ticket={depositTicket} onClose={() => setDepositTicket(null)} onDone={() => void refreshSide()} />
 
       <Modal open={modal === 'note'} onClose={() => setModal(null)} width={380}>
