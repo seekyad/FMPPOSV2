@@ -261,7 +261,7 @@ export function SalesScreen() {
                     >
                       −
                     </button>
-                    <span style={{ minWidth: 30, textAlign: 'center', font: '600 16.5px Inter, sans-serif' }}>{l.qty}</span>
+                    <span style={{ minWidth: 32, textAlign: 'center', font: '600 21px Inter, sans-serif' }}>{l.qty}</span>
                     <button
                       onClick={() => setLines((p) => p.map((x) => (x.key === l.key ? { ...x, qty: x.qty + 1 } : x)))}
                       style={{ width: 42, height: 42, borderRadius: 10, border: '1px solid var(--line)', background: 'var(--card)', font: '600 21px Inter, sans-serif', color: 'var(--ink)' }}
