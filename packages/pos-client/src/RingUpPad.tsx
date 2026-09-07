@@ -31,13 +31,15 @@ export const RingUpPad = forwardRef<
     totalCents: number;
     customer: CartCustomer | null;
     busy: boolean;
+    /** true when the sale contains an item rung up with tax removed — card and tap are blocked */
+    taxRemovedInSale?: boolean;
     onAdd: (item: RingUpItem) => void;
     /** card fast path: parent adds the pending item (if any) and completes as card */
     onCollectCard: (item: RingUpItem | null) => void;
     onComplete: (payments: PaymentDraft[]) => void;
   }
 >(function RingUpPad(
-  { taxRateBp, subtotalCents, taxCents, totalCents, customer, busy, onAdd, onCollectCard, onComplete },
+  { taxRateBp, subtotalCents, taxCents, totalCents, customer, busy, taxRemovedInSale = false, onAdd, onCollectCard, onComplete },
   ref,
 ) {
   const [mode, setMode] = useState<'entry' | 'tender'>('entry');
@@ -235,6 +237,9 @@ export const RingUpPad = forwardRef<
   );
 
   const disabledBtn = 'bg-line-soft text-ink-4';
+  // No-tax deals are cash only: card/tap blocked when tax was removed on the sale
+  // or on the item currently being punched in.
+  const cardBlocked = taxRemovedInSale || (cents > 0 && !taxable);
 
   return (
     <div ref={containerRef} className="mt-4 flex flex-col gap-3 rounded-2xl border border-line-soft bg-card p-4 shadow-sm">
@@ -274,18 +279,40 @@ export const RingUpPad = forwardRef<
                 ))}
               </div>
             </div>
-            <div className="flex items-center gap-2.5">
+            <div className="flex flex-wrap items-center gap-2.5">
               <input
                 ref={descRef}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Description (optional)"
-                className="min-w-0 flex-1 rounded-[10px] border border-line bg-card px-3.5 py-3 text-[15px] text-ink placeholder:text-ink-4 focus:border-orange focus:outline-none"
+                className="min-w-[160px] flex-1 rounded-[10px] border border-line bg-card px-3.5 py-3 text-[15px] text-ink placeholder:text-ink-4 focus:border-orange focus:outline-none"
               />
-              <label className="flex shrink-0 items-center gap-1.5 text-[13px] text-ink-3 select-none">
-                <input type="checkbox" checked={taxable} onChange={(e) => setTaxable(e.target.checked)} className="size-4 accent-[#f97316]" />
-                Tax {(taxRateBp / 100).toFixed(taxRateBp % 100 === 0 ? 0 : 2)}%
-              </label>
+              {['Accessory', 'Service fee'].map((preset) => {
+                const active = description === preset;
+                return (
+                  <button
+                    key={preset}
+                    onClick={() => setDescription(active ? '' : preset)}
+                    className={`min-h-[46px] shrink-0 rounded-xl px-3.5 text-[14px] font-semibold ${
+                      active ? 'bg-navy text-white' : 'border border-line bg-card text-ink-2'
+                    }`}
+                  >
+                    {preset}
+                  </button>
+                );
+              })}
+              <button
+                onClick={() => setTaxable((t) => !t)}
+                title={taxable ? 'Tap to remove tax from this item (logged)' : 'Tax removed — tap to add it back'}
+                className={`flex min-h-[46px] shrink-0 items-center gap-1.5 rounded-xl px-3.5 text-[14px] font-semibold select-none ${
+                  taxable ? 'bg-orange-soft text-orange' : 'border border-line bg-card text-ink-4'
+                }`}
+              >
+                <i className="bi bi-percent text-[16px]" />
+                <span className={taxable ? '' : 'line-through'}>
+                  Tax {(taxRateBp / 100).toFixed(taxRateBp % 100 === 0 ? 0 : 2)}%
+                </span>
+              </button>
             </div>
             <div className="mt-auto flex flex-wrap gap-2.5">
               <button
@@ -311,9 +338,10 @@ export const RingUpPad = forwardRef<
                   onCollectCard(currentItem());
                   resetEntry();
                 }}
-                disabled={busy || (totalCents <= 0 && cents <= 0)}
+                disabled={busy || (totalCents <= 0 && cents <= 0) || cardBlocked}
+                title={cardBlocked ? 'Tax was removed — cash only' : undefined}
                 className={`flex min-h-[60px] min-w-[84px] flex-1 flex-col items-center justify-center rounded-xl text-[15.5px] font-bold ${
-                  busy || (totalCents <= 0 && cents <= 0) ? disabledBtn : 'bg-navy text-white'
+                  busy || (totalCents <= 0 && cents <= 0) || cardBlocked ? disabledBtn : 'bg-navy text-white'
                 }`}
               >
                 <i className="bi bi-credit-card text-[19px]" /> Card
@@ -334,10 +362,15 @@ export const RingUpPad = forwardRef<
             {/* tender mode */}
             <div className="grid grid-cols-4 gap-2">
               {methodBtn('cash', 'bi-cash', 'Cash')}
-              {methodBtn('card', 'bi-credit-card', 'Card')}
-              {methodBtn('tap', 'bi-phone', 'Tap')}
+              {methodBtn('card', 'bi-credit-card', 'Card', taxRemovedInSale)}
+              {methodBtn('tap', 'bi-phone', 'Tap', taxRemovedInSale)}
               {methodBtn('store_credit', 'bi-wallet2', 'Credit', !customer || credit <= 0)}
             </div>
+            {taxRemovedInSale && (
+              <div className="text-[12.5px] font-semibold text-amber">
+                Tax was removed on this sale — cash only.
+              </div>
+            )}
 
             {method === 'cash' ? (
               <div className="flex flex-1 flex-col rounded-xl bg-line-soft px-4 py-3.5">

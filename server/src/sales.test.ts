@@ -173,4 +173,25 @@ describe('sales flow', () => {
     expect(res.status).toBe(200);
     expect(res.body.totals.totalCents).toBe(1590); // (2000-500) * 1.06
   });
+
+  it('logs sales where tax was removed on a custom item', async () => {
+    const res = await request(app)
+      .post('/api/sales/complete')
+      .set(auth(employeeToken))
+      .send({
+        lines: [{ kind: 'custom', description: 'Quick fix', qty: 1, unitCents: 4000, taxable: false }],
+        payments: [{ method: 'cash', amountCents: 4000, tenderedCents: 4000 }],
+      });
+    expect(res.status).toBe(200);
+    expect(res.body.totals.taxCents).toBe(0);
+
+    const db = await getDb();
+    const [entry] = await db
+      .select()
+      .from(schema.auditLog)
+      .where(eq(schema.auditLog.action, 'sale.tax_removed'));
+    expect(entry).toBeDefined();
+    expect(entry!.entityId).toBe(res.body.sale.id);
+    expect(entry!.detail).toMatchObject({ lines: [{ description: 'Quick fix', amountCents: 4000 }] });
+  });
 });

@@ -316,6 +316,7 @@ export function RegisterScreen() {
           totalCents={totals.totalCents}
           customer={customer}
           busy={busy}
+          taxRemovedInSale={lines.some((l) => l.kind === 'custom' && !l.taxable)}
           onAdd={(item) =>
             setLines((prev) => [...prev, { key: lineKey(), kind: 'custom', qty: 1, discountCents: 0, ...item }])
           }
