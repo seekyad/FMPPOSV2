@@ -36,8 +36,8 @@ customersRouter.get('/', async (req, res) => {
       createdAt: c.createdAt,
       visits: sql<number>`(select count(*) from sales s where s.customer_id = ${c.id} and s.status = 'completed')`,
       lifetimeCents: sql<number>`coalesce((select sum(s.total_cents) from sales s where s.customer_id = ${c.id} and s.status = 'completed'), 0)`,
-      openTickets: sql<number>`(select count(*) from repair_tickets t where t.customer_id = ${c.id} and t.status in ('intake','in_progress','waiting_part','ready'))`,
-      balanceDueCents: sql<number>`coalesce((select sum(t.total_cents) - coalesce(sum((select sum(p.amount_cents) from payments p where p.ticket_id = t.id)), 0) from repair_tickets t where t.customer_id = ${c.id} and t.status in ('intake','in_progress','waiting_part','ready')), 0)`,
+      openTickets: sql<number>`(select count(*) from repair_tickets t where t.customer_id = ${c.id} and t.status in ('open','in_progress','waiting_part','completed'))`,
+      balanceDueCents: sql<number>`coalesce((select sum(t.total_cents) - coalesce(sum((select sum(p.amount_cents) from payments p where p.ticket_id = t.id)), 0) from repair_tickets t where t.customer_id = ${c.id} and t.status in ('open','in_progress','waiting_part','completed')), 0)`,
       lastSeen: sql<string | null>`(select max(s.created_at) from sales s where s.customer_id = ${c.id})`,
     })
     .from(c)

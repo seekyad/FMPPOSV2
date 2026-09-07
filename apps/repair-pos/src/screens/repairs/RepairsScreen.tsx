@@ -41,27 +41,37 @@ const FILTERS = [
   { id: 'waiting_part', label: 'Waiting on part' },
   { id: 'call', label: 'Call' },
   { id: 'ready', label: 'Ready for pickup' },
-  { id: 'completed', label: 'Completed' },
+  { id: 'picked_up', label: 'Picked up' },
 ] as const;
 
 const STATUS_TONES: Record<string, 'blue' | 'amber' | 'green' | 'neutral' | 'purple' | 'red'> = {
-  intake: 'neutral',
+  open: 'neutral',
   in_progress: 'blue',
   waiting_part: 'amber',
-  ready: 'green',
-  completed: 'neutral',
+  completed: 'green',
+  picked_up: 'neutral',
   cancelled: 'red',
   abandoned: 'red',
 };
 
+const STATUS_LABELS: Record<string, string> = {
+  open: 'Open',
+  in_progress: 'In progress',
+  waiting_part: 'Waiting on part',
+  completed: 'Ready for pickup',
+  picked_up: 'Picked up',
+  cancelled: 'Cancelled',
+  abandoned: 'Abandoned',
+};
+
 function statusLabel(s: string): string {
-  return s === 'intake' ? 'Intake' : s.replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase());
+  return STATUS_LABELS[s] ?? s;
 }
 
 function pastPromised(row: { promisedAt: string | null; status: string }): boolean {
   return (
     row.promisedAt != null &&
-    !['completed', 'cancelled', 'abandoned'].includes(row.status) &&
+    !['completed', 'picked_up', 'cancelled', 'abandoned'].includes(row.status) &&
     new Date(row.promisedAt).getTime() < Date.now()
   );
 }
@@ -85,7 +95,7 @@ export function RepairsScreen() {
     ).catch(() => null);
     if (!res) return;
     setRows(res.rows);
-    const open = ['intake', 'in_progress', 'waiting_part', 'ready'];
+    const open = ['open', 'in_progress', 'waiting_part', 'completed'];
     const sum = (pred: (c: { status: string; callFlag: boolean; n: number }) => boolean) =>
       res.counts.filter(pred).reduce((s, c) => s + Number(c.n), 0);
     setCounts({
@@ -94,8 +104,8 @@ export function RepairsScreen() {
       inProgress: sum((c) => c.status === 'in_progress'),
       waiting: sum((c) => c.status === 'waiting_part'),
       call: sum((c) => c.callFlag && open.includes(c.status)),
-      ready: sum((c) => c.status === 'ready'),
-      completed: sum((c) => c.status === 'completed'),
+      ready: sum((c) => c.status === 'completed'),
+      completed: sum((c) => c.status === 'picked_up'),
     });
   }
 
@@ -256,15 +266,23 @@ export function RepairsScreen() {
                 sortValue: (r: BoardRow) => (pastPromised(r) ? 'zz past promised' : r.status),
                 render: (r: BoardRow) => {
                   const late = pastPromised(r);
+                  const balance = r.totalCents - r.paidCents;
                   return (
                     <span style={{ display: 'inline-flex', gap: 4, flexWrap: 'wrap' }}>
                       {late && <StatusChip tone="red">Past promised</StatusChip>}
-                      {r.callFlag && !['completed', 'cancelled'].includes(r.status) && (
+                      {r.callFlag && !['picked_up', 'cancelled'].includes(r.status) && (
                         <StatusChip tone="purple">
                           <i className="bi bi-telephone-fill" style={{ fontSize: 10.5 }} /> Call
                         </StatusChip>
                       )}
-                      {!late && <StatusChip tone={STATUS_TONES[r.status] ?? 'neutral'}>{statusLabel(r.status)}</StatusChip>}
+                      {!late &&
+                        (r.status === 'completed' ? (
+                          <StatusChip tone={balance > 0 ? 'amber' : 'green'}>
+                            Ready · {balance > 0 ? 'Unpaid' : 'Paid'}
+                          </StatusChip>
+                        ) : (
+                          <StatusChip tone={STATUS_TONES[r.status] ?? 'neutral'}>{statusLabel(r.status)}</StatusChip>
+                        ))}
                     </span>
                   );
                 },
@@ -307,25 +325,52 @@ export function RepairsScreen() {
             {error && <div style={{ color: 'var(--red)', fontSize: 14, marginTop: 8 }}>{error}</div>}
 
             <div style={{ display: 'flex', gap: 6, marginTop: 12, flexWrap: 'wrap' }}>
-              {(['intake', 'in_progress', 'waiting_part', 'ready', 'completed'] as const).map((s) => (
+              {(
+                [
+                  ['open', 'Open'],
+                  ['in_progress', 'In progress'],
+                  ['waiting_part', 'Waiting on part'],
+                  ['completed', 'Completed'],
+                ] as const
+              ).map(([s, label]) => (
                 <button
                   key={s}
                   onClick={() => void patchTicket({ status: s })}
-                  disabled={detail.ticket.status === s || ['completed', 'cancelled', 'abandoned'].includes(detail.ticket.status)}
+                  disabled={detail.ticket.status === s || ['picked_up', 'cancelled', 'abandoned'].includes(detail.ticket.status)}
                   style={{
-                    padding: '6px 10px',
+                    padding: '8px 12px',
                     borderRadius: 999,
                     border: '1px solid var(--line)',
                     background: detail.ticket.status === s ? 'var(--navy)' : 'var(--card)',
                     color: detail.ticket.status === s ? '#fff' : 'var(--ink-2)',
                     font: '600 12.5px Inter, sans-serif',
-                    opacity: ['completed', 'cancelled', 'abandoned'].includes(detail.ticket.status) && detail.ticket.status !== s ? 0.4 : 1,
+                    opacity:
+                      ['picked_up', 'cancelled', 'abandoned'].includes(detail.ticket.status) && detail.ticket.status !== s
+                        ? 0.4
+                        : 1,
                   }}
                 >
-                  {statusLabel(s)}
+                  {label}
                 </button>
               ))}
             </div>
+            {detail.ticket.status === 'completed' && detail.balanceCents <= 0 && (
+              <button
+                onClick={() => void patchTicket({ status: 'picked_up' })}
+                style={{
+                  width: '100%',
+                  marginTop: 10,
+                  padding: '12px 0',
+                  borderRadius: 10,
+                  border: 'none',
+                  background: 'var(--green)',
+                  color: '#fff',
+                  font: '700 15px Inter, sans-serif',
+                }}
+              >
+                <i className="bi bi-bag-check" /> Customer picked up — close ticket
+              </button>
+            )}
 
             <button
               onClick={() => void patchTicket({ callFlag: !detail.ticket.callFlag })}
@@ -420,7 +465,7 @@ export function RepairsScreen() {
               >
                 <i className="bi bi-tag" /> Print label
               </Button>
-              {!['completed', 'cancelled', 'abandoned'].includes(detail.ticket.status) && (
+              {!['picked_up', 'cancelled', 'abandoned'].includes(detail.ticket.status) && (
                 <Button variant="danger" onClick={() => setCancelling(true)}>Cancel ticket</Button>
               )}
             </div>

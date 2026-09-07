@@ -51,8 +51,8 @@ reportsRouter.get('/summary', async (req, res) => {
   const [ticketStats] = await db
     .select({
       takenIn: sql<number>`count(*)`,
-      completed: sql<number>`count(*) filter (where ${schema.repairTickets.status} = 'completed')`,
-      stillOpen: sql<number>`count(*) filter (where ${schema.repairTickets.status} in ('intake','in_progress','waiting_part','ready'))`,
+      completed: sql<number>`count(*) filter (where ${schema.repairTickets.status} in ('completed','picked_up'))`,
+      stillOpen: sql<number>`count(*) filter (where ${schema.repairTickets.status} in ('open','in_progress','waiting_part'))`,
     })
     .from(schema.repairTickets)
     .where(and(eq(schema.repairTickets.storeId, storeId), gte(schema.repairTickets.createdAt, start)));
@@ -66,7 +66,7 @@ reportsRouter.get('/summary', async (req, res) => {
     .where(
       and(
         eq(schema.repairTickets.storeId, storeId),
-        inArray(schema.repairTickets.status, ['intake', 'in_progress', 'waiting_part', 'ready']),
+        inArray(schema.repairTickets.status, ['open', 'in_progress', 'waiting_part', 'completed']),
       ),
     );
 
@@ -132,7 +132,7 @@ reportsRouter.get('/summary', async (req, res) => {
     .where(
       and(
         eq(schema.repairTickets.storeId, storeId),
-        eq(schema.repairTickets.status, 'completed'),
+        inArray(schema.repairTickets.status, ['completed', 'picked_up']),
         gte(schema.repairTickets.createdAt, start),
       ),
     )

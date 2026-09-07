@@ -10,7 +10,10 @@ import { getOpenDrawer } from './drawer';
 export const repairsRouter = Router();
 repairsRouter.use(requireAuth);
 
-const OPEN_STATUSES = ['intake', 'in_progress', 'waiting_part', 'ready'] as const;
+/** anything not yet picked up / cancelled counts as an open ticket */
+const OPEN_STATUSES = ['open', 'in_progress', 'waiting_part', 'completed'] as const;
+/** statuses where the promised time still matters */
+const WORKING_STATUSES = ['open', 'in_progress', 'waiting_part'] as const;
 
 async function nextRepairNumber(db: Awaited<ReturnType<typeof getDb>>): Promise<string> {
   const [row] = await db.select({ n: sql<number>`count(*)` }).from(schema.repairTickets);
@@ -66,10 +69,10 @@ repairsRouter.get('/', async (req, res) => {
             : filter === 'call'
               ? and(eq(t.callFlag, true), inArray(t.status, [...OPEN_STATUSES]))
               : filter === 'ready'
-                ? eq(t.status, 'ready')
+                ? eq(t.status, 'completed')
                 : filter === 'past_promised'
-                  ? and(inArray(t.status, [...OPEN_STATUSES]), isNotNull(t.promisedAt), lt(t.promisedAt, new Date()))
-                  : eq(t.status, 'completed');
+                  ? and(inArray(t.status, [...WORKING_STATUSES]), isNotNull(t.promisedAt), lt(t.promisedAt, new Date()))
+                  : eq(t.status, 'picked_up');
 
   const rows = await db
     .select({
@@ -222,7 +225,7 @@ repairsRouter.post('/', async (req, res) => {
       storeId: req.session!.storeId,
       number,
       customerId,
-      status: 'intake',
+      status: 'open',
       callFlag: body.data.callFlag,
       technicianId: body.data.technicianId ?? null,
       promisedAt: body.data.promisedAt ? new Date(body.data.promisedAt) : null,
@@ -253,7 +256,7 @@ repairsRouter.post('/', async (req, res) => {
     )
     .returning();
 
-  await db.insert(schema.ticketStatusHistory).values({ ticketId: ticket!.id, status: 'intake', userId: req.session!.id });
+  await db.insert(schema.ticketStatusHistory).values({ ticketId: ticket!.id, status: 'open', userId: req.session!.id });
   await audit(db, req, 'ticket.create', 'repair_ticket', ticket!.id, { total: totals.totalCents });
   emitStore(req, 'repairs-changed');
   res.json({ ticket, devices: deviceRows, lines: lineRows, totals });
@@ -295,7 +298,7 @@ repairsRouter.get('/:id', async (req, res) => {
 repairsRouter.patch('/:id', async (req, res) => {
   const body = z
     .object({
-      status: z.enum(['intake', 'in_progress', 'waiting_part', 'ready', 'completed']).optional(),
+      status: z.enum(['open', 'in_progress', 'waiting_part', 'completed', 'picked_up']).optional(),
       technicianId: z.number().int().nullable().optional(),
       callFlag: z.boolean().optional(),
       promisedAt: z.string().datetime().nullable().optional(),
@@ -313,8 +316,8 @@ repairsRouter.patch('/:id', async (req, res) => {
     res.status(404).json({ error: 'Ticket not found' });
     return;
   }
-  if (['cancelled', 'abandoned'].includes(ticket.status)) {
-    res.status(400).json({ error: `Ticket is ${ticket.status}` });
+  if (['picked_up', 'cancelled', 'abandoned'].includes(ticket.status)) {
+    res.status(400).json({ error: `Ticket is ${ticket.status.replace('_', ' ')}` });
     return;
   }
 
@@ -423,8 +426,8 @@ repairsRouter.post('/:id/cancel', async (req, res) => {
     res.status(404).json({ error: 'Ticket not found' });
     return;
   }
-  if (['completed', 'cancelled', 'abandoned'].includes(ticket.status)) {
-    res.status(400).json({ error: `Cannot cancel a ${ticket.status} ticket` });
+  if (['picked_up', 'cancelled', 'abandoned'].includes(ticket.status)) {
+    res.status(400).json({ error: `Cannot cancel a ${ticket.status.replace('_', ' ')} ticket` });
     return;
   }
   // restore any consumed parts

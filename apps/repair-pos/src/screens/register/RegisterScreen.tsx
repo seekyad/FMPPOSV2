@@ -296,7 +296,7 @@ export function RegisterScreen() {
           <span style={{ font: '600 11.5px Inter, sans-serif', color: 'var(--ink-4)', letterSpacing: '0.08em' }}>
             TAKEN IN TODAY{' '}
             <span style={{ color: 'var(--orange)' }}>
-              {takenIn.filter((t) => !['completed', 'cancelled', 'abandoned'].includes(t.status)).length} open
+              {takenIn.filter((t) => !['picked_up', 'cancelled', 'abandoned'].includes(t.status)).length} open
             </span>
           </span>
         </div>

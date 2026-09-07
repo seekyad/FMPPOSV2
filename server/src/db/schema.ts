@@ -318,10 +318,10 @@ export const repairTickets = pgTable(
     number: text('number').notNull(),
     customerId: integer('customer_id').notNull().references(() => customers.id),
     status: text('status', {
-      enum: ['intake', 'in_progress', 'waiting_part', 'ready', 'completed', 'cancelled', 'abandoned'],
+      enum: ['open', 'in_progress', 'waiting_part', 'completed', 'picked_up', 'cancelled', 'abandoned'],
     })
       .notNull()
-      .default('intake'),
+      .default('open'),
     callFlag: boolean('call_flag').notNull().default(false),
     technicianId: integer('technician_id').references(() => users.id),
     promisedAt: timestamp('promised_at'),

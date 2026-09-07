@@ -120,20 +120,18 @@ describe('repairs flow (services catalog)', () => {
   it('walks the status flow and consumes the linked part on completion', async () => {
     const before = await partQty(screen.partItemId!);
     await request(app).patch(`/api/repairs/${ticketId}`).set(auth()).send({ status: 'in_progress' });
-    await request(app).patch(`/api/repairs/${ticketId}`).set(auth()).send({ status: 'ready' });
     const done = await request(app).patch(`/api/repairs/${ticketId}`).set(auth()).send({ status: 'completed' });
     expect(done.status).toBe(200);
     expect(await partQty(screen.partItemId!)).toBe(before - 1);
     const detail = await request(app).get(`/api/repairs/${ticketId}`).set(auth());
     expect(detail.body.history.map((h: { status: string }) => h.status)).toEqual([
-      'intake',
+      'open',
       'in_progress',
-      'ready',
       'completed',
     ]);
   });
 
-  it('pays the remaining balance through a register sale', async () => {
+  it('pays the remaining balance at the register, which closes the ticket as picked up', async () => {
     const balance = 29468 - 10000;
     const res = await request(app)
       .post('/api/sales/complete')
@@ -148,6 +146,7 @@ describe('repairs flow (services catalog)', () => {
     expect(res.status).toBe(200);
     const detail = await request(app).get(`/api/repairs/${ticketId}`).set(auth());
     expect(detail.body.balanceCents).toBeLessThanOrEqual(2);
+    expect(detail.body.ticket.status).toBe('picked_up');
   });
 
   it('cancels a fresh ticket and blocks further status changes', async () => {
@@ -166,7 +165,7 @@ describe('repairs flow (services catalog)', () => {
       .set(auth())
       .send({ reason: 'customer declined quote' });
     expect(cancelled.status).toBe(200);
-    const again = await request(app).patch(`/api/repairs/${freshId}`).set(auth()).send({ status: 'ready' });
+    const again = await request(app).patch(`/api/repairs/${freshId}`).set(auth()).send({ status: 'completed' });
     expect(again.status).toBe(400);
   });
 

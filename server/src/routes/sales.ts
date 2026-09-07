@@ -245,6 +245,17 @@ salesRouter.post('/complete', async (req, res) => {
       amountCents,
       userId: req.session!.id,
     });
+    // a completed (ready-for-pickup) ticket closes automatically once fully paid
+    const [ticket] = await db.select().from(schema.repairTickets).where(eq(schema.repairTickets.id, ticketId));
+    if (ticket && ticket.status === 'completed') {
+      const ticketPayments = await db.select().from(schema.payments).where(eq(schema.payments.ticketId, ticketId));
+      const paid = ticketPayments.reduce((s, p) => s + p.amountCents, 0);
+      if (paid >= ticket.totalCents - 2) {
+        await db.update(schema.repairTickets).set({ status: 'picked_up' }).where(eq(schema.repairTickets.id, ticketId));
+        await db.insert(schema.ticketStatusHistory).values({ ticketId, status: 'picked_up', userId: req.session!.id });
+        emitStore(req, 'repairs-changed');
+      }
+    }
   }
 
   // Resuming a parked sale: mark the parked row consumed.

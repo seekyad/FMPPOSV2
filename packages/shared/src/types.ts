@@ -7,11 +7,11 @@ export type SaleLineKind = 'product' | 'repair' | 'custom' | 'tradein' | 'payout
 export type PaymentMethod = 'cash' | 'card' | 'tap' | 'store_credit';
 
 export type TicketStatus =
-  | 'intake'
+  | 'open'
   | 'in_progress'
   | 'waiting_part'
-  | 'ready'
   | 'completed'
+  | 'picked_up'
   | 'cancelled'
   | 'abandoned';
 
@@ -38,11 +38,11 @@ export type PrintJob =
   | { kind: 'label'; template: 'ticket' | 'inventory'; fields: Record<string, string> };
 
 export const TICKET_STATUS_LABELS: Record<TicketStatus, string> = {
-  intake: 'Intake',
+  open: 'Open',
   in_progress: 'In progress',
   waiting_part: 'Waiting on part',
-  ready: 'Ready for pickup',
-  completed: 'Completed',
+  completed: 'Ready for pickup',
+  picked_up: 'Picked up',
   cancelled: 'Cancelled',
   abandoned: 'Abandoned',
 };

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import { formatCents } from '@fmp/shared';
 import { Button, DataTable, Modal, StatusChip } from '@fmp/ui';
 import { api } from './api';
@@ -206,13 +206,13 @@ export function CustomersScreen() {
             </Section>
 
             <Section title="OPEN TICKETS">
-              {detail.tickets.filter((t) => !['completed', 'cancelled', 'abandoned'].includes(t.status)).map((t) => (
+              {detail.tickets.filter((t) => !['picked_up', 'cancelled', 'abandoned'].includes(t.status)).map((t) => (
                 <div key={t.id} style={{ border: '1px solid var(--line-soft)', borderRadius: 10, padding: '9px 12px', marginBottom: 6, display: 'flex', justifyContent: 'space-between' }}>
                   <span style={{ font: '600 14px Inter, sans-serif' }}>{t.number}</span>
                   <StatusChip tone="blue">{t.status.replace('_', ' ')}</StatusChip>
                 </div>
               ))}
-              {detail.tickets.filter((t) => !['completed', 'cancelled', 'abandoned'].includes(t.status)).length === 0 && (
+              {detail.tickets.filter((t) => !['picked_up', 'cancelled', 'abandoned'].includes(t.status)).length === 0 && (
                 <Empty>No open repairs.</Empty>
               )}
             </Section>
