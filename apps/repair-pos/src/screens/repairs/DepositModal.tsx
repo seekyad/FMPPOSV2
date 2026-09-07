@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { formatCents, parseDollars } from '@fmp/shared';
 import { Button, Modal } from '@fmp/ui';
-import { api } from '../../api';
+import { api } from '@fmp/pos-client';
 
 /** Take a deposit against a repair ticket. */
 export function DepositModal({

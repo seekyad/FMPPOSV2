@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { formatCents } from '@fmp/shared';
 import { Modal, StatusChip } from '@fmp/ui';
-import { api } from '../../api';
+import { api } from './api';
 
 export interface PickableItem {
   id: number;

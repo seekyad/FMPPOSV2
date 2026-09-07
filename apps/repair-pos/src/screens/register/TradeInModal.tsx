@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { formatCents, parseDollars, tradeInOffer, type TradeInCondition, type TradeInConfig } from '@fmp/shared';
 import { Button, Modal } from '@fmp/ui';
-import { api } from '../../api';
-import type { CartCustomer } from '../../cart';
+import { api } from '@fmp/pos-client';
+import type { CartCustomer } from '@fmp/pos-client';
 
 interface PricebookRow {
   id: number;

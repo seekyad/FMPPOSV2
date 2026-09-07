@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Button, Modal, StatusChip } from '@fmp/ui';
-import { api, session } from '../../api';
+import { api, session } from '@fmp/pos-client';
 
 interface Entry {
   id: number;

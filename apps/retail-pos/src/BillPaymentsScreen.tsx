@@ -1,0 +1,199 @@
+import { useEffect, useState } from 'react';
+import { formatCents, parseDollars } from '@fmp/shared';
+import { Button, Modal } from '@fmp/ui';
+import { api, CustomerModal, type CartCustomer } from '@fmp/pos-client';
+
+interface BillPayment {
+  id: number;
+  carrier: string;
+  accountNumber: string;
+  amountCents: number;
+  feeCents: number;
+  createdAt: string;
+  customerName: string | null;
+  userName: string | null;
+}
+
+export function BillPaymentsScreen() {
+  const [rows, setRows] = useState<BillPayment[]>([]);
+  const [today, setToday] = useState({ count: 0, amountCents: 0, feeCents: 0 });
+  const [query, setQuery] = useState('');
+  const [taking, setTaking] = useState(false);
+  const [customer, setCustomer] = useState<CartCustomer | null>(null);
+  const [pickingCustomer, setPickingCustomer] = useState(false);
+  const [form, setForm] = useState({ carrier: '', accountNumber: '', amount: '', fee: '', method: 'cash' as 'cash' | 'card' | 'tap', tendered: '' });
+  const [result, setResult] = useState<null | { changeCents: number | null }>(null);
+  const [error, setError] = useState('');
+
+  async function load() {
+    const res = await api<{ rows: BillPayment[]; today: typeof today }>(
+      `/api/retail/bill-payments?query=${encodeURIComponent(query)}`,
+    ).catch(() => null);
+    if (res) {
+      setRows(res.rows);
+      setToday(res.today);
+    }
+  }
+
+  useEffect(() => {
+    const t = setTimeout(() => void load(), 200);
+    return () => clearTimeout(t);
+  }, [query]);
+
+  const amountCents = parseDollars(form.amount || '0') ?? 0;
+  const feeCents = parseDollars(form.fee || '0') ?? 0;
+  const total = amountCents + feeCents;
+  const tenderedCents = parseDollars(form.tendered || '0') ?? 0;
+  const change = form.method === 'cash' && tenderedCents > 0 ? tenderedCents - total : null;
+
+  async function take() {
+    if (!form.carrier.trim() || !form.accountNumber.trim() || amountCents <= 0) {
+      setError('Carrier, account number, and amount are required.');
+      return;
+    }
+    try {
+      const res = await api<{ changeCents: number | null }>('/api/retail/bill-payments', {
+        method: 'POST',
+        body: JSON.stringify({
+          customerId: customer?.id ?? null,
+          carrier: form.carrier.trim(),
+          accountNumber: form.accountNumber.trim(),
+          amountCents,
+          feeCents,
+          method: form.method,
+          tenderedCents: form.method === 'cash' && tenderedCents > 0 ? tenderedCents : null,
+        }),
+      });
+      setTaking(false);
+      setResult(res);
+      setForm({ carrier: '', accountNumber: '', amount: '', fee: '', method: 'cash', tendered: '' });
+      setCustomer(null);
+      setError('');
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Payment failed');
+    }
+  }
+
+  return (
+    <div style={{ padding: '22px 24px', height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <h1 style={{ margin: 0, font: '700 24px Inter, sans-serif' }}>Bill payments</h1>
+          <div style={{ color: 'var(--ink-3)', fontSize: 12, marginTop: 2 }}>
+            Today: {today.count} payments · {formatCents(today.amountCents)} remitted · {formatCents(today.feeCents)} fees
+          </div>
+        </div>
+        <Button variant="primary" onClick={() => setTaking(true)}>
+          <i className="bi bi-plus-lg" /> Take payment
+        </Button>
+      </div>
+
+      <div style={{ position: 'relative', marginTop: 16 }}>
+        <i className="bi bi-search" style={{ position: 'absolute', left: 14, top: 13, color: 'var(--ink-4)', fontSize: 14 }} />
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search customer, account #, or carrier"
+          style={{ width: '100%', padding: '12px 14px 12px 38px', borderRadius: 12, border: '1px solid var(--line)', background: 'var(--card)', fontSize: 13 }}
+        />
+      </div>
+
+      <div style={{ marginTop: 14, background: 'var(--card)', borderRadius: 14, border: '1px solid var(--line-soft)', overflow: 'auto', flex: 1 }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <thead>
+            <tr style={{ textAlign: 'left', color: 'var(--ink-4)', font: '600 10px Inter, sans-serif', letterSpacing: '0.06em' }}>
+              {['DATE', 'CUSTOMER', 'CARRIER', 'ACCOUNT #', 'AMOUNT', 'FEE', 'TAKEN BY'].map((h) => (
+                <th key={h} style={{ padding: '12px 16px', borderBottom: '1px solid var(--line-soft)', position: 'sticky', top: 0, background: 'var(--card)' }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.id}>
+                <td style={{ padding: '11px 16px', borderBottom: '1px solid var(--line-soft)', color: 'var(--ink-3)' }}>
+                  {new Date(r.createdAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                </td>
+                <td style={{ padding: '11px 16px', borderBottom: '1px solid var(--line-soft)', font: '600 13px Inter, sans-serif' }}>
+                  {r.customerName ?? 'Walk-in'}
+                </td>
+                <td style={{ padding: '11px 16px', borderBottom: '1px solid var(--line-soft)' }}>{r.carrier}</td>
+                <td style={{ padding: '11px 16px', borderBottom: '1px solid var(--line-soft)', color: 'var(--ink-3)' }}>…{r.accountNumber.slice(-4)}</td>
+                <td style={{ padding: '11px 16px', borderBottom: '1px solid var(--line-soft)', font: '700 13px Inter, sans-serif' }}>{formatCents(r.amountCents)}</td>
+                <td style={{ padding: '11px 16px', borderBottom: '1px solid var(--line-soft)' }}>{r.feeCents > 0 ? formatCents(r.feeCents) : '—'}</td>
+                <td style={{ padding: '11px 16px', borderBottom: '1px solid var(--line-soft)', color: 'var(--ink-3)' }}>{r.userName}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {rows.length === 0 && <div style={{ padding: 24, color: 'var(--ink-4)', fontSize: 13 }}>No bill payments recorded.</div>}
+      </div>
+
+      <Modal open={taking} onClose={() => setTaking(false)} width={420}>
+        <h2 style={{ margin: 0, font: '700 18px Inter, sans-serif' }}>Take bill payment</h2>
+        <button
+          onClick={() => setPickingCustomer(true)}
+          style={{ width: '100%', marginTop: 12, padding: '10px 12px', borderRadius: 10, border: '1px solid var(--line)', background: 'var(--card)', textAlign: 'left', fontSize: 13 }}
+        >
+          {customer ? <span><b>{customer.name}</b> · {customer.phone}</span> : <span style={{ color: 'var(--ink-3)' }}><i className="bi bi-person" /> Attach customer (optional)</span>}
+        </button>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 10 }}>
+          <input value={form.carrier} onChange={(e) => setForm((p) => ({ ...p, carrier: e.target.value }))} placeholder="Carrier * — Boost" style={{ padding: '10px 12px', borderRadius: 10, border: '1px solid var(--line)', fontSize: 13 }} />
+          <input value={form.accountNumber} onChange={(e) => setForm((p) => ({ ...p, accountNumber: e.target.value }))} placeholder="Account # *" style={{ padding: '10px 12px', borderRadius: 10, border: '1px solid var(--line)', fontSize: 13 }} />
+          <input value={form.amount} onChange={(e) => setForm((p) => ({ ...p, amount: e.target.value }))} placeholder="Bill amount $ *" style={{ padding: '10px 12px', borderRadius: 10, border: '1px solid var(--line)', fontSize: 13 }} />
+          <input value={form.fee} onChange={(e) => setForm((p) => ({ ...p, fee: e.target.value }))} placeholder="Service fee $" style={{ padding: '10px 12px', borderRadius: 10, border: '1px solid var(--line)', fontSize: 13 }} />
+        </div>
+        <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
+          {(['cash', 'card', 'tap'] as const).map((m) => (
+            <button
+              key={m}
+              onClick={() => setForm((p) => ({ ...p, method: m }))}
+              style={{ flex: 1, padding: '9px 0', borderRadius: 10, border: '1px solid var(--line)', background: form.method === m ? 'var(--navy)' : 'var(--card)', color: form.method === m ? '#fff' : 'var(--ink-2)', font: '600 12px Inter, sans-serif', textTransform: 'capitalize' }}
+            >
+              {m}
+            </button>
+          ))}
+        </div>
+        {form.method === 'cash' && (
+          <div style={{ display: 'flex', gap: 8, marginTop: 8, alignItems: 'center' }}>
+            <input value={form.tendered} onChange={(e) => setForm((p) => ({ ...p, tendered: e.target.value }))} placeholder="Cash tendered $" style={{ flex: 1, padding: '10px 12px', borderRadius: 10, border: '1px solid var(--line)', fontSize: 13 }} />
+            {change != null && (
+              <span style={{ font: '700 13px Inter, sans-serif', color: change >= 0 ? 'var(--green)' : 'var(--red)' }}>
+                {change >= 0 ? `Change ${formatCents(change)}` : `Short ${formatCents(-change)}`}
+              </span>
+            )}
+          </div>
+        )}
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 12, padding: '10px 14px', background: 'var(--line-soft)', borderRadius: 10 }}>
+          <span style={{ font: '600 13px Inter, sans-serif' }}>Total to collect</span>
+          <span style={{ font: '800 16px Inter, sans-serif' }}>{formatCents(total)}</span>
+        </div>
+        {error && <div style={{ color: 'var(--red)', fontSize: 12, marginTop: 8 }}>{error}</div>}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 14 }}>
+          <Button variant="ghost" onClick={() => setTaking(false)}>Cancel</Button>
+          <Button variant="primary" disabled={total <= 0} onClick={() => void take()}>
+            Collect {formatCents(total)}
+          </Button>
+        </div>
+      </Modal>
+
+      <Modal open={result !== null} onClose={() => setResult(null)} width={320}>
+        {result && (
+          <div style={{ textAlign: 'center' }}>
+            <i className="bi bi-check-circle-fill" style={{ fontSize: 36, color: 'var(--green)' }} />
+            <h2 style={{ margin: '8px 0 4px', font: '700 18px Inter, sans-serif' }}>Payment recorded</h2>
+            {result.changeCents != null && result.changeCents > 0 && (
+              <div style={{ background: 'var(--green-bg)', color: 'var(--green)', borderRadius: 12, padding: '10px 0', margin: '10px 0', font: '800 22px Inter, sans-serif' }}>
+                Change {formatCents(result.changeCents)}
+              </div>
+            )}
+            <div style={{ fontSize: 12, color: 'var(--ink-3)' }}>Remember to pay the bill on the carrier portal.</div>
+            <Button variant="primary" style={{ width: '100%', marginTop: 12 }} onClick={() => setResult(null)}>Done</Button>
+          </div>
+        )}
+      </Modal>
+
+      <CustomerModal open={pickingCustomer} onClose={() => setPickingCustomer(false)} onPick={setCustomer} />
+    </div>
+  );
+}

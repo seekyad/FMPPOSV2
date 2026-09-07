@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { computeTotals, formatCents } from '@fmp/shared';
 import { Button } from '@fmp/ui';
-import { api } from '../../api';
-import type { CartCustomer } from '../../cart';
+import { api } from '@fmp/pos-client';
+import type { CartCustomer } from '@fmp/pos-client';
 
 export interface RepairMeta {
   models: Array<{ id: number; brand: string; name: string; kind: string }>;

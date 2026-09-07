@@ -8,6 +8,7 @@ import { customersRouter } from './routes/customers';
 import { drawerRouter } from './routes/drawer';
 import { inventoryRouter } from './routes/inventory';
 import { repairsRouter } from './routes/repairs';
+import { retailRouter } from './routes/retail';
 import { reportsRouter } from './routes/reports';
 import { salesRouter } from './routes/sales';
 import { settingsRouter } from './routes/settings';
@@ -34,13 +35,19 @@ export function createApp() {
   app.use('/api/settings', settingsRouter);
   app.use('/api/reports', reportsRouter);
   app.use('/api/terminal', terminalRouter);
+  app.use('/api/retail', retailRouter);
 
-  // Production: serve the built repair-pos SPA.
+  // Production: repair POS at /, retail POS at /retail.
   const dirname = path.dirname(fileURLToPath(import.meta.url));
-  const spaDist = path.resolve(dirname, '../../apps/repair-pos/dist');
-  app.use(express.static(spaDist));
+  const repairDist = path.resolve(dirname, '../../apps/repair-pos/dist');
+  const retailDist = path.resolve(dirname, '../../apps/retail-pos/dist');
+  app.use('/retail', express.static(retailDist));
+  app.get(/^\/retail(\/.*)?$/, (_req, res, next) => {
+    res.sendFile(path.join(retailDist, 'index.html'), (err) => (err ? next() : undefined));
+  });
+  app.use(express.static(repairDist));
   app.get(/^\/(?!api\/).*/, (_req, res, next) => {
-    res.sendFile(path.join(spaDist, 'index.html'), (err) => (err ? next() : undefined));
+    res.sendFile(path.join(repairDist, 'index.html'), (err) => (err ? next() : undefined));
   });
 
   return app;

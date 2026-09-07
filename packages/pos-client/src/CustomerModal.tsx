@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Button, Modal } from '@fmp/ui';
-import { api } from '../../api';
-import type { CartCustomer } from '../../cart';
+import { api } from './api';
+import type { CartCustomer } from './cart';
 
 /** Find-or-create customer, used to attach a customer to the sale. */
 export function CustomerModal({

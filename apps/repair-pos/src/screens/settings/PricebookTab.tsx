@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { formatCents, parseDollars } from '@fmp/shared';
 import { Button, Modal } from '@fmp/ui';
-import { api, session } from '../../api';
+import { api, session } from '@fmp/pos-client';
 
 interface Row {
   id: number;

@@ -6,6 +6,7 @@ import { getDb, schema } from '../db/index';
 import { requireAuth, requireRole } from '../auth';
 import { receiptEscpos, receiptText, type ReceiptData } from '../receipts';
 import { audit, emitBridge, emitStore, nextTicketNumber } from '../util';
+import { getOpenDrawer } from './drawer';
 
 export const salesRouter = Router();
 salesRouter.use(requireAuth);
@@ -163,6 +164,11 @@ salesRouter.post('/complete', async (req, res) => {
   }
   const db = await getDb();
   const { lines, payments } = body.data;
+
+  // cash on the way in: make sure a drawer session exists so the money is counted
+  if (payments.some((p) => p.method === 'cash')) {
+    await getOpenDrawer(db, req.session!.storeId, req.session!.id);
+  }
 
   const { sale, totals } = await insertSaleWithLines(db, req, lines, {
     status: 'completed',

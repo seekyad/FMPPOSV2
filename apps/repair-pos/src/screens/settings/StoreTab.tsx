@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Button } from '@fmp/ui';
-import { api, session } from '../../api';
+import { api, session } from '@fmp/pos-client';
 
 interface Store {
   name: string;

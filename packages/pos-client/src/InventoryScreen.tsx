@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { formatCents, parseDollars } from '@fmp/shared';
 import { Button, Modal, StatusChip } from '@fmp/ui';
-import { api, session } from '../api';
+import { api, session } from './api';
 
 interface Item {
   id: number;

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { formatCents } from '@fmp/shared';
 import { Button, Modal, StatusChip } from '@fmp/ui';
-import { api } from '../../api';
+import { api } from '@fmp/pos-client';
 import { DepositModal } from './DepositModal';
 import { NewRepairWindow, type CreatedTicket } from './NewRepairWindow';
 import { printTicketLabel } from './labels';

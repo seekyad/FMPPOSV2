@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { formatCents } from '@fmp/shared';
 import { Button, Keypad, Modal } from '@fmp/ui';
-import { api } from '../../api';
-import type { CartCustomer } from '../../cart';
+import { api } from './api';
+import type { CartCustomer } from './cart';
 
 export interface PaymentDraft {
   method: 'cash' | 'card' | 'tap' | 'store_credit';

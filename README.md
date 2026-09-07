@@ -4,9 +4,10 @@ Point of Sale for FMP phone repair & retail stores. Monorepo:
 
 | Path | What |
 | --- | --- |
-| `apps/repair-pos` | Repair-shop POS (React + Vite) — Register, Repairs, Inventory, Customers, Reports |
-| `apps/retail-pos` | Retail/carrier POS (Phase 4) — device sales, activations, bill payments |
+| `apps/repair-pos` | Repair-shop POS (React + Vite) — Register, Repairs, Inventory, Customers, Reports, Settings |
+| `apps/retail-pos` | Retail/carrier POS — device sales, activations, bill payments (served at `/retail`) |
 | `packages/shared` | Domain types + money logic (integer cents, tax, trade-in, drawer math) |
+| `packages/pos-client` | Client pieces shared by both POS apps (auth/session, cart, PIN screen, modals, Customers/Inventory screens) |
 | `packages/ui` | Design system from the iPad POS UI Kit (tokens, chips, buttons, modals) |
 | `server` | Express + Socket.IO API, Drizzle ORM, PostgreSQL (PGlite locally, Render Postgres in prod) |
 | `bridge` | Windows print bridge for the store PC — Rongta receipts, Niimbot labels |
@@ -16,7 +17,7 @@ Point of Sale for FMP phone repair & retail stores. Monorepo:
 
 ```bash
 npm install
-npm run dev        # API on :3001 + app on :5173 (PGlite auto-seeds demo data)
+npm run dev        # API :3001 + repair POS :5173 + retail POS :5174 (PGlite auto-seeds demo data)
 ```
 
 Demo PINs: Mike (manager) `1234`, Sara `2345`, Deon `3456`.

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { formatCents } from '@fmp/shared';
 import { Button, Modal } from '@fmp/ui';
-import { api, session } from '../api';
+import { api, session } from '@fmp/pos-client';
 
 interface ParkedLine {
   id: number;

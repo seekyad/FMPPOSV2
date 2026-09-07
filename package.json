@@ -9,10 +9,11 @@
     "bridge"
   ],
   "scripts": {
-    "dev": "npm-run-all --parallel dev:server dev:app",
+    "dev": "npm-run-all --parallel dev:server dev:app dev:retail",
     "dev:server": "npm run dev -w server",
     "dev:app": "npm run dev -w apps/repair-pos",
-    "build": "npm run build -w packages/shared && npm run build -w apps/repair-pos && npm run build -w server",
+    "dev:retail": "npm run dev -w apps/retail-pos",
+    "build": "npm run build -w packages/shared && npm run build -w apps/repair-pos && npm run build -w apps/retail-pos && npm run build -w server",
     "start": "npm run start -w server",
     "test": "npm run test -w packages/shared && npm run test -w server",
     "typecheck": "tsc -p packages/shared/tsconfig.json && tsc -p server/tsconfig.json && tsc -p apps/repair-pos/tsconfig.json"

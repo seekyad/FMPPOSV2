@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { formatCents, parseDollars } from '@fmp/shared';
 import { Button, Modal } from '@fmp/ui';
-import { api } from '../../api';
+import { api } from '@fmp/pos-client';
 
 /** Cash paid out of the register (audited drawer movement). */
 export function PayoutModal({ open, onClose, onDone }: { open: boolean; onClose: () => void; onDone: (msg: string) => void }) {

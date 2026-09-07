@@ -5,6 +5,7 @@ import { computeTotals } from '@fmp/shared';
 import { getDb, schema } from '../db/index';
 import { requireAuth } from '../auth';
 import { audit, emitStore } from '../util';
+import { getOpenDrawer } from './drawer';
 
 export const repairsRouter = Router();
 repairsRouter.use(requireAuth);
@@ -375,6 +376,7 @@ repairsRouter.post('/:id/deposit', async (req, res) => {
     res.status(404).json({ error: 'Ticket not found' });
     return;
   }
+  if (body.data.method === 'cash') await getOpenDrawer(db, req.session!.storeId, req.session!.id);
   const existing = await db.select().from(schema.payments).where(eq(schema.payments.ticketId, id));
   const paid = existing.reduce((s, p) => s + p.amountCents, 0);
   if (paid + body.data.amountCents > ticket.totalCents) {

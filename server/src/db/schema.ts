@@ -365,6 +365,49 @@ export const cashMovements = pgTable('cash_movements', {
 });
 
 /* ------------------------------------------------------------------ */
+/* Retail / carrier POS                                                */
+/* ------------------------------------------------------------------ */
+
+export const activations = pgTable(
+  'activations',
+  {
+    id: serial('id').primaryKey(),
+    storeId: integer('store_id').notNull().references(() => stores.id),
+    customerId: integer('customer_id').notNull().references(() => customers.id),
+    kind: text('kind', { enum: ['new_line', 'upgrade', 'port_in', 'wifi_box', 'tablet'] }).notNull(),
+    carrier: text('carrier').notNull(),
+    planName: text('plan_name'),
+    accountNumber: text('account_number'),
+    phoneNumber: text('phone_number'),
+    monthlyCents: integer('monthly_cents').notNull().default(0),
+    deviceItemId: integer('device_item_id').references(() => inventoryItems.id),
+    saleId: integer('sale_id').references(() => sales.id),
+    status: text('status', { enum: ['active', 'pending', 'cancelled'] }).notNull().default('active'),
+    notes: text('notes'),
+    userId: integer('user_id').references(() => users.id),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => [index('activations_store_idx').on(t.storeId, t.createdAt)],
+);
+
+export const billPayments = pgTable(
+  'bill_payments',
+  {
+    id: serial('id').primaryKey(),
+    storeId: integer('store_id').notNull().references(() => stores.id),
+    customerId: integer('customer_id').references(() => customers.id),
+    carrier: text('carrier').notNull(),
+    accountNumber: text('account_number').notNull(),
+    amountCents: integer('amount_cents').notNull(),
+    feeCents: integer('fee_cents').notNull().default(0),
+    saleId: integer('sale_id').references(() => sales.id),
+    userId: integer('user_id').references(() => users.id),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => [index('bill_payments_store_idx').on(t.storeId, t.createdAt)],
+);
+
+/* ------------------------------------------------------------------ */
 /* Audit                                                               */
 /* ------------------------------------------------------------------ */
 

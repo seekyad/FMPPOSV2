@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
-import { PinScreen } from './PinScreen';
+import { PinScreen } from '@fmp/pos-client';
 import { Sidebar } from './Sidebar';
-import { session } from './api';
+import { session } from '@fmp/pos-client';
 import { RegisterScreen } from './screens/register/RegisterScreen';
 import { PendingSalesScreen } from './screens/PendingSalesScreen';
-import { CustomersScreen } from './screens/CustomersScreen';
-import { InventoryScreen } from './screens/InventoryScreen';
+import { CustomersScreen } from '@fmp/pos-client';
+import { InventoryScreen } from '@fmp/pos-client';
 import { RepairsScreen } from './screens/repairs/RepairsScreen';
 import { SettingsHub } from './screens/settings/SettingsHub';
 import { ReportsScreen } from './screens/ReportsScreen';
