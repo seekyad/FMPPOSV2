@@ -199,8 +199,8 @@ export const RingUpPad = forwardRef<
             {formatCents(showEntry ? cents : mode === 'tender' ? remaining : totalCents)}
           </div>
         </div>
-        {cashTender && tendered > 0 && (
-          <div className="rounded-lg bg-white/10 px-4 py-1 text-right">
+        {cashTender && (
+          <div className="-my-1 rounded-lg bg-white/10 px-4 py-1 text-right">
             <div
               className={`text-[11px] font-semibold tracking-[0.1em] ${
                 tendered >= remaining ? 'text-[#4ade80]' : 'text-[#fbbf24]'
