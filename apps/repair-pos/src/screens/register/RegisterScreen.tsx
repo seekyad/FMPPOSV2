@@ -372,39 +372,21 @@ export function RegisterScreen() {
         }}
       >
         <div style={{ padding: '18px 20px 14px', borderBottom: '1px solid var(--line-soft)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h2 style={{ margin: 0, font: '700 20.5px Inter, sans-serif' }}>
-              Current sale{' '}
-              <span
-                style={{
-                  background: 'var(--orange-soft)',
-                  color: 'var(--orange)',
-                  borderRadius: 999,
-                  padding: '2px 11px',
-                  font: '700 14.5px Inter, sans-serif',
-                  verticalAlign: 'middle',
-                }}
-              >
-                {lines.reduce((n, l) => n + l.qty, 0)}
-              </span>
-            </h2>
-            <button
-              onClick={clearSale}
-              disabled={lines.length === 0}
+          <h2 style={{ margin: 0, font: '700 20.5px Inter, sans-serif' }}>
+            Current sale{' '}
+            <span
               style={{
-                border: '1px solid var(--line)',
-                background: 'var(--card)',
-                color: lines.length === 0 ? 'var(--ink-4)' : 'var(--red)',
-                borderRadius: 11,
-                padding: '10px 18px',
-                minHeight: 42,
-                font: '600 14.5px Inter, sans-serif',
-                opacity: lines.length === 0 ? 0.5 : 1,
+                background: 'var(--orange-soft)',
+                color: 'var(--orange)',
+                borderRadius: 999,
+                padding: '2px 11px',
+                font: '700 14.5px Inter, sans-serif',
+                verticalAlign: 'middle',
               }}
             >
-              <i className="bi bi-x-circle" /> Clear
-            </button>
-          </div>
+              {lines.reduce((n, l) => n + l.qty, 0)}
+            </span>
+          </h2>
           {customer ? (
             <div
               style={{
@@ -508,9 +490,27 @@ export function RegisterScreen() {
 
         <div style={{ borderTop: '1px solid var(--line-soft)', padding: '12px 20px 16px' }}>
           {error && <div style={{ color: 'var(--red)', fontSize: 14, marginBottom: 8 }}>{error}</div>}
-          <Button variant="secondary" size="lg" style={{ width: '100%' }} disabled={lines.length === 0 || busy} onClick={() => void park()}>
-            <i className="bi bi-pause-circle" /> Hold sale — save for later
-          </Button>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button
+              onClick={clearSale}
+              disabled={lines.length === 0}
+              style={{
+                border: '1px solid var(--line)',
+                background: 'var(--card)',
+                color: lines.length === 0 ? 'var(--ink-4)' : 'var(--red)',
+                borderRadius: 11,
+                padding: '0 20px',
+                minHeight: 52,
+                font: '600 16px Inter, sans-serif',
+                opacity: lines.length === 0 ? 0.5 : 1,
+              }}
+            >
+              <i className="bi bi-x-circle" /> Clear
+            </button>
+            <Button variant="secondary" size="lg" style={{ flex: 1 }} disabled={lines.length === 0 || busy} onClick={() => void park()}>
+              <i className="bi bi-pause-circle" /> Hold sale — save for later
+            </Button>
+          </div>
         </div>
       </div>
 
