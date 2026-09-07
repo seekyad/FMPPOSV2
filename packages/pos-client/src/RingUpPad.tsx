@@ -16,7 +16,6 @@ export interface RingUpItem {
 }
 
 const QUICK_AMOUNTS = [1000, 2000, 5000, 10000];
-const QUICK_LABELS = ['Quick repair — walk-in', 'Accessory', 'Service fee'];
 
 /**
  * The register's ring-up + payment station. Entry mode punches amounts into
@@ -263,33 +262,19 @@ export const RingUpPad = forwardRef<
                 </button>
               ))}
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              {QUICK_LABELS.map((preset) => {
-                const active = description === preset;
-                return (
-                  <button
-                    key={preset}
-                    onClick={() => setDescription(active ? '' : preset)}
-                    className={`min-h-[42px] rounded-full px-4 text-[14px] font-semibold ${
-                      active ? 'bg-orange-soft text-orange' : 'border border-line bg-card text-ink-2'
-                    }`}
-                  >
-                    {preset}
-                  </button>
-                );
-              })}
-              <label className="ml-auto flex items-center gap-1.5 text-[13px] text-ink-3 select-none">
+            <div className="flex items-center gap-2.5">
+              <input
+                ref={descRef}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Description (optional)"
+                className="min-w-0 flex-1 rounded-[10px] border border-line bg-card px-3.5 py-3 text-[15px] text-ink placeholder:text-ink-4 focus:border-orange focus:outline-none"
+              />
+              <label className="flex shrink-0 items-center gap-1.5 text-[13px] text-ink-3 select-none">
                 <input type="checkbox" checked={taxable} onChange={(e) => setTaxable(e.target.checked)} className="size-4 accent-[#f97316]" />
                 Tax {(taxRateBp / 100).toFixed(taxRateBp % 100 === 0 ? 0 : 2)}%
               </label>
             </div>
-            <input
-              ref={descRef}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Description (optional)"
-              className="w-full rounded-[10px] border border-line bg-card px-3.5 py-3 text-[15px] text-ink placeholder:text-ink-4 focus:border-orange focus:outline-none"
-            />
             <div className="mt-auto flex flex-wrap gap-2.5">
               <button
                 onClick={add}
