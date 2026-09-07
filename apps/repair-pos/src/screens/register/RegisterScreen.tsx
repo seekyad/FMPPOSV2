@@ -495,20 +495,20 @@ export function RegisterScreen() {
               onClick={clearSale}
               disabled={lines.length === 0}
               style={{
+                flex: 1,
                 border: '1px solid var(--line)',
                 background: 'var(--card)',
                 color: lines.length === 0 ? 'var(--ink-4)' : 'var(--red)',
                 borderRadius: 11,
-                padding: '0 20px',
                 minHeight: 52,
-                font: '600 16px Inter, sans-serif',
+                font: '600 17px Inter, sans-serif',
                 opacity: lines.length === 0 ? 0.5 : 1,
               }}
             >
-              <i className="bi bi-x-circle" /> Clear
+              Clear
             </button>
             <Button variant="secondary" size="lg" style={{ flex: 1 }} disabled={lines.length === 0 || busy} onClick={() => void park()}>
-              <i className="bi bi-pause-circle" /> Hold sale
+              Hold sale
             </Button>
           </div>
         </div>

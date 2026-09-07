@@ -295,7 +295,7 @@ export function SalesScreen() {
               opacity: lines.length === 0 ? 0.5 : 1,
             }}
           >
-            <i className="bi bi-x-circle" /> Clear sale
+            Clear sale
           </button>
         </div>
       </div>
