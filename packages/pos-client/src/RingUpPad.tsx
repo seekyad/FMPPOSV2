@@ -57,6 +57,22 @@ export const RingUpPad = forwardRef<
         <div className="rounded-xl bg-navy px-5 py-4 text-right text-[38px] font-extrabold text-orange">
           {formatCents(cents)}
         </div>
+        <div className="flex flex-wrap gap-2">
+          {['Quick repair — walk-in', 'Accessory', 'Service fee'].map((preset) => {
+            const active = description === preset;
+            return (
+              <button
+                key={preset}
+                onClick={() => setDescription(active ? '' : preset)}
+                className={`rounded-full px-4 py-2 text-[13.5px] font-semibold ${
+                  active ? 'bg-navy text-white' : 'border border-line bg-card text-ink-2'
+                }`}
+              >
+                {preset}
+              </button>
+            );
+          })}
+        </div>
         <input
           ref={descRef}
           value={description}
