@@ -373,19 +373,7 @@ export function RegisterScreen() {
       >
         <div style={{ padding: '18px 20px 14px', borderBottom: '1px solid var(--line-soft)' }}>
           <h2 style={{ margin: 0, font: '700 20.5px Inter, sans-serif' }}>
-            Current sale{' '}
-            <span
-              style={{
-                background: 'var(--orange-soft)',
-                color: 'var(--orange)',
-                borderRadius: 999,
-                padding: '2px 13px',
-                font: '700 20.5px Inter, sans-serif',
-                verticalAlign: 'middle',
-              }}
-            >
-              Items: {lines.reduce((n, l) => n + l.qty, 0)}
-            </span>
+            Current sale <span style={{ color: 'var(--orange)' }}>items: {lines.reduce((n, l) => n + l.qty, 0)}</span>
           </h2>
           {customer ? (
             <div
