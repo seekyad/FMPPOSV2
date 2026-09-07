@@ -35,10 +35,12 @@ repairsRouter.get('/meta', async (_req, res) => {
     .select({ id: schema.users.id, name: schema.users.name })
     .from(schema.users)
     .where(and(eq(schema.users.active, true), eq(schema.users.isTechnician, true)));
+  const nextNumber = await nextRepairNumber(db);
   res.json({
     models,
     services: serviceRows.map((s) => ({ ...s, tiers: tiers.filter((t) => t.serviceId === s.id) })),
     technicians,
+    nextNumber,
   });
 });
 

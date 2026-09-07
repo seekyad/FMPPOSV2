@@ -1,0 +1,33 @@
+@import 'tailwindcss';
+@source '../../../packages/pos-client/src';
+@source '../../../packages/ui/src';
+
+/* FMP design tokens exposed to Tailwind (text-ink, bg-navy, border-line, …) */
+@theme {
+  --font-sans: 'Inter', system-ui, sans-serif;
+
+  --color-ink: #17191c;
+  --color-ink-2: #40464d;
+  --color-ink-3: #5b636c;
+  --color-ink-4: #7d8590;
+  --color-navy: #111827;
+  --color-orange: #f97316;
+  --color-orange-soft: #fdede1;
+  --color-page: #f0eee9;
+  --color-card: #ffffff;
+  --color-line: #e3e6ea;
+  --color-line-soft: #eef0f3;
+
+  --color-green-bg: #e7f6ee;
+  --color-green-line: #bce5ce;
+  --color-green: #15803d;
+  --color-red-bg: #fdebe9;
+  --color-red-line: #f7c7c1;
+  --color-red: #b42318;
+  --color-blue-bg: #e8effc;
+  --color-blue: #1d4ed8;
+  --color-purple-bg: #f0e9fc;
+  --color-purple: #6d28d9;
+  --color-amber-bg: #fdf3e1;
+  --color-amber: #b45309;
+}

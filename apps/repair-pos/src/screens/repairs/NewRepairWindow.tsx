@@ -1,7 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { computeTotals, formatCents } from '@fmp/shared';
-import { Button } from '@fmp/ui';
-import { api } from '@fmp/pos-client';
+import { api, session } from '@fmp/pos-client';
 import type { CartCustomer } from '@fmp/pos-client';
 
 export interface CatalogService {
@@ -19,6 +18,7 @@ export interface RepairMeta {
   models: Array<{ id: number; brand: string; name: string; kind: string }>;
   services: CatalogService[];
   technicians: Array<{ id: number; name: string }>;
+  nextNumber: string;
 }
 
 interface DraftDevice {
@@ -49,6 +49,7 @@ export interface CreatedTicket {
 }
 
 const TAX_RATE_BP = 600;
+const DRAFT_KEY = 'fmp.repairDraft';
 
 const emptyDevice = (): DraftDevice => ({
   modelId: null,
@@ -59,6 +60,12 @@ const emptyDevice = (): DraftDevice => ({
   unlockValue: '',
   conditionNotes: '',
 });
+
+const inputBase =
+  'rounded-[10px] border border-line bg-card px-3.5 py-3 text-[15px] text-ink placeholder:text-ink-4 focus:border-orange focus:outline-none';
+const inputCls = `w-full ${inputBase}`;
+const labelCls = 'mb-1.5 block text-[13px] font-semibold text-ink-3';
+const sectionCls = 'text-[11.5px] font-semibold tracking-[0.07em] text-ink-4';
 
 /** The design's "New repair — 3-column window over Register". */
 export function NewRepairWindow({
@@ -82,13 +89,51 @@ export function NewRepairWindow({
   const [technicianId, setTechnicianId] = useState<number | ''>('');
   const [notesForTech, setNotesForTech] = useState('');
   const [typeQuery, setTypeQuery] = useState('');
-  const [openCategory, setOpenCategory] = useState<string | null>('Screens');
+  const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const [showPasscode, setShowPasscode] = useState(false);
+  const [draftSaved, setDraftSaved] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const restoredRef = useRef(false);
 
   useEffect(() => {
     if (open && !meta) void api<RepairMeta>('/api/repairs/meta').then(setMeta).catch(() => {});
   }, [open, meta]);
+
+  // restore + autosave draft
+  useEffect(() => {
+    if (!open || restoredRef.current) return;
+    restoredRef.current = true;
+    try {
+      const raw = sessionStorage.getItem(DRAFT_KEY);
+      if (!raw) return;
+      const d = JSON.parse(raw);
+      if (d.devices?.length) setDevices(d.devices);
+      if (d.lines?.length) setLines(d.lines);
+      if (d.customer) setCustomer(d.customer);
+      if (d.custName) setCustName(d.custName);
+      if (d.custPhone) setCustPhone(d.custPhone);
+      if (d.callFlag) setCallFlag(d.callFlag);
+      if (d.notesForTech) setNotesForTech(d.notesForTech);
+    } catch {
+      /* corrupt draft — start fresh */
+    }
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const t = setTimeout(() => {
+      const isEmpty = lines.length === 0 && !custName && !custPhone && !customer && devices.every((d) => !d.label && !d.imei);
+      if (isEmpty) {
+        sessionStorage.removeItem(DRAFT_KEY);
+        setDraftSaved(false);
+        return;
+      }
+      sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ devices, lines, customer, custName, custPhone, callFlag, notesForTech }));
+      setDraftSaved(true);
+    }, 700);
+    return () => clearTimeout(t);
+  }, [open, devices, lines, customer, custName, custPhone, callFlag, notesForTech]);
 
   // live match on typed name/phone
   useEffect(() => {
@@ -98,29 +143,37 @@ export function NewRepairWindow({
     }
     const t = setTimeout(async () => {
       const q = custPhone.length >= 4 ? custPhone : custName;
-      const res = await api<{ customers: CartCustomer[] }>(`/api/sales/search/all?q=${encodeURIComponent(q)}`).catch(
-        () => ({ customers: [] }),
-      );
-      setMatches(res.customers.slice(0, 3));
+      const res = await api<{ customers: Array<CartCustomer & { visits?: number }> }>(
+        `/api/sales/search/all?q=${encodeURIComponent(q)}`,
+      ).catch(() => ({ customers: [] }));
+      setMatches(res.customers.slice(0, 2));
     }, 250);
     return () => clearTimeout(t);
   }, [custName, custPhone, customer]);
 
   const device = devices[activeDevice] ?? devices[0]!;
+  const user = session.user;
 
   const categories = useMemo(() => {
-    if (!meta) return [];
-    const q = typeQuery.trim().toLowerCase();
-    const filtered = q
-      ? meta.services.filter((s) => `${s.name} ${s.deviceGroup} ${s.category}`.toLowerCase().includes(q))
-      : meta.services;
-    const byCat = new Map<string, typeof filtered>();
-    for (const t of filtered) {
-      if (!byCat.has(t.category)) byCat.set(t.category, []);
-      byCat.get(t.category)!.push(t);
+    if (!meta) return [] as Array<[string, CatalogService[]]>;
+    const byCat = new Map<string, CatalogService[]>();
+    for (const s of meta.services) {
+      if (!byCat.has(s.category)) byCat.set(s.category, []);
+      byCat.get(s.category)!.push(s);
     }
     return [...byCat.entries()];
-  }, [meta, typeQuery]);
+  }, [meta]);
+
+  const searching = typeQuery.trim().length > 0;
+  const shownCategory = activeCategory ?? categories[0]?.[0] ?? null;
+  const shownServices = useMemo(() => {
+    if (!meta) return [];
+    if (searching) {
+      const q = typeQuery.trim().toLowerCase();
+      return meta.services.filter((s) => `${s.name} ${s.deviceGroup} ${s.category}`.toLowerCase().includes(q));
+    }
+    return meta.services.filter((s) => s.category === shownCategory);
+  }, [meta, searching, typeQuery, shownCategory]);
 
   const totals = computeTotals(
     lines.map((l) => ({ qty: 1, unitCents: l.priceCents, taxable: true })),
@@ -134,7 +187,7 @@ export function NewRepairWindow({
       return;
     }
     // auto-pick the tier matching the active device's model: exact name first,
-    // then the longest partial match so "iPhone 13" never grabs "iPhone 13 mini"
+    // then the closest partial match so "iPhone 13" never grabs "iPhone 13 mini"
     const deviceName = device.label.toLowerCase().trim();
     let matched: (typeof service.tiers)[number] | undefined;
     if (deviceName.length > 2) {
@@ -144,7 +197,9 @@ export function NewRepairWindow({
           const label = t.label.toLowerCase().trim();
           return deviceName.includes(label) || label.includes(deviceName);
         });
-        matched = partials.sort((a, b) => Math.abs(a.label.length - deviceName.length) - Math.abs(b.label.length - deviceName.length))[0];
+        matched = partials.sort(
+          (a, b) => Math.abs(a.label.length - deviceName.length) - Math.abs(b.label.length - deviceName.length),
+        )[0];
       }
     }
     const chosen = matched ?? service.tiers[0];
@@ -173,6 +228,8 @@ export function NewRepairWindow({
     setTechnicianId('');
     setNotesForTech('');
     setError('');
+    setDraftSaved(false);
+    sessionStorage.removeItem(DRAFT_KEY);
   }
 
   async function submit(exit: 'board' | 'deposit' | 'sale') {
@@ -182,7 +239,7 @@ export function NewRepairWindow({
       return;
     }
     if (lines.length === 0) {
-      setError('Pick at least one repair type.');
+      setError('Pick at least one repair.');
       return;
     }
     if (devices.some((d) => !d.label.trim())) {
@@ -223,11 +280,15 @@ export function NewRepairWindow({
           id: res.ticket.id,
           number: res.ticket.number,
           totalCents: res.ticket.totalCents,
-          lines: lines.map((l) => ({ description: l.description, priceCents: l.priceCents })),
+          lines: lines.map((l) => ({
+            description: l.tierLabel ? `${l.description} (${l.tierLabel})` : l.description,
+            priceCents: l.priceCents,
+          })),
         },
         exit,
       );
       reset();
+      restoredRef.current = false;
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not save ticket');
     } finally {
@@ -237,39 +298,53 @@ export function NewRepairWindow({
 
   if (!open) return null;
 
-  const col = { flex: 1, minWidth: 0, padding: '16px 18px', overflow: 'auto' as const };
-  const label = { font: '600 11.5px Inter, sans-serif', color: 'var(--ink-4)', letterSpacing: '0.06em', marginBottom: 6 };
-  const inputStyle = {
-    width: '100%',
-    padding: '10px 12px',
-    borderRadius: 10,
-    border: '1px solid var(--line)',
-    fontSize: 15,
-  };
+  const patchDevice = (patch: Partial<DraftDevice>) =>
+    setDevices((prev) => prev.map((d, i) => (i === activeDevice ? { ...d, ...patch } : d)));
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(17,24,39,0.6)', zIndex: 90, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ width: 'min(1240px, calc(100vw - 32px))', height: 'min(780px, calc(100vh - 32px))', background: 'var(--card)', borderRadius: 18, boxShadow: 'var(--shadow)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-navy/60 p-4">
+      <div className="flex h-[min(860px,100%)] w-[min(1340px,100%)] flex-col overflow-hidden rounded-2xl bg-card shadow-2xl">
         {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 18px', borderBottom: '1px solid var(--line-soft)' }}>
-          <h2 style={{ margin: 0, font: '700 20.5px Inter, sans-serif' }}>New repair</h2>
-          <div style={{ display: 'flex', gap: 6, flex: 1, overflow: 'auto' }}>
+        <div className="border-b border-line-soft px-6 pt-5 pb-4">
+          <div className="flex items-center gap-4">
+            <h2 className="text-[22px] font-bold text-ink">New repair</h2>
+            <div className="hidden border-l border-line pl-4 text-[14px] text-ink-3 sm:block">
+              Ticket will be #{meta?.nextNumber ?? '…'} · {user?.name}
+            </div>
+            <div className="ml-auto flex items-center gap-2.5">
+              {draftSaved && (
+                <span className="flex items-center gap-1.5 rounded-full bg-line-soft px-3.5 py-2 text-[13px] font-semibold text-ink-3">
+                  <i className="bi bi-clock" /> Draft saved
+                </span>
+              )}
+              <button
+                onClick={() => {
+                  reset();
+                }}
+                className="flex items-center gap-1.5 rounded-full border border-line bg-card px-3.5 py-2 text-[13px] font-semibold text-ink-2"
+              >
+                <i className="bi bi-arrow-counterclockwise" /> Clear
+              </button>
+              <button
+                onClick={() => {
+                  onClose();
+                }}
+                className="flex size-9 items-center justify-center rounded-full bg-line-soft text-ink-2"
+                aria-label="Close"
+              >
+                <i className="bi bi-x-lg text-[13px]" />
+              </button>
+            </div>
+          </div>
+          {/* Device tabs */}
+          <div className="mt-3 flex flex-wrap items-center gap-2">
             {devices.map((d, i) => (
               <button
                 key={i}
                 onClick={() => setActiveDevice(i)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  padding: '6px 12px',
-                  borderRadius: 999,
-                  border: 'none',
-                  background: activeDevice === i ? 'var(--navy)' : 'var(--line-soft)',
-                  color: activeDevice === i ? '#fff' : 'var(--ink-2)',
-                  font: '600 14px Inter, sans-serif',
-                  whiteSpace: 'nowrap',
-                }}
+                className={`flex items-center gap-2 rounded-lg px-3.5 py-2 text-[13.5px] font-semibold ${
+                  activeDevice === i ? 'bg-navy text-white' : 'bg-line-soft text-ink-2'
+                }`}
               >
                 {d.label || `Device ${i + 1}`}
                 {devices.length > 1 && (
@@ -284,7 +359,7 @@ export function NewRepairWindow({
                       );
                       setActiveDevice(0);
                     }}
-                    style={{ opacity: 0.7 }}
+                    className="opacity-60"
                   >
                     ×
                   </span>
@@ -296,289 +371,313 @@ export function NewRepairWindow({
                 setDevices((prev) => [...prev, emptyDevice()]);
                 setActiveDevice(devices.length);
               }}
-              style={{ padding: '6px 12px', borderRadius: 999, border: 'none', background: 'var(--orange-soft)', color: 'var(--orange)', font: '600 14px Inter, sans-serif', whiteSpace: 'nowrap' }}
+              className="rounded-lg bg-orange-soft px-3.5 py-2 text-[13.5px] font-semibold text-orange"
             >
               + Add device
             </button>
           </div>
-          <Button variant="ghost" onClick={reset}>Clear</Button>
-          <button onClick={() => { reset(); onClose(); }} style={{ border: 'none', background: 'var(--line-soft)', borderRadius: 999, width: 30, height: 30 }}>
-            <i className="bi bi-x-lg" style={{ fontSize: 14 }} />
-          </button>
         </div>
 
-        {/* Columns */}
-        <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
-          {/* 1 — customer + condition */}
-          <div style={{ ...col, maxWidth: 320, borderRight: '1px solid var(--line-soft)' }}>
-            <div style={label}>1 · CUSTOMER</div>
+        {/* Body */}
+        <div className="flex min-h-0 flex-1">
+          {/* 1 · Customer + condition */}
+          <div className="w-[330px] shrink-0 overflow-y-auto border-r border-line-soft p-5">
+            <div className={sectionCls}>1 · CUSTOMER</div>
             {customer ? (
-              <div style={{ border: '1px solid var(--line)', borderRadius: 10, padding: '10px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div className="mt-3 flex items-center justify-between rounded-[10px] border border-line px-3.5 py-3">
                 <div>
-                  <div style={{ font: '600 15px Inter, sans-serif' }}>{customer.name}</div>
-                  <div style={{ fontSize: 12.5, color: 'var(--ink-3)' }}>{customer.phone}</div>
+                  <div className="text-[15px] font-semibold text-ink">{customer.name}</div>
+                  <div className="text-[13px] text-ink-3">{customer.phone}</div>
                 </div>
-                <button onClick={() => setCustomer(null)} style={{ border: 'none', background: 'none', color: 'var(--red)', fontSize: 12.5 }}>
+                <button onClick={() => setCustomer(null)} className="text-[13px] font-semibold text-red">
                   change
                 </button>
               </div>
             ) : (
               <>
-                <input value={custName} onChange={(e) => setCustName(e.target.value)} placeholder="First and last name *" style={inputStyle} />
-                <input value={custPhone} onChange={(e) => setCustPhone(e.target.value)} placeholder="Phone number" style={{ ...inputStyle, marginTop: 8 }} />
+                <label className="mt-3 block">
+                  <span className={labelCls}>Name *</span>
+                  <input value={custName} onChange={(e) => setCustName(e.target.value)} placeholder="First and last name" className={inputCls} />
+                </label>
+                <label className="mt-3 block">
+                  <span className={labelCls}>Phone number *</span>
+                  <div className="relative">
+                    <input value={custPhone} onChange={(e) => setCustPhone(e.target.value)} placeholder="(___) ___-____" className={inputCls} />
+                    <i className="bi bi-search absolute top-1/2 right-3.5 -translate-y-1/2 text-[14px] text-ink-4" />
+                  </div>
+                </label>
                 {matches.map((m) => (
                   <button
                     key={m.id}
                     onClick={() => setCustomer(m)}
-                    style={{ width: '100%', marginTop: 6, padding: '8px 12px', borderRadius: 10, border: '1px dashed var(--orange)', background: 'var(--orange-soft)', textAlign: 'left', fontSize: 14 }}
+                    className="mt-2 flex w-full items-center justify-between rounded-[10px] bg-line-soft px-3.5 py-2.5 text-left text-[13.5px]"
                   >
-                    <b>{m.name}</b> · {m.phone} — <span style={{ color: 'var(--orange)' }}>Use</span>
+                    <span className="text-ink-2">
+                      <i className="bi bi-person-check mr-1.5" />
+                      {m.name}
+                    </span>
+                    <span className="font-bold text-orange">Use</span>
                   </button>
                 ))}
               </>
             )}
             <button
               onClick={() => setCallFlag((v) => !v)}
-              style={{
-                width: '100%',
-                marginTop: 10,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                padding: '10px 12px',
-                borderRadius: 10,
-                border: `1px solid ${callFlag ? 'var(--purple)' : 'var(--line)'}`,
-                background: callFlag ? 'var(--purple)' : 'var(--card)',
-                color: callFlag ? '#fff' : 'var(--ink-2)',
-                font: '600 14px Inter, sans-serif',
-              }}
+              className={`mt-3 flex w-full items-center gap-2.5 rounded-[10px] border px-3.5 py-3 text-[13.5px] font-semibold ${
+                callFlag ? 'border-purple bg-purple text-white' : 'border-line bg-card text-ink-2'
+              }`}
             >
               <i className={`bi ${callFlag ? 'bi-telephone-fill' : 'bi-telephone'}`} />
               {callFlag ? 'Call priority on' : 'Flag as call priority'}
             </button>
-            <div style={{ fontSize: 12, color: 'var(--ink-4)', marginTop: 4 }}>
-              {callFlag ? 'Ticket will show a Call flag on the Repairs board' : 'Customer wants a call as soon as it’s done'}
+            <div className="mt-1.5 text-[12px] text-ink-4">
+              {callFlag ? 'Ticket will show a Call flag on the Repairs board' : "Customer wants a call as soon as it's done"}
             </div>
 
-            <div style={{ ...label, marginTop: 18 }}>2 · CONDITION</div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              {[
-                { v: true, label: 'Powers on', icon: 'bi-power' },
-                { v: false, label: 'Dead on arrival', icon: 'bi-x-octagon' },
-              ].map((o) => (
+            <div className={`${sectionCls} mt-6`}>2 · CONDITION</div>
+            <div className="mt-3 flex overflow-hidden rounded-[10px] border border-line">
+              {(
+                [
+                  { v: true, label: 'Powers on', icon: 'bi-power' },
+                  { v: false, label: 'Dead on arrival', icon: 'bi-slash-circle' },
+                ] as const
+              ).map((o) => (
                 <button
                   key={String(o.v)}
-                  onClick={() => setDevices((prev) => prev.map((d, i) => (i === activeDevice ? { ...d, powersOn: o.v } : d)))}
-                  style={{
-                    flex: 1,
-                    padding: '9px 0',
-                    borderRadius: 10,
-                    border: '1px solid var(--line)',
-                    background: device.powersOn === o.v ? 'var(--navy)' : 'var(--card)',
-                    color: device.powersOn === o.v ? '#fff' : 'var(--ink-2)',
-                    font: '600 14px Inter, sans-serif',
-                  }}
+                  onClick={() => patchDevice({ powersOn: o.v })}
+                  className={`flex flex-1 items-center justify-center gap-1.5 py-3 text-[13.5px] font-semibold ${
+                    device.powersOn === o.v ? 'bg-navy text-white' : 'bg-card text-ink-2'
+                  }`}
                 >
                   <i className={`bi ${o.icon}`} /> {o.label}
                 </button>
               ))}
             </div>
-            <textarea
-              value={device.conditionNotes}
-              onChange={(e) => setDevices((prev) => prev.map((d, i) => (i === activeDevice ? { ...d, conditionNotes: e.target.value } : d)))}
-              rows={2}
-              placeholder="Anything else — cracked back glass, missing SIM tray, prior repair…"
-              style={{ ...inputStyle, marginTop: 8, resize: 'none' }}
-            />
-
-            <div style={{ ...label, marginTop: 14 }}>DEVICE UNLOCK</div>
-            <div style={{ display: 'flex', gap: 6 }}>
-              {(['passcode', 'password', 'pattern', 'none'] as const).map((m) => (
-                <button
-                  key={m}
-                  onClick={() => setDevices((prev) => prev.map((d, i) => (i === activeDevice ? { ...d, unlockMethod: m } : d)))}
-                  style={{
-                    flex: 1,
-                    padding: '7px 0',
-                    borderRadius: 8,
-                    border: '1px solid var(--line)',
-                    background: device.unlockMethod === m ? 'var(--navy)' : 'var(--card)',
-                    color: device.unlockMethod === m ? '#fff' : 'var(--ink-2)',
-                    font: '600 12.5px Inter, sans-serif',
-                    textTransform: 'capitalize',
-                  }}
-                >
-                  {m}
-                </button>
-              ))}
-            </div>
-            {device.unlockMethod !== 'none' && (
-              <input
-                value={device.unlockValue}
-                onChange={(e) => setDevices((prev) => prev.map((d, i) => (i === activeDevice ? { ...d, unlockValue: e.target.value } : d)))}
-                placeholder="Enter 4 or 6-digit passcode"
-                style={{ ...inputStyle, marginTop: 8 }}
+            <label className="mt-3 block">
+              <span className={labelCls}>Anything else</span>
+              <textarea
+                value={device.conditionNotes}
+                onChange={(e) => patchDevice({ conditionNotes: e.target.value })}
+                rows={2}
+                placeholder="Cracked back glass, missing SIM tray, prior repair…"
+                className={`${inputCls} resize-none`}
               />
+            </label>
+
+            <label className="mt-3 block">
+              <span className={labelCls}>Device unlock</span>
+              <div className="flex overflow-hidden rounded-[10px] border border-line">
+                {(['passcode', 'password', 'pattern', 'none'] as const).map((m) => (
+                  <button
+                    key={m}
+                    onClick={() => patchDevice({ unlockMethod: m })}
+                    className={`flex-1 py-2.5 text-[12.5px] font-semibold capitalize ${
+                      device.unlockMethod === m ? 'bg-navy text-white' : 'bg-card text-ink-2'
+                    }`}
+                  >
+                    {m}
+                  </button>
+                ))}
+              </div>
+            </label>
+            {device.unlockMethod !== 'none' && (
+              <div className="relative mt-2.5">
+                <input
+                  type={showPasscode ? 'text' : 'password'}
+                  value={device.unlockValue}
+                  onChange={(e) => patchDevice({ unlockValue: e.target.value })}
+                  placeholder="Enter 4 or 6-digit passcode"
+                  className={inputCls}
+                />
+                <button
+                  onClick={() => setShowPasscode((v) => !v)}
+                  className="absolute top-1/2 right-3.5 -translate-y-1/2 text-ink-4"
+                  aria-label="Show passcode"
+                >
+                  <i className={`bi ${showPasscode ? 'bi-eye-slash' : 'bi-eye'}`} />
+                </button>
+              </div>
             )}
 
-            <div style={{ ...label, marginTop: 14 }}>NOTES FOR TECH</div>
-            <textarea
-              value={notesForTech}
-              onChange={(e) => setNotesForTech(e.target.value)}
-              rows={2}
-              placeholder="Customer reports touch dead in top-right corner after drop."
-              style={{ ...inputStyle, resize: 'none' }}
-            />
-            <div style={{ ...label, marginTop: 14 }}>TECHNICIAN</div>
-            <select
-              value={technicianId}
-              onChange={(e) => setTechnicianId(e.target.value === '' ? '' : Number(e.target.value))}
-              style={{ ...inputStyle, background: 'var(--card)' }}
-            >
-              <option value="">Unassigned</option>
-              {meta?.technicians.map((t) => (
-                <option key={t.id} value={t.id}>{t.name}</option>
-              ))}
-            </select>
+            <label className="mt-3 block">
+              <span className={labelCls}>Notes for tech</span>
+              <textarea
+                value={notesForTech}
+                onChange={(e) => setNotesForTech(e.target.value)}
+                rows={3}
+                placeholder="Customer reports touch dead in top-right corner after drop."
+                className={`${inputCls} resize-none`}
+              />
+            </label>
+            <label className="mt-3 block">
+              <span className={labelCls}>Technician</span>
+              <select
+                value={technicianId}
+                onChange={(e) => setTechnicianId(e.target.value === '' ? '' : Number(e.target.value))}
+                className={inputCls}
+              >
+                <option value="">Unassigned</option>
+                {meta?.technicians.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
 
-          {/* 2 — device model + repair types */}
-          <div style={{ ...col, borderRight: '1px solid var(--line-soft)' }}>
-            <div style={label}>3 · DEVICE & REPAIR TYPE</div>
-            <select
-              value={device.modelId ?? ''}
-              onChange={(e) => {
-                const id = e.target.value === '' ? null : Number(e.target.value);
-                const m = meta?.models.find((x) => x.id === id);
-                setDevices((prev) =>
-                  prev.map((d, i) => (i === activeDevice ? { ...d, modelId: id, label: m ? m.name : d.label } : d)),
-                );
-              }}
-              style={{ ...inputStyle, background: 'var(--card)' }}
-            >
-              <option value="">Pick device model…</option>
-              {meta?.models.map((m) => (
-                <option key={m.id} value={m.id}>{m.brand} {m.name}</option>
-              ))}
-            </select>
-            <input
-              value={device.imei}
-              onChange={(e) => setDevices((prev) => prev.map((d, i) => (i === activeDevice ? { ...d, imei: e.target.value } : d)))}
-              placeholder="IMEI / serial (optional)"
-              style={{ ...inputStyle, marginTop: 8 }}
-            />
-            <div style={{ position: 'relative', marginTop: 10 }}>
-              <i className="bi bi-search" style={{ position: 'absolute', left: 12, top: 11, color: 'var(--ink-4)', fontSize: 15 }} />
+          {/* 2 · Repair type — category rail + options */}
+          <div className="flex min-w-0 flex-1 flex-col border-r border-line-soft">
+            <div className="flex items-center justify-between px-5 pt-5">
+              <div className={sectionCls}>3 · REPAIR TYPE</div>
+              <div className="text-[13px] text-ink-4">
+                for Device {activeDevice + 1}{device.label ? ` · ${device.label}` : ''}
+              </div>
+            </div>
+            <div className="flex gap-3 px-5 pt-3">
+              <select
+                value={device.modelId ?? ''}
+                onChange={(e) => {
+                  const id = e.target.value === '' ? null : Number(e.target.value);
+                  const m = meta?.models.find((x) => x.id === id);
+                  patchDevice({ modelId: id, label: m ? m.name : device.label });
+                }}
+                className={`${inputBase} min-w-0 flex-1`}
+              >
+                <option value="">Pick device model…</option>
+                {meta?.models.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.brand} {m.name}
+                  </option>
+                ))}
+              </select>
+              <input
+                value={device.imei}
+                onChange={(e) => patchDevice({ imei: e.target.value })}
+                placeholder="IMEI / serial"
+                className={`${inputBase} w-44`}
+              />
+            </div>
+            <div className="relative px-5 pt-3">
+              <i className="bi bi-search absolute top-1/2 left-9 mt-1.5 -translate-y-1/2 text-[14px] text-ink-4" />
               <input
                 value={typeQuery}
                 onChange={(e) => setTypeQuery(e.target.value)}
                 placeholder={`Search ${meta?.services.length ?? ''} services`}
-                style={{ ...inputStyle, paddingLeft: 34 }}
+                className={`${inputCls} bg-line-soft pl-10`}
               />
             </div>
-            <div style={{ marginTop: 10 }}>
-              {categories.map(([cat, catServices]) => {
-                const expanded = typeQuery.trim() !== '' || openCategory === cat;
-                return (
-                  <div key={cat} style={{ marginBottom: 4 }}>
+            <div className="mt-3 flex min-h-0 flex-1">
+              {!searching && (
+                <div className="w-[190px] shrink-0 overflow-y-auto border-r border-line-soft">
+                  {categories.map(([cat, list]) => {
+                    const active = shownCategory === cat;
+                    return (
+                      <button
+                        key={cat}
+                        onClick={() => setActiveCategory(cat)}
+                        className={`flex w-full items-center justify-between px-5 py-3 text-left text-[14px] font-semibold ${
+                          active ? 'border-l-[3px] border-orange bg-line-soft text-ink' : 'border-l-[3px] border-transparent text-ink-3'
+                        }`}
+                      >
+                        {cat}
+                        <span className="text-[13px] font-medium text-ink-4">{list.length}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              <div className="min-w-0 flex-1 overflow-y-auto px-4 py-1">
+                {shownServices.map((s) => {
+                  const selected = lines.some((l) => l.deviceIndex === activeDevice && l.serviceId === s.id);
+                  return (
                     <button
-                      onClick={() => setOpenCategory((prev) => (prev === cat ? null : cat))}
-                      style={{ width: '100%', display: 'flex', justifyContent: 'space-between', padding: '8px 10px', borderRadius: 8, border: 'none', background: expanded ? 'var(--line-soft)' : 'transparent', font: '600 14.5px Inter, sans-serif', color: 'var(--ink)' }}
+                      key={s.id}
+                      onClick={() => toggleLine(s)}
+                      className={`flex w-full items-center gap-3 border-b border-line-soft px-3 py-3.5 text-left ${
+                        selected ? 'rounded-[10px] border-transparent bg-orange-soft' : ''
+                      }`}
                     >
-                      {cat}
-                      <span style={{ color: 'var(--ink-4)', fontWeight: 500 }}>{catServices.length}</span>
+                      <span
+                        className={`flex size-[22px] shrink-0 items-center justify-center rounded-full border-2 ${
+                          selected ? 'border-orange bg-orange text-white' : 'border-line'
+                        }`}
+                      >
+                        {selected && <i className="bi bi-check text-[13px]" />}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-[15px] font-semibold text-ink">{s.name}</span>
+                        <span className="block text-[12.5px] text-ink-4">
+                          {s.deviceGroup}
+                          {searching ? ` · ${s.category}` : ''}
+                        </span>
+                      </span>
+                      <span className="shrink-0 text-[13.5px] font-semibold text-ink-3">
+                        {s.tiers.length > 0
+                          ? `from ${formatCents(Math.min(...s.tiers.map((t) => t.priceCents)))}`
+                          : formatCents(s.basePriceCents)}
+                      </span>
                     </button>
-                    {expanded &&
-                      catServices.map((s) => {
-                        const selected = lines.some((l) => l.deviceIndex === activeDevice && l.serviceId === s.id);
-                        return (
-                          <button
-                            key={s.id}
-                            onClick={() => toggleLine(s)}
-                            style={{
-                              width: '100%',
-                              display: 'flex',
-                              justifyContent: 'space-between',
-                              alignItems: 'center',
-                              gap: 8,
-                              padding: '9px 10px 9px 22px',
-                              borderRadius: 8,
-                              border: 'none',
-                              background: selected ? 'var(--orange-soft)' : 'transparent',
-                              fontSize: 14.5,
-                              color: 'var(--ink-2)',
-                              textAlign: 'left',
-                            }}
-                          >
-                            <span style={{ minWidth: 0 }}>
-                              <i className={`bi ${selected ? 'bi-check-circle-fill' : 'bi-circle'}`} style={{ color: selected ? 'var(--orange)' : 'var(--line)', marginRight: 8 }} />
-                              {s.name}
-                              <span style={{ display: 'block', marginLeft: 24, fontSize: 12, color: 'var(--ink-4)' }}>{s.deviceGroup}</span>
-                            </span>
-                            <span style={{ font: '600 13px Inter, sans-serif', color: 'var(--ink-3)', whiteSpace: 'nowrap' }}>
-                              {s.tiers.length > 0 ? `from ${formatCents(Math.min(...s.tiers.map((t) => t.priceCents)))}` : formatCents(s.basePriceCents)}
-                            </span>
-                          </button>
-                        );
-                      })}
-                  </div>
-                );
-              })}
+                  );
+                })}
+                {shownServices.length === 0 && (
+                  <div className="px-3 py-8 text-center text-[14px] text-ink-4">No services match.</div>
+                )}
+              </div>
             </div>
           </div>
 
-          {/* 3 — summary */}
-          <div style={{ ...col, maxWidth: 330, display: 'flex', flexDirection: 'column' }}>
-            <div style={label}>4 · TICKET SUMMARY</div>
-            <div style={{ flex: 1, overflow: 'auto' }}>
+          {/* 3 · Ticket summary */}
+          <div className="flex w-[360px] shrink-0 flex-col overflow-y-auto p-5">
+            <div className={sectionCls}>4 · TICKET SUMMARY</div>
+            <div className="min-h-0 flex-1">
               {devices.map((d, di) => {
                 const deviceLines = lines.filter((l) => l.deviceIndex === di);
                 if (deviceLines.length === 0) return null;
                 return (
-                  <div key={di} style={{ marginBottom: 14 }}>
-                    <div style={{ font: '600 11.5px Inter, sans-serif', color: 'var(--ink-4)', letterSpacing: '0.06em' }}>
-                      DEVICE {di + 1} · {(d.label || 'Device').toUpperCase()}
+                  <div key={di} className="mt-4">
+                    <div className={sectionCls}>
+                      DEVICE {di + 1} · {(d.label || 'DEVICE').toUpperCase()}
                     </div>
                     {deviceLines.map((l, li) => (
-                      <div key={li} style={{ marginTop: 8 }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
-                          <div style={{ minWidth: 0 }}>
-                            <div style={{ font: '600 15px Inter, sans-serif' }}>{l.description}</div>
-                            <div style={{ fontSize: 12, color: 'var(--ink-4)' }}>
-                              {l.serviceId ? `${l.warrantyDays}-day warranty` : 'Custom price'}
-                            </div>
-                          </div>
+                      <div key={li} className="border-b border-line-soft py-3">
+                        <div className="flex items-baseline justify-between gap-3">
+                          <span className="text-[16px] font-bold text-ink">{l.description}</span>
                           <input
                             value={(l.priceCents / 100).toFixed(2)}
                             onChange={(e) => {
                               const v = Math.round(parseFloat(e.target.value || '0') * 100);
-                              setLines((prev) => prev.map((x) => (x === l ? { ...x, priceCents: Number.isFinite(v) ? Math.max(0, v) : 0, tierLabel: null } : x)));
+                              setLines((prev) =>
+                                prev.map((x) =>
+                                  x === l ? { ...x, priceCents: Number.isFinite(v) ? Math.max(0, v) : 0, tierLabel: null } : x,
+                                ),
+                              );
                             }}
-                            style={{ width: 78, textAlign: 'right', padding: '5px 8px', borderRadius: 8, border: '1px solid var(--line)', font: '700 15px Inter, sans-serif' }}
+                            className="w-[86px] rounded-lg border border-transparent text-right text-[16px] font-bold text-ink hover:border-line focus:border-orange focus:outline-none"
                           />
                         </div>
-                        {l.tiers.length > 0 && (
+                        {l.tiers.length > 0 ? (
                           <select
                             value={l.tierLabel ?? ''}
                             onChange={(e) => {
                               const tier = l.tiers.find((t) => t.label === e.target.value);
                               setLines((prev) =>
                                 prev.map((x) =>
-                                  x === l
-                                    ? { ...x, tierLabel: tier?.label ?? null, priceCents: tier?.priceCents ?? x.priceCents }
-                                    : x,
+                                  x === l ? { ...x, tierLabel: tier?.label ?? null, priceCents: tier?.priceCents ?? x.priceCents } : x,
                                 ),
                               );
                             }}
-                            style={{ width: '100%', marginTop: 6, padding: '8px 10px', borderRadius: 8, border: '1px solid var(--line)', fontSize: 13.5, background: 'var(--card)' }}
+                            className="mt-1 w-full rounded-md border-none bg-transparent p-0 text-[13px] text-ink-4 focus:outline-none"
                           >
-                            {l.tierLabel === null && <option value="">Custom price</option>}
+                            {l.tierLabel === null && <option value="">Custom price · {l.warrantyDays}-day warranty</option>}
                             {l.tiers.map((t) => (
                               <option key={t.label} value={t.label}>
-                                {t.label} — {formatCents(t.priceCents)}
+                                {t.label} · {l.warrantyDays}-day warranty — {formatCents(t.priceCents)}
                               </option>
                             ))}
                           </select>
+                        ) : (
+                          <div className="mt-1 text-[13px] text-ink-4">{l.warrantyDays}-day warranty</div>
                         )}
                       </div>
                     ))}
@@ -586,45 +685,68 @@ export function NewRepairWindow({
                 );
               })}
               {lines.length === 0 && (
-                <div style={{ color: 'var(--ink-4)', fontSize: 14, marginTop: 20, textAlign: 'center' }}>
-                  Pick repair types to build the ticket.
-                </div>
+                <div className="mt-10 text-center text-[14px] text-ink-4">Pick repairs to build the ticket.</div>
               )}
             </div>
-            <div style={{ borderTop: '1px solid var(--line-soft)', paddingTop: 10 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: 'var(--ink-3)' }}>
+            <div className="mt-4 rounded-xl bg-page p-4">
+              <div className="flex justify-between text-[14px] text-ink-3">
                 <span>Parts + labor</span>
                 <span>{formatCents(totals.subtotalCents)}</span>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: 'var(--ink-3)', marginTop: 3 }}>
-                <span>Tax 6%</span>
+              <div className="mt-1 flex justify-between text-[14px] text-ink-3">
+                <span>Tax {(TAX_RATE_BP / 100).toFixed(0)}%</span>
                 <span>{formatCents(totals.taxCents)}</span>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}>
-                <span style={{ font: '700 16px Inter, sans-serif' }}>Ticket total</span>
-                <span style={{ font: '800 23px Inter, sans-serif' }}>{formatCents(totals.totalCents)}</span>
+              <div className="mt-2 flex items-baseline justify-between">
+                <span className="text-[16px] font-bold text-ink">Ticket total</span>
+                <span className="text-[24px] font-extrabold text-ink">{formatCents(totals.totalCents)}</span>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Footer — payment exits */}
-        <div style={{ borderTop: '1px solid var(--line-soft)', padding: '12px 18px', display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ flex: 1, fontSize: 12.5, color: 'var(--ink-3)' }}>
-            <b style={{ color: 'var(--ink)' }}>How is the customer paying?</b>
-            <br />
-            Paying now adds the devices to the current sale. Paying at pickup sends it to the Repairs board as unpaid.
-            {error && <div style={{ color: 'var(--red)', marginTop: 3 }}>{error}</div>}
+        {/* Footer */}
+        <div className="flex items-center gap-3 border-t border-line-soft px-6 py-4">
+          <div className="min-w-0 flex-1">
+            <div className="text-[14px] font-bold text-ink">How is the customer paying?</div>
+            <div className="text-[12.5px] leading-snug text-ink-3">
+              Paying now adds the devices to the current sale. Paying at pickup sends it to the Repairs board as unpaid.
+            </div>
+            {error && <div className="mt-1 text-[13px] font-semibold text-red">{error}</div>}
           </div>
-          <Button variant="secondary" disabled={busy} onClick={() => void submit('board')}>
-            <i className="bi bi-kanban" /> Send to Repairs board
-          </Button>
-          <Button variant="secondary" disabled={busy} onClick={() => void submit('deposit')}>
-            <i className="bi bi-cash-coin" /> Take deposit
-          </Button>
-          <Button variant="primary" size="lg" disabled={busy} onClick={() => void submit('sale')}>
-            <i className="bi bi-bag-plus" /> Add to current sale · {formatCents(totals.totalCents)}
-          </Button>
+          <button
+            onClick={() => void submit('board')}
+            disabled={busy}
+            className="flex items-center gap-3 rounded-xl border border-line bg-card px-5 py-3 text-left disabled:opacity-50"
+          >
+            <i className="bi bi-kanban text-[17px] text-ink-2" />
+            <span>
+              <span className="block text-[14.5px] font-bold text-ink">Send to Repairs board</span>
+              <span className="block text-[12px] text-ink-4">Unpaid · collect at pickup</span>
+            </span>
+          </button>
+          <button
+            onClick={() => void submit('deposit')}
+            disabled={busy}
+            className="flex items-center gap-3 rounded-xl border border-line bg-card px-5 py-3 text-left disabled:opacity-50"
+          >
+            <i className="bi bi-percent text-[17px] text-ink-2" />
+            <span>
+              <span className="block text-[14.5px] font-bold text-ink">Take deposit</span>
+              <span className="block text-[12px] text-ink-4">Part paid now, rest at pickup</span>
+            </span>
+          </button>
+          <button
+            onClick={() => void submit('sale')}
+            disabled={busy}
+            className="flex items-center gap-3 rounded-xl bg-orange px-5 py-3 text-left text-white disabled:opacity-50"
+          >
+            <i className="bi bi-cart-plus text-[18px]" />
+            <span>
+              <span className="block text-[14.5px] font-bold">Add to current sale · {formatCents(totals.totalCents)}</span>
+              <span className="block text-[12px] text-white/80">Paid up front · ticket opens as paid</span>
+            </span>
+          </button>
         </div>
       </div>
     </div>
