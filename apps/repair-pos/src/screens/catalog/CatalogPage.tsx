@@ -261,7 +261,7 @@ export function CatalogPage() {
 }
 
 interface ImportPayload {
-  devices: Array<{ brand: string; name: string; kind?: string }>;
+  devices: Array<{ brand: string; name: string; kind?: string; family?: string; releaseYear?: number }>;
   services: Array<{
     name: string;
     category: string;
@@ -309,7 +309,13 @@ function ImportModal({ open, onClose, onDone }: { open: boolean; onClose: () => 
         // FMP workbook format
         const devices = (devicesSheet ?? [])
           .filter((r) => str(r.record_status).toLowerCase() !== 'inactive' && str(r.model_name))
-          .map((r) => ({ brand: str(r.brand) || 'Unknown', name: str(r.model_name), kind: str(r.device_type) }));
+          .map((r) => ({
+            brand: str(r.brand) || 'Unknown',
+            name: str(r.model_name),
+            kind: str(r.device_type),
+            family: str(r.family) || undefined,
+            releaseYear: num(r.release_year) != null ? Math.round(num(r.release_year)!) : undefined,
+          }));
 
         // average part cost per service from the pricing matrix
         const partCosts = new Map<string, number[]>();

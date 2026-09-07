@@ -111,8 +111,11 @@ export const storeCreditLedger = pgTable('store_credit_ledger', {
 export const deviceModels = pgTable('device_models', {
   id: serial('id').primaryKey(),
   brand: text('brand').notNull(),
+  /** product line within the brand: iPhone, iPad, Galaxy S, Pixel… */
+  family: text('family'),
   name: text('name').notNull(),
   kind: text('kind', { enum: ['phone', 'tablet', 'watch', 'laptop', 'other'] }).notNull().default('phone'),
+  releaseYear: integer('release_year'),
   active: boolean('active').notNull().default(true),
 });
 

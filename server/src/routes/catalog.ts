@@ -156,7 +156,15 @@ catalogRouter.post('/import', requireRole('manager'), async (req, res) => {
   const body = z
     .object({
       devices: z
-        .array(z.object({ brand: z.string().min(1), name: z.string().min(1), kind: z.string().optional() }))
+        .array(
+          z.object({
+            brand: z.string().min(1),
+            name: z.string().min(1),
+            kind: z.string().optional(),
+            family: z.string().optional(),
+            releaseYear: z.number().int().optional(),
+          }),
+        )
         .max(2000)
         .default([]),
       services: z
@@ -207,12 +215,19 @@ catalogRouter.post('/import', requireRole('manager'), async (req, res) => {
   const modelMap = new Map(existingModels.map((m) => [modelKey(m.brand, m.name), m]));
   for (const d of body.data.devices) {
     const found = modelMap.get(modelKey(d.brand, d.name));
+    const extras = {
+      ...(d.family ? { family: d.family.trim() } : {}),
+      ...(d.releaseYear ? { releaseYear: d.releaseYear } : {}),
+    };
     if (found) {
+      if (Object.keys(extras).length > 0) {
+        await db.update(schema.deviceModels).set(extras).where(eq(schema.deviceModels.id, found.id));
+      }
       counts.devicesUpdated++;
     } else {
       const [row] = await db
         .insert(schema.deviceModels)
-        .values({ brand: d.brand.trim(), name: d.name.trim(), kind: kindFor(d.kind) })
+        .values({ brand: d.brand.trim(), name: d.name.trim(), kind: kindFor(d.kind), ...extras })
         .returning();
       modelMap.set(modelKey(d.brand, d.name), row!);
       counts.devicesCreated++;

@@ -15,7 +15,7 @@ export interface CatalogService {
 }
 
 export interface RepairMeta {
-  models: Array<{ id: number; brand: string; name: string; kind: string }>;
+  models: Array<{ id: number; brand: string; family: string | null; name: string; kind: string; releaseYear: number | null }>;
   services: CatalogService[];
   technicians: Array<{ id: number; name: string }>;
   nextNumber: string;
@@ -90,6 +90,9 @@ export function NewRepairWindow({
   const [notesForTech, setNotesForTech] = useState('');
   const [typeQuery, setTypeQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const [deviceQuery, setDeviceQuery] = useState('');
+  const [activeBrand, setActiveBrand] = useState<string | null>(null);
+  const [activeFamily, setActiveFamily] = useState<string | null>(null);
   const [showPasscode, setShowPasscode] = useState(false);
   const [draftSaved, setDraftSaved] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -153,6 +156,60 @@ export function NewRepairWindow({
 
   const device = devices[activeDevice] ?? devices[0]!;
   const user = session.user;
+  const deviceChosen = device.label.trim().length > 0;
+
+  // ---- tap-first device picker data ----
+  const brands = useMemo(() => {
+    if (!meta) return [];
+    const seen = new Map<string, number>();
+    for (const m of meta.models) seen.set(m.brand, (seen.get(m.brand) ?? 0) + 1);
+    return [...seen.entries()].sort((a, b) => b[1] - a[1]).map(([brand]) => brand);
+  }, [meta]);
+
+  const families = useMemo(() => {
+    if (!meta || !activeBrand) return [];
+    const seen = new Map<string, number>();
+    for (const m of meta.models) {
+      if (m.brand !== activeBrand) continue;
+      const fam = m.family ?? 'Other';
+      seen.set(fam, (seen.get(fam) ?? 0) + 1);
+    }
+    return [...seen.entries()].sort((a, b) => b[1] - a[1]).map(([fam]) => fam);
+  }, [meta, activeBrand]);
+
+  const pickableModels = useMemo(() => {
+    if (!meta) return [];
+    let list = meta.models;
+    const q = deviceQuery.trim().toLowerCase();
+    if (q) {
+      list = list.filter((m) => `${m.brand} ${m.family ?? ''} ${m.name}`.toLowerCase().includes(q));
+    } else {
+      if (activeBrand) list = list.filter((m) => m.brand === activeBrand);
+      if (activeFamily) list = list.filter((m) => (m.family ?? 'Other') === activeFamily);
+      else if (!activeBrand) list = [];
+    }
+    return [...list].sort((a, b) => (b.releaseYear ?? 0) - (a.releaseYear ?? 0) || a.name.localeCompare(b.name, undefined, { numeric: true }));
+  }, [meta, deviceQuery, activeBrand, activeFamily]);
+
+  function chooseModel(m: RepairMeta['models'][number]) {
+    patchDeviceAt(activeDevice, { modelId: m.id, label: m.name });
+    setDeviceQuery('');
+  }
+
+  function patchDeviceAt(index: number, patch: Partial<DraftDevice>) {
+    setDevices((prev) => prev.map((d, i) => (i === index ? { ...d, ...patch } : d)));
+  }
+
+  // the shop's frequent jobs, pinned as the default group
+  const commonServices = useMemo(() => {
+    if (!meta) return [];
+    const patterns = [/screen replacement/i, /charge port|charging port/i, /diagnostic/i, /battery replacement/i];
+    const list: CatalogService[] = [];
+    for (const p of patterns) {
+      for (const s of meta.services) if (p.test(s.name) && !list.includes(s)) list.push(s);
+    }
+    return list.slice(0, 8);
+  }, [meta]);
 
   const categories = useMemo(() => {
     if (!meta) return [] as Array<[string, CatalogService[]]>;
@@ -161,8 +218,10 @@ export function NewRepairWindow({
       if (!byCat.has(s.category)) byCat.set(s.category, []);
       byCat.get(s.category)!.push(s);
     }
-    return [...byCat.entries()];
-  }, [meta]);
+    const out: Array<[string, CatalogService[]]> = [...byCat.entries()];
+    if (commonServices.length > 0) out.unshift(['Common repairs', commonServices]);
+    return out;
+  }, [meta, commonServices]);
 
   const searching = typeQuery.trim().length > 0;
   const shownCategory = activeCategory ?? categories[0]?.[0] ?? null;
@@ -172,8 +231,25 @@ export function NewRepairWindow({
       const q = typeQuery.trim().toLowerCase();
       return meta.services.filter((s) => `${s.name} ${s.deviceGroup} ${s.category}`.toLowerCase().includes(q));
     }
-    return meta.services.filter((s) => s.category === shownCategory);
-  }, [meta, searching, typeQuery, shownCategory]);
+    return categories.find(([cat]) => cat === shownCategory)?.[1] ?? [];
+  }, [meta, searching, typeQuery, shownCategory, categories]);
+
+  /** Warranty rework: a $0 line linked at intake by description. */
+  function addWarrantyLine() {
+    if (lines.some((l) => l.deviceIndex === activeDevice && l.serviceId === null && l.description.startsWith('Warranty rework'))) return;
+    setLines((prev) => [
+      ...prev,
+      {
+        deviceIndex: activeDevice,
+        serviceId: null,
+        tierLabel: null,
+        description: 'Warranty rework',
+        priceCents: 0,
+        warrantyDays: 90,
+        tiers: [],
+      },
+    ]);
+  }
 
   const totals = computeTotals(
     lines.map((l) => ({ qty: 1, unitCents: l.priceCents, taxable: true })),
@@ -526,48 +602,132 @@ export function NewRepairWindow({
             </label>
           </div>
 
-          {/* 2 · Repair type — category rail + options */}
+          {/* 2 · Device picker → repair types (tap-first flow) */}
           <div className="flex min-w-0 flex-1 flex-col border-r border-line-soft">
-            <div className="flex items-center justify-between px-5 pt-5">
-              <div className={sectionCls}>3 · REPAIR TYPE</div>
-              <div className="text-[13px] text-ink-4">
-                for Device {activeDevice + 1}{device.label ? ` · ${device.label}` : ''}
-              </div>
-            </div>
-            <div className="flex gap-3 px-5 pt-3">
-              <select
-                value={device.modelId ?? ''}
-                onChange={(e) => {
-                  const id = e.target.value === '' ? null : Number(e.target.value);
-                  const m = meta?.models.find((x) => x.id === id);
-                  patchDevice({ modelId: id, label: m ? m.name : device.label });
-                }}
-                className={`${inputBase} min-w-0 flex-1`}
-              >
-                <option value="">Pick device model…</option>
-                {meta?.models.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.brand} {m.name}
-                  </option>
-                ))}
-              </select>
-              <input
-                value={device.imei}
-                onChange={(e) => patchDevice({ imei: e.target.value })}
-                placeholder="IMEI / serial"
-                className={`${inputBase} w-44`}
-              />
-            </div>
-            <div className="relative px-5 pt-3">
-              <i className="bi bi-search absolute top-1/2 left-9 mt-1.5 -translate-y-1/2 text-[14px] text-ink-4" />
-              <input
-                value={typeQuery}
-                onChange={(e) => setTypeQuery(e.target.value)}
-                placeholder={`Search ${meta?.services.length ?? ''} services`}
-                className={`${inputCls} bg-line-soft pl-10`}
-              />
-            </div>
-            <div className="mt-3 flex min-h-0 flex-1">
+            {!deviceChosen ? (
+              <>
+                <div className="flex items-center justify-between px-5 pt-5">
+                  <div className={sectionCls}>3 · PICK THE DEVICE</div>
+                  <div className="text-[13px] text-ink-4">Device {activeDevice + 1}</div>
+                </div>
+                <div className="relative px-5 pt-3">
+                  <i className="bi bi-search absolute top-1/2 left-9 mt-1.5 -translate-y-1/2 text-[14px] text-ink-4" />
+                  <input
+                    value={deviceQuery}
+                    onChange={(e) => setDeviceQuery(e.target.value)}
+                    placeholder={`Type to search ${meta?.models.length ?? ''} devices — or tap below`}
+                    className={`${inputCls} bg-line-soft pl-10`}
+                  />
+                </div>
+                {!deviceQuery.trim() && (
+                  <>
+                    <div className="flex flex-wrap gap-2 px-5 pt-3">
+                      {brands.map((b) => (
+                        <button
+                          key={b}
+                          onClick={() => {
+                            setActiveBrand((prev) => (prev === b ? null : b));
+                            setActiveFamily(null);
+                          }}
+                          className={`rounded-full px-5 py-2.5 text-[14.5px] font-semibold ${
+                            activeBrand === b ? 'bg-navy text-white' : 'border border-line bg-card text-ink-2'
+                          }`}
+                        >
+                          {b}
+                        </button>
+                      ))}
+                    </div>
+                    {activeBrand && families.length > 1 && (
+                      <div className="flex flex-wrap gap-2 px-5 pt-2.5">
+                        {families.map((f) => (
+                          <button
+                            key={f}
+                            onClick={() => setActiveFamily((prev) => (prev === f ? null : f))}
+                            className={`rounded-full px-4 py-2 text-[13.5px] font-semibold ${
+                              activeFamily === f ? 'bg-orange-soft text-orange' : 'border border-line-soft bg-line-soft text-ink-3'
+                            }`}
+                          >
+                            {f}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+                <div className="mt-3 min-h-0 flex-1 overflow-y-auto px-5 pb-4">
+                  {pickableModels.length > 0 ? (
+                    <div className="grid grid-cols-3 gap-2.5">
+                      {pickableModels.map((m) => (
+                        <button
+                          key={m.id}
+                          onClick={() => chooseModel(m)}
+                          className="rounded-xl border border-line bg-card px-3 py-3.5 text-left hover:border-orange"
+                        >
+                          <span className="block text-[14.5px] leading-tight font-semibold text-ink">{m.name}</span>
+                          <span className="mt-0.5 block text-[12px] text-ink-4">
+                            {deviceQuery.trim() ? m.brand : (m.releaseYear ?? m.brand)}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : !deviceQuery.trim() && !activeBrand ? (
+                    <div className="py-10 text-center text-[14.5px] text-ink-4">
+                      Tap a brand above, or start typing the device name.
+                    </div>
+                  ) : (
+                    <div className="py-8 text-center text-[14.5px] text-ink-4">No devices match.</div>
+                  )}
+                  {deviceQuery.trim().length > 1 && (
+                    <button
+                      onClick={() => {
+                        patchDevice({ modelId: null, label: deviceQuery.trim() });
+                        setDeviceQuery('');
+                      }}
+                      className="mt-3 w-full rounded-xl border-2 border-dashed border-line px-4 py-3.5 text-[14.5px] font-semibold text-ink-2 hover:border-orange hover:text-orange"
+                    >
+                      <i className="bi bi-plus-lg mr-1.5" /> Use “{deviceQuery.trim()}” — not in the list
+                    </button>
+                  )}
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex items-center justify-between gap-3 px-5 pt-5">
+                  <div className={sectionCls}>3 · REPAIR TYPE</div>
+                  <div className="flex items-center gap-2.5">
+                    <span className="rounded-full bg-line-soft px-3.5 py-1.5 text-[13px] font-semibold text-ink-2">
+                      <i className="bi bi-phone mr-1" /> {device.label}
+                    </span>
+                    <button
+                      onClick={() => {
+                        patchDevice({ modelId: null, label: '' });
+                        setActiveBrand(null);
+                        setActiveFamily(null);
+                      }}
+                      className="text-[13px] font-semibold text-orange"
+                    >
+                      change
+                    </button>
+                  </div>
+                </div>
+                <div className="flex gap-3 px-5 pt-3">
+                  <div className="relative min-w-0 flex-1">
+                    <i className="bi bi-search absolute top-1/2 left-3.5 -translate-y-1/2 text-[14px] text-ink-4" />
+                    <input
+                      value={typeQuery}
+                      onChange={(e) => setTypeQuery(e.target.value)}
+                      placeholder={`Search ${meta?.services.length ?? ''} services`}
+                      className={`${inputCls} bg-line-soft pl-10`}
+                    />
+                  </div>
+                  <input
+                    value={device.imei}
+                    onChange={(e) => patchDevice({ imei: e.target.value })}
+                    placeholder="IMEI / serial"
+                    className={`${inputBase} w-40`}
+                  />
+                </div>
+                <div className="mt-3 flex min-h-0 flex-1">
               {!searching && (
                 <div className="w-[190px] shrink-0 overflow-y-auto border-r border-line-soft">
                   {categories.map(([cat, list]) => {
@@ -580,7 +740,10 @@ export function NewRepairWindow({
                           active ? 'border-l-[3px] border-orange bg-line-soft text-ink' : 'border-l-[3px] border-transparent text-ink-3'
                         }`}
                       >
-                        {cat}
+                        <span>
+                          {cat === 'Common repairs' && <i className="bi bi-star-fill mr-1.5 text-[11px] text-orange" />}
+                          {cat}
+                        </span>
                         <span className="text-[13px] font-medium text-ink-4">{list.length}</span>
                       </button>
                     );
@@ -620,11 +783,28 @@ export function NewRepairWindow({
                     </button>
                   );
                 })}
-                {shownServices.length === 0 && (
+                {shownCategory === 'Common repairs' && !searching && (
+                  <button
+                    onClick={addWarrantyLine}
+                    className="flex w-full items-center gap-3 border-b border-line-soft px-3 py-3.5 text-left"
+                  >
+                    <span className="flex size-[22px] shrink-0 items-center justify-center rounded-full border-2 border-line">
+                      <i className="bi bi-shield-check text-[12px] text-ink-4" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-[15px] font-semibold text-ink">Warranty rework</span>
+                      <span className="block text-[12.5px] text-ink-4">Free redo of a covered repair</span>
+                    </span>
+                    <span className="shrink-0 text-[13.5px] font-semibold text-green">$0.00</span>
+                  </button>
+                )}
+                {shownServices.length === 0 && shownCategory !== 'Common repairs' && (
                   <div className="px-3 py-8 text-center text-[14px] text-ink-4">No services match.</div>
                 )}
               </div>
             </div>
+              </>
+            )}
           </div>
 
           {/* 3 · Ticket summary */}
