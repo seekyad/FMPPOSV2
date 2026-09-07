@@ -160,20 +160,27 @@ export const RingUpPad = forwardRef<
    *  in cash tender it also carries TENDERED and CHANGE BACK / STILL DUE. */
   const displayPanel = (
     <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 rounded-xl bg-navy px-5 py-3">
-      <div className="space-y-0.5 text-[13px] leading-snug text-white/65">
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
         <div>
-          Subtotal <b className="text-white/90">{formatCents(subtotalCents)}</b>
-          <span className="mx-1.5">·</span>
-          Tax <b className="text-white/90">{formatCents(taxCents)}</b>
+          <div className="text-[11px] font-semibold tracking-[0.1em] text-white/50">SUBTOTAL</div>
+          <div className="text-[38px] leading-tight font-extrabold text-white/80">{formatCents(subtotalCents)}</div>
         </div>
-        {customer && (customer.storeCreditCents ?? 0) > 0 && (
-          <div>
-            Store credit available <b className="text-white/90">{formatCents(customer.storeCreditCents ?? 0)}</b>
-          </div>
-        )}
-        {paidSoFar > 0 && (
-          <div>
-            Paid so far <b className="text-green-bg">{formatCents(paidSoFar)}</b>
+        <div>
+          <div className="text-[11px] font-semibold tracking-[0.1em] text-white/50">TAX</div>
+          <div className="text-[38px] leading-tight font-extrabold text-white/80">{formatCents(taxCents)}</div>
+        </div>
+        {(paidSoFar > 0 || (customer && (customer.storeCreditCents ?? 0) > 0)) && (
+          <div className="space-y-0.5 text-[13px] leading-snug text-white/65">
+            {customer && (customer.storeCreditCents ?? 0) > 0 && (
+              <div>
+                Store credit available <b className="text-white/90">{formatCents(customer.storeCreditCents ?? 0)}</b>
+              </div>
+            )}
+            {paidSoFar > 0 && (
+              <div>
+                Paid so far <b className="text-green-bg">{formatCents(paidSoFar)}</b>
+              </div>
+            )}
           </div>
         )}
       </div>
