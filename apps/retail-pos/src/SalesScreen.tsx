@@ -254,10 +254,20 @@ export function SalesScreen() {
               {l.detail && <div style={{ fontSize: 12.5, color: 'var(--ink-3)' }}>{l.detail}</div>}
               <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
                 {!l.serialized && (
-                  <span style={{ display: 'inline-flex', border: '1px solid var(--line)', borderRadius: 8 }}>
-                    <button onClick={() => setLines((p) => p.map((x) => (x.key === l.key ? { ...x, qty: Math.max(1, x.qty - 1) } : x)))} style={{ border: 'none', background: 'none', padding: '3px 9px' }}>−</button>
-                    <span style={{ padding: '3px 4px', fontSize: 14 }}>{l.qty}</span>
-                    <button onClick={() => setLines((p) => p.map((x) => (x.key === l.key ? { ...x, qty: x.qty + 1 } : x)))} style={{ border: 'none', background: 'none', padding: '3px 9px' }}>+</button>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
+                    <button
+                      onClick={() => setLines((p) => p.map((x) => (x.key === l.key ? { ...x, qty: Math.max(1, x.qty - 1) } : x)))}
+                      style={{ width: 42, height: 42, borderRadius: 10, border: '1px solid var(--line)', background: 'var(--card)', font: '600 21px Inter, sans-serif', color: 'var(--ink)' }}
+                    >
+                      −
+                    </button>
+                    <span style={{ minWidth: 30, textAlign: 'center', font: '600 16.5px Inter, sans-serif' }}>{l.qty}</span>
+                    <button
+                      onClick={() => setLines((p) => p.map((x) => (x.key === l.key ? { ...x, qty: x.qty + 1 } : x)))}
+                      style={{ width: 42, height: 42, borderRadius: 10, border: '1px solid var(--line)', background: 'var(--card)', font: '600 21px Inter, sans-serif', color: 'var(--ink)' }}
+                    >
+                      +
+                    </button>
                   </span>
                 )}
                 <button
