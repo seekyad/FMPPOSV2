@@ -508,7 +508,7 @@ export function RegisterScreen() {
               <i className="bi bi-x-circle" /> Clear
             </button>
             <Button variant="secondary" size="lg" style={{ flex: 1 }} disabled={lines.length === 0 || busy} onClick={() => void park()}>
-              <i className="bi bi-pause-circle" /> Hold sale — save for later
+              <i className="bi bi-pause-circle" /> Hold sale
             </Button>
           </div>
         </div>
