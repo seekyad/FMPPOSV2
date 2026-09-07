@@ -343,17 +343,17 @@ export const RingUpPad = forwardRef<
             </div>
 
             {method === 'cash' ? (
-              <div className="rounded-xl border border-line px-4 py-3">
-                <div className="text-[11px] font-semibold tracking-wide text-ink-4">
+              <div className="flex flex-1 flex-col rounded-xl bg-line-soft px-4 py-3.5">
+                <div className="text-[13px] font-semibold tracking-wide text-ink-3">
                   CASH TENDERED — TYPE ON KEYPAD OR TAP A BILL
                 </div>
-                <div className="mt-2 flex flex-wrap gap-2">
+                <div className="mt-3 grid flex-1 grid-cols-[repeat(auto-fit,minmax(76px,1fr))] gap-2.5">
                   {[1000, 2000, 5000, 10000].map((v) => (
                     <button
                       key={v}
                       onClick={() => setTendered(v)}
-                      className={`min-h-[46px] rounded-xl px-5 text-[16px] font-bold ${
-                        tendered === v ? 'bg-navy text-white' : 'border border-line bg-card text-ink'
+                      className={`min-h-[60px] rounded-xl text-[20px] font-bold ${
+                        tendered === v ? 'bg-navy text-white' : 'bg-card text-ink shadow-sm'
                       }`}
                     >
                       ${v / 100}
@@ -361,8 +361,8 @@ export const RingUpPad = forwardRef<
                   ))}
                   <button
                     onClick={() => setTendered(remaining)}
-                    className={`min-h-[46px] rounded-xl px-5 text-[16px] font-bold ${
-                      tendered === remaining && remaining > 0 ? 'bg-navy text-white' : 'border border-line bg-card text-ink'
+                    className={`min-h-[60px] rounded-xl text-[20px] font-bold ${
+                      tendered === remaining && remaining > 0 ? 'bg-navy text-white' : 'bg-card text-ink shadow-sm'
                     }`}
                   >
                     Exact
