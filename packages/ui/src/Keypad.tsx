@@ -1,6 +1,12 @@
 import type { CSSProperties } from 'react';
 
-/** Cash keypad matching the design's custom-item modal: digits, 00, backspace, C, decimal-free cent entry. */
+/**
+ * Register keypad, classic layout with every cell filled:
+ *   7 8 9 ⌫
+ *   4 5 6 00
+ *   1 2 3 C
+ *   0 ─────
+ */
 export function Keypad({
   onDigit,
   onDoubleZero,
@@ -42,9 +48,8 @@ export function Keypad({
       {key('1', () => onDigit(1))}
       {key('2', () => onDigit(2))}
       {key('3', () => onDigit(3))}
-      <span />
       {key('C', onClear, { background: 'var(--red-bg)', color: 'var(--red)' })}
-      {key('0', () => onDigit(0))}
+      {key('0', () => onDigit(0), { gridColumn: 'span 4' })}
     </div>
   );
 }

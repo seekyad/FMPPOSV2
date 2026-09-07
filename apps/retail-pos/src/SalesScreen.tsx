@@ -8,7 +8,6 @@ import {
   lineKey,
   CustomerModal,
   InventoryPickerModal,
-  PaymentModal,
   RingUpPad,
   useNarrow,
   type CartCustomer,
@@ -18,7 +17,7 @@ import {
   type RingUpPadHandle,
 } from '@fmp/pos-client';
 
-type OpenModal = null | 'customer' | 'accessory' | 'device' | 'payment';
+type OpenModal = null | 'customer' | 'accessory' | 'device';
 
 /** Retail register: device & accessory sales on the shared inventory. */
 export function SalesScreen() {
@@ -104,26 +103,19 @@ export function SalesScreen() {
     }
   }
 
-  /** Ring-up pad fast collection: card completes instantly; cash/split open the payment screen. */
-  function collectFromPad(method: 'cash' | 'card' | 'split', item: { description: string; unitCents: number; taxable: boolean } | null) {
+  /** Ring-up pad card fast path: add the punched amount (if any) and complete as card. */
+  function collectCard(item: { description: string; unitCents: number; taxable: boolean } | null) {
     const effective = item
       ? [...lines, { key: lineKey(), kind: 'custom' as const, qty: 1, discountCents: 0, ...item }]
       : lines;
-    if (effective.length === 0) {
-      setError('Ring up an amount or add items first.');
-      return;
-    }
+    if (effective.length === 0) return;
     setError('');
     setLines(effective);
-    if (method === 'card') {
-      const t = computeTotals(
-        effective.map((l) => ({ qty: l.qty, unitCents: l.unitCents, taxable: l.taxable, discountCents: l.discountCents })),
-        taxRateBp,
-      );
-      void complete([{ method: 'card', amountCents: t.totalCents }], effective);
-    } else {
-      setModal('payment');
-    }
+    const t = computeTotals(
+      effective.map((l) => ({ qty: l.qty, unitCents: l.unitCents, taxable: l.taxable, discountCents: l.discountCents })),
+      taxRateBp,
+    );
+    void complete([{ method: 'card', amountCents: t.totalCents }], effective);
   }
 
   const tiles = [
@@ -132,6 +124,18 @@ export function SalesScreen() {
     { icon: 'bi-person', title: 'Customer', caption: 'Find or create customer', bg: 'var(--card)', onClick: () => setModal('customer') },
     { icon: 'bi-plus-circle', title: 'Custom item', caption: 'Use the ring-up pad above', bg: 'var(--card)', onClick: () => ringUpRef.current?.focus() },
   ];
+
+  const renderTile = (a: (typeof tiles)[number]) => (
+    <button
+      key={a.title}
+      onClick={a.onClick}
+      style={{ textAlign: 'left', background: a.bg, border: '1px solid var(--line-soft)', borderRadius: 14, padding: '16px 18px', boxShadow: 'var(--shadow-card)' }}
+    >
+      <i className={`bi ${a.icon}`} style={{ fontSize: 20.5 }} />
+      <div style={{ font: '700 17.5px Inter, sans-serif', marginTop: 8 }}>{a.title}</div>
+      <div style={{ fontSize: 12.5, color: 'var(--ink-3)', marginTop: 2 }}>{a.caption}</div>
+    </button>
+  );
 
   return (
     <div
@@ -146,26 +150,26 @@ export function SalesScreen() {
         <div style={{ color: 'var(--ink-3)', fontSize: 14, marginTop: 2 }}>
           {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })} · {user?.name}
         </div>
+        {/* Primary selling tiles live right above the register */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12, marginTop: 16 }}>
+          {tiles.slice(0, 2).map(renderTile)}
+        </div>
         <RingUpPad
           ref={ringUpRef}
           taxRateBp={taxRateBp}
+          subtotalCents={totals.subtotalCents}
+          taxCents={totals.taxCents}
+          totalCents={totals.totalCents}
+          customer={customer}
+          busy={busy}
           onAdd={(item) =>
             setLines((prev) => [...prev, { key: lineKey(), kind: 'custom', qty: 1, discountCents: 0, ...item }])
           }
-          onCollect={collectFromPad}
+          onCollectCard={collectCard}
+          onComplete={(p) => void complete(p)}
         />
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12, marginTop: 18 }}>
-          {tiles.map((a) => (
-            <button
-              key={a.title}
-              onClick={a.onClick}
-              style={{ textAlign: 'left', background: a.bg, border: '1px solid var(--line-soft)', borderRadius: 14, padding: '16px 18px', boxShadow: 'var(--shadow-card)' }}
-            >
-              <i className={`bi ${a.icon}`} style={{ fontSize: 20.5 }} />
-              <div style={{ font: '700 17.5px Inter, sans-serif', marginTop: 8 }}>{a.title}</div>
-              <div style={{ fontSize: 12.5, color: 'var(--ink-3)', marginTop: 2 }}>{a.caption}</div>
-            </button>
-          ))}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12, marginTop: 16 }}>
+          {tiles.slice(2).map(renderTile)}
         </div>
       </div>
 
@@ -181,7 +185,27 @@ export function SalesScreen() {
         }}
       >
         <div style={{ padding: '20px 20px 12px', borderBottom: '1px solid var(--line-soft)' }}>
-          <h2 style={{ margin: 0, font: '700 20.5px Inter, sans-serif' }}>Current sale</h2>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h2 style={{ margin: 0, font: '700 20.5px Inter, sans-serif' }}>Current sale</h2>
+            <button
+              onClick={() => {
+                setLines([]);
+                setCustomer(null);
+              }}
+              disabled={lines.length === 0}
+              style={{
+                border: '1px solid var(--line)',
+                background: 'var(--card)',
+                color: lines.length === 0 ? 'var(--ink-4)' : 'var(--red)',
+                borderRadius: 10,
+                padding: '7px 14px',
+                font: '600 13.5px Inter, sans-serif',
+                opacity: lines.length === 0 ? 0.5 : 1,
+              }}
+            >
+              <i className="bi bi-x-circle" /> Clear
+            </button>
+          </div>
           <div style={{ fontSize: 12.5, color: 'var(--ink-3)', marginTop: 2 }}>
             {customer ? (
               <span>
@@ -220,35 +244,16 @@ export function SalesScreen() {
             </div>
           )}
         </div>
-        <div style={{ borderTop: '1px solid var(--line-soft)', padding: '14px 20px 18px' }}>
-          {error && <div style={{ color: 'var(--red)', fontSize: 14, marginBottom: 8 }}>{error}</div>}
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: 'var(--ink-3)' }}>
-            <span>Subtotal</span><span>{formatCents(totals.subtotalCents)}</span>
+        {error && (
+          <div style={{ borderTop: '1px solid var(--line-soft)', padding: '10px 20px', color: 'var(--red)', fontSize: 14 }}>
+            {error}
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: 'var(--ink-3)', marginTop: 3 }}>
-            <span>Tax</span><span>{formatCents(totals.taxCents)}</span>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, alignItems: 'baseline' }}>
-            <span style={{ font: '700 18.5px Inter, sans-serif' }}>Total</span>
-            <span style={{ font: '800 27.5px Inter, sans-serif' }}>{formatCents(totals.totalCents)}</span>
-          </div>
-          <Button variant="primary" size="lg" style={{ width: '100%', marginTop: 12 }} disabled={lines.length === 0 || busy} onClick={() => setModal('payment')}>
-            Take payment · {formatCents(totals.totalCents)}
-          </Button>
-        </div>
+        )}
       </div>
 
       <CustomerModal open={modal === 'customer'} onClose={() => setModal(null)} onPick={setCustomer} />
       <InventoryPickerModal open={modal === 'accessory'} tab="accessories" title="Add accessory" onClose={() => setModal(null)} onPick={addItem} />
       <InventoryPickerModal open={modal === 'device'} tab="phones" title="Device sale" onClose={() => setModal(null)} onPick={addItem} />
-      <PaymentModal
-        open={modal === 'payment'}
-        dueCents={totals.totalCents}
-        customer={customer}
-        busy={busy}
-        onClose={() => setModal(null)}
-        onComplete={(p) => void complete(p)}
-      />
 
       <Modal open={done !== null} onClose={() => setDone(null)} width={400}>
         {done && (
@@ -261,7 +266,7 @@ export function SalesScreen() {
               </div>
             )}
             {!done.printed && (
-              <pre style={{ textAlign: 'left', background: 'var(--line-soft)', borderRadius: 10, padding: 12, fontSize: 12, fontFamily: 'ui-monospace, monospace', maxHeight: 200, overflow: 'auto', userSelect: 'text' }}>
+              <pre style={{ textAlign: 'left', background: 'var(--line-soft)', borderRadius: 10, padding: 12, fontSize: 12, fontFamily: 'ui-monospace, monospace', overflow: 'auto', userSelect: 'text' }}>
                 {done.receiptText}
               </pre>
             )}

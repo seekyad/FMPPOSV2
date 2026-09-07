@@ -1,6 +1,9 @@
-import { forwardRef, useImperativeHandle, useRef, useState } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { formatCents } from '@fmp/shared';
 import { Keypad } from '@fmp/ui';
+import { api } from './api';
+import type { CartCustomer } from './cart';
+import type { PaymentDraft } from './PaymentModal';
 
 export interface RingUpPadHandle {
   focus: () => void;
@@ -16,22 +19,42 @@ const QUICK_AMOUNTS = [1000, 2000, 5000, 10000];
 const QUICK_LABELS = ['Quick repair — walk-in', 'Accessory', 'Service fee'];
 
 /**
- * The ring-up station on the Register: punch or tap an amount like a physical
- * register, then add it to the sale — or collect the whole sale as cash/card
- * on the spot.
+ * The register's ring-up + payment station. Entry mode punches amounts into
+ * the sale; tender mode collects the payment right here (methods, tendered
+ * cash with change, splits) — there is no separate payment popup.
  */
 export const RingUpPad = forwardRef<
   RingUpPadHandle,
   {
     taxRateBp: number;
+    subtotalCents: number;
+    taxCents: number;
+    totalCents: number;
+    customer: CartCustomer | null;
+    busy: boolean;
     onAdd: (item: RingUpItem) => void;
-    /** fast collection: item is the punched amount (null if pad is empty) */
-    onCollect: (method: 'cash' | 'card' | 'split', item: RingUpItem | null) => void;
+    /** card fast path: parent adds the pending item (if any) and completes as card */
+    onCollectCard: (item: RingUpItem | null) => void;
+    onComplete: (payments: PaymentDraft[]) => void;
   }
->(function RingUpPad({ taxRateBp, onAdd, onCollect }, ref) {
+>(function RingUpPad(
+  { taxRateBp, subtotalCents, taxCents, totalCents, customer, busy, onAdd, onCollectCard, onComplete },
+  ref,
+) {
+  const [mode, setMode] = useState<'entry' | 'tender'>('entry');
   const [cents, setCents] = useState(0);
   const [description, setDescription] = useState('');
   const [taxable, setTaxable] = useState(true);
+
+  // tender state
+  const [method, setMethod] = useState<PaymentDraft['method']>('cash');
+  const [tendered, setTendered] = useState(0);
+  const [partial, setPartial] = useState<number | null>(null);
+  const [taken, setTaken] = useState<PaymentDraft[]>([]);
+  const [terminalConfigured, setTerminalConfigured] = useState(false);
+  const [terminalState, setTerminalState] = useState<'idle' | 'waiting' | 'declined'>('idle');
+  const [terminalMsg, setTerminalMsg] = useState('');
+
   const containerRef = useRef<HTMLDivElement>(null);
   const descRef = useRef<HTMLInputElement>(null);
 
@@ -42,119 +65,364 @@ export const RingUpPad = forwardRef<
     },
   }));
 
+  useEffect(() => {
+    void api<{ configured: boolean }>('/api/terminal/status')
+      .then((s) => setTerminalConfigured(s.configured))
+      .catch(() => setTerminalConfigured(false));
+  }, []);
+
+  // sale finished (or cleared) elsewhere → leave tender mode
+  useEffect(() => {
+    if (mode === 'tender' && totalCents <= 0) resetAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [totalCents]);
+
+  const remaining = totalCents - taken.reduce((s, p) => s + p.amountCents, 0);
+  const paying = partial ?? remaining;
+  const change = method === 'cash' ? tendered - paying : 0;
+  const credit = customer?.storeCreditCents ?? 0;
+  const canConfirm =
+    paying > 0 &&
+    paying <= remaining &&
+    (method === 'cash' ? tendered >= paying : method === 'store_credit' ? credit >= paying : true);
+
   function currentItem(): RingUpItem | null {
     if (cents <= 0) return null;
     return { description: description.trim() || 'Custom item', unitCents: cents, taxable };
   }
 
-  function reset() {
+  function resetEntry() {
     setCents(0);
     setDescription('');
     setTaxable(true);
+  }
+
+  function resetAll() {
+    resetEntry();
+    setMode('entry');
+    setMethod('cash');
+    setTendered(0);
+    setPartial(null);
+    setTaken([]);
+    setTerminalState('idle');
+    setTerminalMsg('');
   }
 
   function add() {
     const item = currentItem();
     if (!item) return;
     onAdd(item);
-    reset();
+    resetEntry();
   }
 
-  function collect(method: 'cash' | 'card' | 'split') {
-    onCollect(method, currentItem());
-    reset();
+  function startTender() {
+    const item = currentItem();
+    if (item) onAdd(item);
+    else if (totalCents <= 0) return;
+    resetEntry();
+    setMethod('cash');
+    setTendered(0);
+    setPartial(null);
+    setTaken([]);
+    setMode('tender');
   }
+
+  function confirmCurrent() {
+    const p: PaymentDraft = { method, amountCents: paying, tenderedCents: method === 'cash' ? tendered : undefined };
+    const nextTaken = [...taken, p];
+    const nextRemaining = totalCents - nextTaken.reduce((s, x) => s + x.amountCents, 0);
+    if (nextRemaining <= 0) {
+      onComplete(nextTaken);
+      resetAll();
+    } else {
+      setTaken(nextTaken);
+      setPartial(null);
+      setTendered(0);
+      setMethod('cash');
+    }
+  }
+
+  const keypadTarget =
+    mode === 'entry'
+      ? { set: setCents, value: cents }
+      : { set: setTendered, value: tendered };
+
+  const paidSoFar = taken.reduce((s, p) => s + p.amountCents, 0);
+  const showEntry = mode === 'entry' && cents > 0;
+
+  /** Register display: entry while typing, otherwise the live money state. */
+  const displayPanel = (
+    <div className="flex items-center justify-between gap-4 rounded-xl bg-navy px-5 py-3">
+      <div className="space-y-0.5 text-[13px] leading-snug text-white/65">
+        <div>
+          Subtotal <b className="text-white/90">{formatCents(subtotalCents)}</b>
+          <span className="mx-1.5">·</span>
+          Tax <b className="text-white/90">{formatCents(taxCents)}</b>
+        </div>
+        {customer && (customer.storeCreditCents ?? 0) > 0 && (
+          <div>
+            Store credit available <b className="text-white/90">{formatCents(customer.storeCreditCents ?? 0)}</b>
+          </div>
+        )}
+        {paidSoFar > 0 && (
+          <div>
+            Paid so far <b className="text-green-bg">{formatCents(paidSoFar)}</b>
+          </div>
+        )}
+      </div>
+      <div className="text-right">
+        <div className="text-[11px] font-semibold tracking-[0.1em] text-white/50">
+          {showEntry ? 'ENTRY' : paidSoFar > 0 ? 'REMAINING DUE' : 'AMOUNT DUE'}
+        </div>
+        <div className="text-[38px] leading-tight font-extrabold text-orange">
+          {formatCents(showEntry ? cents : mode === 'tender' ? remaining : totalCents)}
+        </div>
+      </div>
+    </div>
+  );
+
+  const methodBtn = (id: PaymentDraft['method'], icon: string, label: string, disabled = false) => (
+    <button
+      key={id}
+      disabled={disabled}
+      onClick={() => setMethod(id)}
+      className={`flex min-h-[48px] items-center justify-center gap-2 rounded-xl text-[14.5px] font-semibold ${
+        method === id ? 'bg-navy text-white' : 'border border-line bg-card text-ink-2'
+      } ${disabled ? 'opacity-40' : ''}`}
+    >
+      <i className={`bi ${icon}`} /> {label}
+    </button>
+  );
+
+  const disabledBtn = 'bg-line-soft text-ink-4';
 
   return (
-    <div ref={containerRef} className="mt-4 flex flex-wrap gap-4 rounded-2xl border border-line-soft bg-card p-4 shadow-sm">
-      {/* keys */}
-      <div className="w-[360px] max-w-full flex-none max-[1080px]:w-full max-[1080px]:max-w-[440px]">
-        <Keypad
-          onDigit={(d) => setCents((c) => Math.min(c * 10 + d, 9_999_999))}
-          onDoubleZero={() => setCents((c) => Math.min(c * 100, 9_999_999))}
-          onBackspace={() => setCents((c) => Math.floor(c / 10))}
-          onClear={() => setCents(0)}
-        />
-      </div>
+    <div ref={containerRef} className="mt-4 flex flex-col gap-3 rounded-2xl border border-line-soft bg-card p-4 shadow-sm">
+      {/* register display spans the whole pad */}
+      {displayPanel}
 
-      {/* display + controls */}
-      <div className="flex min-w-[300px] flex-1 flex-col gap-2.5">
-        <div className="rounded-xl bg-navy px-5 py-3.5 text-right text-[40px] leading-tight font-extrabold text-orange">
-          {formatCents(cents)}
+      <div className="flex flex-wrap gap-4">
+        {/* keys */}
+        <div className="w-[360px] max-w-full flex-none max-[1080px]:w-full max-[1080px]:max-w-[440px]">
+          <Keypad
+            onDigit={(d) => keypadTarget.set(Math.min(keypadTarget.value * 10 + d, 9_999_999))}
+            onDoubleZero={() => keypadTarget.set(Math.min(keypadTarget.value * 100, 9_999_999))}
+            onBackspace={() => keypadTarget.set(Math.floor(keypadTarget.value / 10))}
+            onClear={() => keypadTarget.set(0)}
+          />
         </div>
 
-        {/* fast amounts */}
-        <div className="grid grid-cols-4 gap-2.5">
-          {QUICK_AMOUNTS.map((v) => (
-            <button
-              key={v}
-              onClick={() => setCents(v)}
-              className={`h-13 min-h-[52px] rounded-xl text-[18px] font-bold ${
-                cents === v ? 'bg-navy text-white' : 'border border-line bg-card text-ink'
-              }`}
-            >
-              ${v / 100}
-            </button>
-          ))}
-        </div>
-
-        {/* one-tap labels + taxable */}
-        <div className="flex flex-wrap items-center gap-2">
-          {QUICK_LABELS.map((preset) => {
-            const active = description === preset;
-            return (
+        {/* right side */}
+        <div className="flex min-w-[300px] flex-1 flex-col gap-2.5">
+        {mode === 'entry' ? (
+          <>
+            <div className="grid grid-cols-4 gap-2.5">
+              {QUICK_AMOUNTS.map((v) => (
+                <button
+                  key={v}
+                  onClick={() => setCents(v)}
+                  className={`min-h-[52px] rounded-xl text-[18px] font-bold ${
+                    cents === v ? 'bg-navy text-white' : 'border border-line bg-card text-ink'
+                  }`}
+                >
+                  ${v / 100}
+                </button>
+              ))}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {QUICK_LABELS.map((preset) => {
+                const active = description === preset;
+                return (
+                  <button
+                    key={preset}
+                    onClick={() => setDescription(active ? '' : preset)}
+                    className={`min-h-[42px] rounded-full px-4 text-[14px] font-semibold ${
+                      active ? 'bg-orange-soft text-orange' : 'border border-line bg-card text-ink-2'
+                    }`}
+                  >
+                    {preset}
+                  </button>
+                );
+              })}
+              <label className="ml-auto flex items-center gap-1.5 text-[13px] text-ink-3 select-none">
+                <input type="checkbox" checked={taxable} onChange={(e) => setTaxable(e.target.checked)} className="size-4 accent-[#f97316]" />
+                Tax {(taxRateBp / 100).toFixed(taxRateBp % 100 === 0 ? 0 : 2)}%
+              </label>
+            </div>
+            <input
+              ref={descRef}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Description (optional)"
+              className="w-full rounded-[10px] border border-line bg-card px-3.5 py-3 text-[15px] text-ink placeholder:text-ink-4 focus:border-orange focus:outline-none"
+            />
+            <div className="mt-auto flex flex-wrap gap-2.5">
               <button
-                key={preset}
-                onClick={() => setDescription(active ? '' : preset)}
-                className={`min-h-[42px] rounded-full px-4 text-[14px] font-semibold ${
-                  active ? 'bg-orange-soft text-orange' : 'border border-line bg-card text-ink-2'
+                onClick={add}
+                disabled={cents <= 0}
+                className={`flex min-h-[60px] min-w-[220px] flex-[2] items-center justify-center gap-2 rounded-xl text-[17px] font-bold whitespace-nowrap ${
+                  cents <= 0 ? disabledBtn : 'bg-orange text-white'
                 }`}
               >
-                {preset}
+                <i className="bi bi-plus-lg" /> Add to sale
               </button>
-            );
-          })}
-          <label className="ml-auto flex items-center gap-1.5 text-[13px] text-ink-3 select-none">
-            <input type="checkbox" checked={taxable} onChange={(e) => setTaxable(e.target.checked)} className="size-4 accent-[#f97316]" />
-            Tax {(taxRateBp / 100).toFixed(taxRateBp % 100 === 0 ? 0 : 2)}%
-          </label>
-        </div>
+              <button
+                onClick={startTender}
+                disabled={busy || (totalCents <= 0 && cents <= 0)}
+                className={`flex min-h-[60px] min-w-[84px] flex-1 flex-col items-center justify-center rounded-xl text-[15.5px] font-bold ${
+                  busy || (totalCents <= 0 && cents <= 0) ? disabledBtn : 'bg-green text-white'
+                }`}
+              >
+                <i className="bi bi-cash text-[19px]" /> Cash
+              </button>
+              <button
+                onClick={() => {
+                  onCollectCard(currentItem());
+                  resetEntry();
+                }}
+                disabled={busy || (totalCents <= 0 && cents <= 0)}
+                className={`flex min-h-[60px] min-w-[84px] flex-1 flex-col items-center justify-center rounded-xl text-[15.5px] font-bold ${
+                  busy || (totalCents <= 0 && cents <= 0) ? disabledBtn : 'bg-navy text-white'
+                }`}
+              >
+                <i className="bi bi-credit-card text-[19px]" /> Card
+              </button>
+              <button
+                onClick={startTender}
+                disabled={busy || (totalCents <= 0 && cents <= 0)}
+                className={`flex min-h-[60px] min-w-[84px] flex-1 flex-col items-center justify-center rounded-xl text-[15.5px] font-bold ${
+                  busy || (totalCents <= 0 && cents <= 0) ? disabledBtn : 'border-2 border-navy bg-card text-navy'
+                }`}
+              >
+                <i className="bi bi-layout-split text-[19px]" /> Split
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            {/* tender mode */}
+            <div className="grid grid-cols-4 gap-2">
+              {methodBtn('cash', 'bi-cash', 'Cash')}
+              {methodBtn('card', 'bi-credit-card', 'Card')}
+              {methodBtn('tap', 'bi-phone', 'Tap')}
+              {methodBtn('store_credit', 'bi-wallet2', 'Credit', !customer || credit <= 0)}
+            </div>
 
-        <input
-          ref={descRef}
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          placeholder="Description (optional)"
-          className="w-full rounded-[10px] border border-line bg-card px-3.5 py-3 text-[15px] text-ink placeholder:text-ink-4 focus:border-orange focus:outline-none"
-        />
+            <div className="flex items-center gap-2.5">
+              <span className="text-[13.5px] text-ink-3">Paying now</span>
+              <input
+                value={(paying / 100).toFixed(2)}
+                onChange={(e) => {
+                  const v = Math.round(parseFloat(e.target.value || '0') * 100);
+                  setPartial(Number.isFinite(v) ? Math.max(0, Math.min(v, remaining)) : 0);
+                }}
+                className="w-24 rounded-lg border border-line px-2.5 py-2 text-[15px] font-semibold"
+              />
+              {partial != null && partial < remaining && (
+                <span className="text-[12.5px] font-semibold text-amber">{formatCents(remaining - partial)} left after this</span>
+              )}
+              {method === 'store_credit' && customer && (
+                <span className="ml-auto text-[12.5px] text-purple">{customer.name}: {formatCents(credit)} available</span>
+              )}
+            </div>
 
-        {/* actions */}
-        <div className="mt-auto flex gap-2.5">
-          <button
-            onClick={add}
-            disabled={cents <= 0}
-            className="flex min-h-[60px] flex-1 items-center justify-center gap-2 rounded-xl bg-orange text-[17px] font-bold text-white disabled:opacity-40"
-          >
-            <i className="bi bi-plus-lg" /> Add to sale
-          </button>
-          <button
-            onClick={() => collect('cash')}
-            className="flex min-h-[60px] w-[96px] flex-col items-center justify-center rounded-xl bg-green text-[15.5px] font-bold text-white"
-          >
-            <i className="bi bi-cash text-[19px]" /> Cash
-          </button>
-          <button
-            onClick={() => collect('card')}
-            className="flex min-h-[60px] w-[96px] flex-col items-center justify-center rounded-xl bg-navy text-[15.5px] font-bold text-white"
-          >
-            <i className="bi bi-credit-card text-[19px]" /> Card
-          </button>
-          <button
-            onClick={() => collect('split')}
-            className="flex min-h-[60px] w-[96px] flex-col items-center justify-center rounded-xl border-2 border-navy bg-card text-[15.5px] font-bold text-navy"
-          >
-            <i className="bi bi-layout-split text-[19px]" /> Split
-          </button>
+            {method === 'cash' ? (
+              <div className="grid grid-cols-2 gap-2.5">
+                <div className="rounded-xl border border-line px-4 py-2.5">
+                  <div className="text-[11px] font-semibold tracking-wide text-ink-4">TENDERED — type on keypad</div>
+                  <div className="text-[24px] font-extrabold text-ink">{formatCents(tendered)}</div>
+                  <div className="mt-1.5 flex flex-wrap gap-1.5">
+                    {[1000, 2000, 5000, 10000].map((v) => (
+                      <button
+                        key={v}
+                        onClick={() => setTendered(v)}
+                        className={`rounded-lg px-3 py-1.5 text-[13.5px] font-bold ${tendered === v ? 'bg-navy text-white' : 'border border-line bg-card text-ink'}`}
+                      >
+                        ${v / 100}
+                      </button>
+                    ))}
+                    <button
+                      onClick={() => setTendered(paying)}
+                      className={`rounded-lg px-3 py-1.5 text-[13.5px] font-bold ${tendered === paying && paying > 0 ? 'bg-navy text-white' : 'border border-line bg-card text-ink'}`}
+                    >
+                      Exact
+                    </button>
+                  </div>
+                </div>
+                <div
+                  className={`rounded-xl px-4 py-2.5 ${
+                    change >= 0 ? 'border border-green-line bg-green-bg text-green' : 'border border-red-line bg-red-bg text-red'
+                  }`}
+                >
+                  <div className="text-[11px] font-semibold tracking-wide">{change >= 0 ? 'CHANGE BACK' : 'STILL SHORT'}</div>
+                  <div className="text-[30px] font-extrabold">{formatCents(Math.abs(change))}</div>
+                </div>
+              </div>
+            ) : method === 'store_credit' ? (
+              <div className="rounded-xl bg-purple-bg px-4 py-3 text-[14.5px] text-purple">
+                Deducts {formatCents(paying)} from {customer?.name}'s store credit.
+              </div>
+            ) : (
+              <div className="rounded-xl border border-dashed border-line px-4 py-3 text-[14.5px] text-ink-2">
+                {terminalConfigured ? (
+                  <button
+                    disabled={terminalState === 'waiting'}
+                    onClick={async () => {
+                      setTerminalState('waiting');
+                      setTerminalMsg('');
+                      try {
+                        const res = await api<{ approved: boolean; responseMessage: string }>('/api/terminal/charge', {
+                          method: 'POST',
+                          body: JSON.stringify({ amountCents: paying }),
+                        });
+                        if (res.approved) {
+                          setTerminalState('idle');
+                          confirmCurrent();
+                        } else {
+                          setTerminalState('declined');
+                          setTerminalMsg(res.responseMessage);
+                        }
+                      } catch (e) {
+                        setTerminalState('declined');
+                        setTerminalMsg(e instanceof Error ? e.message : 'Terminal error');
+                      }
+                    }}
+                    className="w-full rounded-lg bg-navy py-2.5 font-bold text-white disabled:opacity-50"
+                  >
+                    {terminalState === 'waiting' ? 'Waiting for card on terminal…' : `Send ${formatCents(paying)} to Dejavoo terminal`}
+                  </button>
+                ) : (
+                  <>Run {formatCents(paying)} on the terminal, then confirm below.</>
+                )}
+                {terminalState === 'declined' && <div className="mt-1.5 text-[13px] font-semibold text-red">{terminalMsg}</div>}
+              </div>
+            )}
+
+            <div className="mt-auto flex gap-2.5">
+              <button
+                onClick={resetAll}
+                className="flex min-h-[60px] w-[110px] items-center justify-center rounded-xl border border-line bg-card text-[15.5px] font-bold text-ink-2"
+              >
+                Back
+              </button>
+              <button
+                onClick={confirmCurrent}
+                disabled={!canConfirm || busy}
+                className={`flex min-h-[60px] flex-1 items-center justify-center gap-2 rounded-xl text-[17px] font-bold ${
+                  !canConfirm || busy ? disabledBtn : 'bg-green text-white'
+                }`}
+              >
+                {busy
+                  ? 'Saving…'
+                  : paying < remaining
+                    ? `Take ${formatCents(paying)} — more to collect`
+                    : method === 'cash'
+                      ? `Complete · change ${formatCents(Math.max(change, 0))}`
+                      : `Complete · ${formatCents(paying)}`}
+              </button>
+            </div>
+          </>
+        )}
         </div>
       </div>
     </div>

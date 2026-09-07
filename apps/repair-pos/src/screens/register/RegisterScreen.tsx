@@ -7,7 +7,7 @@ import { useRef } from 'react';
 import { lineKey, type CartCustomer, type CartLine } from '@fmp/pos-client';
 import { CustomerModal } from '@fmp/pos-client';
 import { InventoryPickerModal, type PickableItem } from '@fmp/pos-client';
-import { PaymentModal, type PaymentDraft } from '@fmp/pos-client';
+import { type PaymentDraft } from '@fmp/pos-client';
 import { NewRepairWindow, type CreatedTicket } from '../repairs/NewRepairWindow';
 import { DepositModal } from '../repairs/DepositModal';
 import { TradeInModal } from './TradeInModal';
@@ -25,7 +25,7 @@ interface TakenInToday {
   deviceSummary: string | null;
 }
 
-type OpenModal = null | 'custom' | 'customer' | 'accessory' | 'device' | 'payment' | 'note' | 'tradein' | 'payout';
+type OpenModal = null | 'customer' | 'accessory' | 'device' | 'note' | 'tradein' | 'payout';
 
 export function RegisterScreen() {
   const user = session.user;
@@ -41,7 +41,6 @@ export function RegisterScreen() {
   const [toast, setToast] = useState('');
   const [taxRateBp, setTaxRateBp] = useState(cachedTaxRateBp);
   const ringUpRef = useRef<RingUpPadHandle>(null);
-  const [payMethod, setPayMethod] = useState<'cash' | 'card' | 'tap' | 'store_credit'>('cash');
   const [depositTicket, setDepositTicket] = useState<{ id: number; number: string; balanceCents: number } | null>(null);
   const [done, setDone] = useState<null | { changeCents: number | null; receiptText: string; printed: boolean }>(null);
   const [error, setError] = useState('');
@@ -203,27 +202,19 @@ export function RegisterScreen() {
     }
   }
 
-  /** Ring-up pad fast collection: card completes instantly; cash/split open the payment screen. */
-  function collectFromPad(method: 'cash' | 'card' | 'split', item: { description: string; unitCents: number; taxable: boolean } | null) {
+  /** Ring-up pad card fast path: add the punched amount (if any) and complete as card. */
+  function collectCard(item: { description: string; unitCents: number; taxable: boolean } | null) {
     const effective = item
       ? [...lines, { key: lineKey(), kind: 'custom' as const, qty: 1, discountCents: 0, ...item }]
       : lines;
-    if (effective.length === 0) {
-      setError('Ring up an amount or add items first.');
-      return;
-    }
+    if (effective.length === 0) return;
     setError('');
     setLines(effective);
-    if (method === 'card') {
-      const t = computeTotals(
-        effective.map((l) => ({ qty: l.qty, unitCents: l.unitCents, taxable: l.taxable, discountCents: l.discountCents })),
-        taxRateBp,
-      );
-      void complete([{ method: 'card', amountCents: t.totalCents }], effective);
-    } else {
-      setPayMethod(method === 'split' ? 'cash' : 'cash');
-      setModal('payment');
-    }
+    const t = computeTotals(
+      effective.map((l) => ({ qty: l.qty, unitCents: l.unitCents, taxable: l.taxable, discountCents: l.discountCents })),
+      taxRateBp,
+    );
+    void complete([{ method: 'card', amountCents: t.totalCents }], effective);
   }
 
   const smartActions: Array<{
@@ -244,6 +235,30 @@ export function RegisterScreen() {
     { icon: 'bi-person', title: 'Customer', caption: 'Find or create customer', bg: 'var(--card)', onClick: () => setModal('customer') },
     { icon: 'bi-plus-circle', title: 'Custom item', caption: 'Use the ring-up pad above', bg: 'var(--card)', onClick: () => ringUpRef.current?.focus() },
   ];
+
+  const renderAction = (a: (typeof smartActions)[number]) => (
+    <button
+      key={a.title}
+      onClick={a.onClick}
+      disabled={a.disabled}
+      title={a.disabled ? 'Coming in a later phase' : undefined}
+      style={{
+        textAlign: 'left',
+        background: a.bg,
+        border: '1px solid var(--line-soft)',
+        borderRadius: 14,
+        padding: '14px 16px',
+        opacity: a.disabled ? 0.5 : 1,
+        boxShadow: 'var(--shadow-card)',
+      }}
+    >
+      <i className={`bi ${a.icon}`} style={{ fontSize: 19.5 }} />
+      <div style={{ font: '700 16px Inter, sans-serif', marginTop: 8 }}>
+        {a.title} <i className="bi bi-chevron-right" style={{ fontSize: 11.5, color: 'var(--ink-4)' }} />
+      </div>
+      <div style={{ fontSize: 12.5, color: 'var(--ink-3)', marginTop: 2 }}>{a.caption}</div>
+    </button>
+  );
 
   return (
     <div
@@ -288,42 +303,31 @@ export function RegisterScreen() {
 
         <SearchBar onAddItem={addItem} onPickCustomer={(c) => setCustomer(c)} />
 
+        {/* Primary actions live right above the register */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginTop: 16 }}>
+          {smartActions.slice(0, 3).map(renderAction)}
+        </div>
+
         <RingUpPad
           ref={ringUpRef}
           taxRateBp={taxRateBp}
+          subtotalCents={totals.subtotalCents}
+          taxCents={totals.taxCents}
+          totalCents={totals.totalCents}
+          customer={customer}
+          busy={busy}
           onAdd={(item) =>
             setLines((prev) => [...prev, { key: lineKey(), kind: 'custom', qty: 1, discountCents: 0, ...item }])
           }
-          onCollect={collectFromPad}
+          onCollectCard={collectCard}
+          onComplete={(p) => void complete(p)}
         />
 
         <div style={{ font: '600 11.5px Inter, sans-serif', color: 'var(--ink-4)', letterSpacing: '0.08em', margin: '18px 0 8px' }}>
           SMART ACTIONS
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-          {smartActions.map((a) => (
-            <button
-              key={a.title}
-              onClick={a.onClick}
-              disabled={a.disabled}
-              title={a.disabled ? 'Coming in a later phase' : undefined}
-              style={{
-                textAlign: 'left',
-                background: a.bg,
-                border: '1px solid var(--line-soft)',
-                borderRadius: 14,
-                padding: '14px 16px',
-                opacity: a.disabled ? 0.5 : 1,
-                boxShadow: 'var(--shadow-card)',
-              }}
-            >
-              <i className={`bi ${a.icon}`} style={{ fontSize: 19.5 }} />
-              <div style={{ font: '700 16px Inter, sans-serif', marginTop: 8 }}>
-                {a.title} <i className="bi bi-chevron-right" style={{ fontSize: 11.5, color: 'var(--ink-4)' }} />
-              </div>
-              <div style={{ fontSize: 12.5, color: 'var(--ink-3)', marginTop: 2 }}>{a.caption}</div>
-            </button>
-          ))}
+          {smartActions.slice(3).map(renderAction)}
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'space-between', margin: '20px 0 8px' }}>
@@ -369,8 +373,25 @@ export function RegisterScreen() {
         <div style={{ padding: '20px 20px 12px', borderBottom: '1px solid var(--line-soft)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h2 style={{ margin: 0, font: '700 20.5px Inter, sans-serif' }}>Current sale</h2>
-            <span style={{ background: 'var(--orange-soft)', color: 'var(--orange)', borderRadius: 999, padding: '2px 10px', font: '700 14px Inter, sans-serif' }}>
-              {lines.reduce((n, l) => n + l.qty, 0)}
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ background: 'var(--orange-soft)', color: 'var(--orange)', borderRadius: 999, padding: '2px 10px', font: '700 14px Inter, sans-serif' }}>
+                {lines.reduce((n, l) => n + l.qty, 0)}
+              </span>
+              <button
+                onClick={clearSale}
+                disabled={lines.length === 0}
+                style={{
+                  border: '1px solid var(--line)',
+                  background: 'var(--card)',
+                  color: lines.length === 0 ? 'var(--ink-4)' : 'var(--red)',
+                  borderRadius: 10,
+                  padding: '7px 14px',
+                  font: '600 13.5px Inter, sans-serif',
+                  opacity: lines.length === 0 ? 0.5 : 1,
+                }}
+              >
+                <i className="bi bi-x-circle" /> Clear
+              </button>
             </span>
           </div>
           <div style={{ fontSize: 12.5, color: 'var(--ink-3)', marginTop: 2 }}>
@@ -439,37 +460,11 @@ export function RegisterScreen() {
           )}
         </div>
 
-        <div style={{ borderTop: '1px solid var(--line-soft)', padding: '14px 20px 18px' }}>
+        <div style={{ borderTop: '1px solid var(--line-soft)', padding: '12px 20px 16px' }}>
           {error && <div style={{ color: 'var(--red)', fontSize: 14, marginBottom: 8 }}>{error}</div>}
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: 'var(--ink-3)' }}>
-            <span>Subtotal</span>
-            <span>{formatCents(totals.subtotalCents)}</span>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: 'var(--ink-3)', marginTop: 3 }}>
-            <span>Tax {(taxRateBp / 100).toFixed(taxRateBp % 100 === 0 ? 0 : 2)}%</span>
-            <span>{formatCents(totals.taxCents)}</span>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, alignItems: 'baseline' }}>
-            <span style={{ font: '700 18.5px Inter, sans-serif' }}>Total</span>
-            <span style={{ font: '800 27.5px Inter, sans-serif' }}>{formatCents(totals.totalCents)}</span>
-          </div>
-          <Button
-            variant="primary"
-            size="lg"
-            style={{ width: '100%', marginTop: 12 }}
-            disabled={lines.length === 0 || busy}
-            onClick={() => setModal('payment')}
-          >
-            Take payment · {formatCents(totals.totalCents)}
+          <Button variant="secondary" size="lg" style={{ width: '100%' }} disabled={lines.length === 0 || busy} onClick={() => void park()}>
+            <i className="bi bi-pause-circle" /> Hold sale — save for later
           </Button>
-          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-            <Button variant="secondary" style={{ flex: 1 }} disabled={lines.length === 0 || busy} onClick={() => void park()}>
-              <i className="bi bi-pause-circle" /> Hold sale
-            </Button>
-            <Button variant="ghost" style={{ flex: 1 }} disabled={lines.length === 0} onClick={clearSale}>
-              Clear
-            </Button>
-          </div>
         </div>
       </div>
 
@@ -488,19 +483,6 @@ export function RegisterScreen() {
         onClose={() => setModal(null)}
         onPick={addItem}
       />
-      <PaymentModal
-        open={modal === 'payment'}
-        dueCents={totals.totalCents}
-        customer={customer}
-        busy={busy}
-        initialMethod={payMethod}
-        onClose={() => {
-          setModal(null);
-          setPayMethod('cash');
-        }}
-        onComplete={(p) => void complete(p)}
-      />
-
       <NewRepairWindow open={repairOpen} onClose={() => setRepairOpen(false)} onCreated={handleRepairCreated} />
       <TradeInModal
         open={modal === 'tradein'}
@@ -578,7 +560,6 @@ export function RegisterScreen() {
                   padding: 12,
                   fontSize: 12,
                   fontFamily: 'ui-monospace, monospace',
-                  maxHeight: 220,
                   overflow: 'auto',
                   userSelect: 'text',
                 }}
