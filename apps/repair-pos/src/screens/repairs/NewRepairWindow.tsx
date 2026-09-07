@@ -25,7 +25,8 @@ interface DraftDevice {
   modelId: number | null;
   label: string;
   imei: string;
-  powersOn: boolean;
+  /** null until staff explicitly taps a condition */
+  powersOn: boolean | null;
   unlockMethod: 'passcode' | 'password' | 'pattern' | 'none';
   unlockValue: string;
   conditionNotes: string;
@@ -55,7 +56,7 @@ const emptyDevice = (): DraftDevice => ({
   modelId: null,
   label: '',
   imei: '',
-  powersOn: true,
+  powersOn: null,
   unlockMethod: 'passcode',
   unlockValue: '',
   conditionNotes: '',
@@ -86,7 +87,6 @@ export function NewRepairWindow({
   const [custPhone, setCustPhone] = useState('');
   const [matches, setMatches] = useState<CartCustomer[]>([]);
   const [callFlag, setCallFlag] = useState(false);
-  const [technicianId, setTechnicianId] = useState<number | ''>('');
   const [notesForTech, setNotesForTech] = useState('');
   const [typeQuery, setTypeQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
@@ -301,7 +301,6 @@ export function NewRepairWindow({
     setCustName('');
     setCustPhone('');
     setCallFlag(false);
-    setTechnicianId('');
     setNotesForTech('');
     setError('');
     setDraftSaved(false);
@@ -322,6 +321,10 @@ export function NewRepairWindow({
       setError('Every device needs a model.');
       return;
     }
+    if (devices.some((d) => d.powersOn === null)) {
+      setError('Tap Powers on or Dead on arrival for every device.');
+      return;
+    }
     setBusy(true);
     try {
       const res = await api<{ ticket: { id: number; number: string; totalCents: number } }>('/api/repairs', {
@@ -330,13 +333,12 @@ export function NewRepairWindow({
           customerId: customer?.id ?? null,
           newCustomer: customer ? null : { name: custName.trim(), phone: custPhone.trim() || null },
           callFlag,
-          technicianId: technicianId === '' ? null : technicianId,
           notesForTech: notesForTech || null,
           devices: devices.map((d) => ({
             modelId: d.modelId,
             label: d.label,
             imei: d.imei || null,
-            powersOn: d.powersOn,
+            powersOn: d.powersOn === null ? true : d.powersOn,
             unlockMethod: d.unlockMethod,
             unlockValue: d.unlockValue || null,
             conditionNotes: d.conditionNotes || null,
@@ -507,7 +509,7 @@ export function NewRepairWindow({
               {callFlag ? 'Call priority on — customer gets a call first' : 'Flag as call priority'}
             </button>
 
-            <div className={`${sectionCls} mt-5`}>2 · CONDITION</div>
+            <div className={`${sectionCls} mt-5`}>2 · CONDITION *</div>
             <div className="mt-3 flex overflow-hidden rounded-[10px] border border-line">
               {(
                 [
@@ -519,23 +521,25 @@ export function NewRepairWindow({
                   key={String(o.v)}
                   onClick={() => patchDevice({ powersOn: o.v })}
                   className={`flex flex-1 items-center justify-center gap-1.5 py-3 text-[13.5px] font-semibold ${
-                    device.powersOn === o.v ? 'bg-navy text-white' : 'bg-card text-ink-2'
+                    device.powersOn === o.v ? 'bg-navy text-white' : 'bg-card text-ink-3'
                   }`}
                 >
                   <i className={`bi ${o.icon}`} /> {o.label}
                 </button>
               ))}
             </div>
-            <label className="mt-3 block">
-              <span className={labelCls}>Anything else</span>
-              <textarea
-                value={device.conditionNotes}
-                onChange={(e) => patchDevice({ conditionNotes: e.target.value })}
-                rows={2}
-                placeholder="Cracked back glass, missing SIM tray, prior repair…"
-                className={`${inputCls} resize-none`}
-              />
-            </label>
+            {device.powersOn !== null && (
+              <label className="mt-3 block">
+                <span className={labelCls}>Anything else</span>
+                <textarea
+                  value={device.conditionNotes}
+                  onChange={(e) => patchDevice({ conditionNotes: e.target.value })}
+                  rows={2}
+                  placeholder="Cracked back glass, missing SIM tray, prior repair…"
+                  className={`${inputCls} resize-none`}
+                />
+              </label>
+            )}
 
             <label className="mt-3 block">
               <span className={labelCls}>Device unlock</span>
@@ -840,33 +844,16 @@ export function NewRepairWindow({
                 <div className="mt-10 text-center text-[14px] text-ink-4">Pick repairs to build the ticket.</div>
               )}
             </div>
-            <div className="mt-3 flex gap-2.5">
-              <label className="min-w-0 flex-1">
-                <span className={labelCls}>Notes for tech</span>
-                <textarea
-                  value={notesForTech}
-                  onChange={(e) => setNotesForTech(e.target.value)}
-                  rows={2}
-                  placeholder="Touch dead in top-right corner after drop…"
-                  className={`${inputCls} resize-none`}
-                />
-              </label>
-              <label className="w-[140px] shrink-0">
-                <span className={labelCls}>Technician</span>
-                <select
-                  value={technicianId}
-                  onChange={(e) => setTechnicianId(e.target.value === '' ? '' : Number(e.target.value))}
-                  className={inputCls}
-                >
-                  <option value="">Unassigned</option>
-                  {meta?.technicians.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
+            <label className="mt-3 block">
+              <span className={labelCls}>Notes for tech</span>
+              <textarea
+                value={notesForTech}
+                onChange={(e) => setNotesForTech(e.target.value)}
+                rows={2}
+                placeholder="Touch dead in top-right corner after drop…"
+                className={`${inputCls} resize-none`}
+              />
+            </label>
             <div className="mt-3 rounded-xl bg-page p-4">
               <div className="flex justify-between text-[14px] text-ink-3">
                 <span>Parts + labor</span>

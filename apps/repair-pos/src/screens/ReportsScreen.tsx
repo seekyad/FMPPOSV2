@@ -304,22 +304,6 @@ export function ReportsScreen() {
             </div>
           </div>
 
-          <div style={card}>
-            <h3 style={cardTitle}>Technician output</h3>
-            {data.technicianOutput.map((t) => (
-              <div key={t.name} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0' }}>
-                <span style={{ width: 30, height: 30, borderRadius: 999, background: 'var(--line-soft)', display: 'flex', alignItems: 'center', justifyContent: 'center', font: '700 12.5px Inter, sans-serif', color: 'var(--ink-2)' }}>
-                  {t.initials}
-                </span>
-                <div style={{ flex: 1 }}>
-                  <div style={{ font: '600 14.5px Inter, sans-serif' }}>{t.name}</div>
-                  <div style={{ fontSize: 12, color: 'var(--ink-4)' }}>{t.jobs} jobs closed</div>
-                </div>
-                <span style={{ font: '700 15px Inter, sans-serif' }}>{formatCents(t.revenueCents)}</span>
-              </div>
-            ))}
-            {data.technicianOutput.length === 0 && <div style={{ fontSize: 14, color: 'var(--ink-4)' }}>No completed tickets in range.</div>}
-          </div>
         </div>
       </div>
 
