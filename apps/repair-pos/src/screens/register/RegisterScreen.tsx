@@ -379,8 +379,8 @@ export function RegisterScreen() {
                 background: 'var(--orange-soft)',
                 color: 'var(--orange)',
                 borderRadius: 999,
-                padding: '2px 11px',
-                font: '700 14.5px Inter, sans-serif',
+                padding: '2px 13px',
+                font: '700 20.5px Inter, sans-serif',
                 verticalAlign: 'middle',
               }}
             >
