@@ -198,7 +198,7 @@ export function SalesScreen() {
                 verticalAlign: 'middle',
               }}
             >
-              {lines.reduce((n, l) => n + l.qty, 0)}
+              Items: {lines.reduce((n, l) => n + l.qty, 0)}
             </span>
           </h2>
           {customer ? (
