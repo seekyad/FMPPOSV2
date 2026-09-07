@@ -378,8 +378,8 @@ export function NewRepairWindow({
     setDevices((prev) => prev.map((d, i) => (i === activeDevice ? { ...d, ...patch } : d)));
 
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-navy/60 p-4">
-      <div className="flex h-[min(860px,100%)] w-[min(1340px,100%)] flex-col overflow-hidden rounded-2xl bg-card shadow-2xl">
+    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-navy/60 p-3">
+      <div className="flex h-full w-full max-w-[1680px] flex-col overflow-hidden rounded-2xl bg-card shadow-2xl">
         {/* Header */}
         <div className="border-b border-line-soft px-6 pt-5 pb-4">
           <div className="flex items-center gap-4">
@@ -457,7 +457,7 @@ export function NewRepairWindow({
         {/* Body */}
         <div className="flex min-h-0 flex-1">
           {/* 1 · Customer + condition */}
-          <div className="w-[330px] shrink-0 overflow-y-auto border-r border-line-soft p-5">
+          <div className="w-[360px] shrink-0 overflow-y-auto border-r border-line-soft p-5 max-xl:w-[300px] max-xl:p-4">
             <div className={sectionCls}>1 · CUSTOMER</div>
             {customer ? (
               <div className="mt-3 flex items-center justify-between rounded-[10px] border border-line px-3.5 py-3">
@@ -504,13 +504,10 @@ export function NewRepairWindow({
               }`}
             >
               <i className={`bi ${callFlag ? 'bi-telephone-fill' : 'bi-telephone'}`} />
-              {callFlag ? 'Call priority on' : 'Flag as call priority'}
+              {callFlag ? 'Call priority on — customer gets a call first' : 'Flag as call priority'}
             </button>
-            <div className="mt-1.5 text-[12px] text-ink-4">
-              {callFlag ? 'Ticket will show a Call flag on the Repairs board' : "Customer wants a call as soon as it's done"}
-            </div>
 
-            <div className={`${sectionCls} mt-6`}>2 · CONDITION</div>
+            <div className={`${sectionCls} mt-5`}>2 · CONDITION</div>
             <div className="mt-3 flex overflow-hidden rounded-[10px] border border-line">
               {(
                 [
@@ -575,31 +572,6 @@ export function NewRepairWindow({
               </div>
             )}
 
-            <label className="mt-3 block">
-              <span className={labelCls}>Notes for tech</span>
-              <textarea
-                value={notesForTech}
-                onChange={(e) => setNotesForTech(e.target.value)}
-                rows={3}
-                placeholder="Customer reports touch dead in top-right corner after drop."
-                className={`${inputCls} resize-none`}
-              />
-            </label>
-            <label className="mt-3 block">
-              <span className={labelCls}>Technician</span>
-              <select
-                value={technicianId}
-                onChange={(e) => setTechnicianId(e.target.value === '' ? '' : Number(e.target.value))}
-                className={inputCls}
-              >
-                <option value="">Unassigned</option>
-                {meta?.technicians.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name}
-                  </option>
-                ))}
-              </select>
-            </label>
           </div>
 
           {/* 2 · Device picker → repair types (tap-first flow) */}
@@ -729,7 +701,7 @@ export function NewRepairWindow({
                 </div>
                 <div className="mt-3 flex min-h-0 flex-1">
               {!searching && (
-                <div className="w-[190px] shrink-0 overflow-y-auto border-r border-line-soft">
+                <div className="w-[190px] shrink-0 overflow-y-auto border-r border-line-soft max-xl:w-[150px]">
                   {categories.map(([cat, list]) => {
                     const active = shownCategory === cat;
                     return (
@@ -757,7 +729,7 @@ export function NewRepairWindow({
                     <button
                       key={s.id}
                       onClick={() => toggleLine(s)}
-                      className={`flex w-full items-center gap-3 border-b border-line-soft px-3 py-3.5 text-left ${
+                      className={`flex w-full flex-wrap items-center gap-x-3 gap-y-1 border-b border-line-soft px-3 py-3.5 text-left ${
                         selected ? 'rounded-[10px] border-transparent bg-orange-soft' : ''
                       }`}
                     >
@@ -768,14 +740,14 @@ export function NewRepairWindow({
                       >
                         {selected && <i className="bi bi-check text-[13px]" />}
                       </span>
-                      <span className="min-w-0 flex-1">
+                      <span className="min-w-[150px] flex-1">
                         <span className="block text-[15px] font-semibold text-ink">{s.name}</span>
                         <span className="block text-[12.5px] text-ink-4">
                           {s.deviceGroup}
                           {searching ? ` · ${s.category}` : ''}
                         </span>
                       </span>
-                      <span className="shrink-0 text-[13.5px] font-semibold text-ink-3">
+                      <span className="ml-auto whitespace-nowrap text-[13.5px] font-semibold text-ink-3">
                         {s.tiers.length > 0
                           ? `from ${formatCents(Math.min(...s.tiers.map((t) => t.priceCents)))}`
                           : formatCents(s.basePriceCents)}
@@ -808,7 +780,7 @@ export function NewRepairWindow({
           </div>
 
           {/* 3 · Ticket summary */}
-          <div className="flex w-[360px] shrink-0 flex-col overflow-y-auto p-5">
+          <div className="flex w-[400px] shrink-0 flex-col overflow-y-auto p-5 max-xl:w-[330px] max-xl:p-4">
             <div className={sectionCls}>4 · TICKET SUMMARY</div>
             <div className="min-h-0 flex-1">
               {devices.map((d, di) => {
@@ -868,7 +840,34 @@ export function NewRepairWindow({
                 <div className="mt-10 text-center text-[14px] text-ink-4">Pick repairs to build the ticket.</div>
               )}
             </div>
-            <div className="mt-4 rounded-xl bg-page p-4">
+            <div className="mt-3 flex gap-2.5">
+              <label className="min-w-0 flex-1">
+                <span className={labelCls}>Notes for tech</span>
+                <textarea
+                  value={notesForTech}
+                  onChange={(e) => setNotesForTech(e.target.value)}
+                  rows={2}
+                  placeholder="Touch dead in top-right corner after drop…"
+                  className={`${inputCls} resize-none`}
+                />
+              </label>
+              <label className="w-[140px] shrink-0">
+                <span className={labelCls}>Technician</span>
+                <select
+                  value={technicianId}
+                  onChange={(e) => setTechnicianId(e.target.value === '' ? '' : Number(e.target.value))}
+                  className={inputCls}
+                >
+                  <option value="">Unassigned</option>
+                  {meta?.technicians.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <div className="mt-3 rounded-xl bg-page p-4">
               <div className="flex justify-between text-[14px] text-ink-3">
                 <span>Parts + labor</span>
                 <span>{formatCents(totals.subtotalCents)}</span>
