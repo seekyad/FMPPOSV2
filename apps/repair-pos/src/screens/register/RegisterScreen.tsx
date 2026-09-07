@@ -449,7 +449,7 @@ export function RegisterScreen() {
                 boxShadow: 'var(--shadow-card)',
               }}
             >
-              <i className="bi bi-person-plus" style={{ fontSize: 18 }} /> Add customer — search name or phone
+              <i className="bi bi-person-plus" style={{ fontSize: 18 }} /> Add customer
             </button>
           )}
           {note && <div style={{ fontSize: 13, color: 'var(--ink-3)', marginTop: 8 }}>📝 {note}</div>}

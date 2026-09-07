@@ -266,7 +266,7 @@ export function SalesScreen() {
                 boxShadow: 'var(--shadow-card)',
               }}
             >
-              <i className="bi bi-person-plus" style={{ fontSize: 18 }} /> Add customer — search name or phone
+              <i className="bi bi-person-plus" style={{ fontSize: 18 }} /> Add customer
             </button>
           )}
         </div>
