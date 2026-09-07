@@ -256,18 +256,23 @@ export const RingUpPad = forwardRef<
         <div className="flex min-w-[300px] flex-1 flex-col gap-2.5">
         {mode === 'entry' ? (
           <>
-            <div className="grid grid-cols-4 gap-2.5">
-              {QUICK_AMOUNTS.map((v) => (
-                <button
-                  key={v}
-                  onClick={() => setCents(v)}
-                  className={`min-h-[52px] rounded-xl text-[18px] font-bold ${
-                    cents === v ? 'bg-navy text-white' : 'border border-line bg-card text-ink'
-                  }`}
-                >
-                  ${v / 100}
-                </button>
-              ))}
+            <div className="flex flex-1 flex-col rounded-xl bg-line-soft px-4 py-3.5">
+              <div className="text-[13px] font-semibold tracking-wide text-ink-3">
+                AMOUNT — TYPE ON KEYPAD OR TAP A QUICK AMOUNT
+              </div>
+              <div className="mt-3 grid flex-1 grid-cols-[repeat(auto-fit,minmax(76px,1fr))] gap-2.5">
+                {QUICK_AMOUNTS.map((v) => (
+                  <button
+                    key={v}
+                    onClick={() => setCents(v)}
+                    className={`min-h-[60px] rounded-xl text-[20px] font-bold ${
+                      cents === v ? 'bg-navy text-white' : 'bg-card text-ink shadow-sm'
+                    }`}
+                  >
+                    ${v / 100}
+                  </button>
+                ))}
+              </div>
             </div>
             <div className="flex items-center gap-2.5">
               <input
