@@ -24,7 +24,7 @@ export function App() {
   const [signedIn, setSignedIn] = useState(() => Boolean(session.token));
 
   if (!signedIn) {
-    return <PinScreen onSignedIn={() => setSignedIn(true)} />;
+    return <PinScreen system="repair" onSignedIn={() => setSignedIn(true)} />;
   }
 
   return (

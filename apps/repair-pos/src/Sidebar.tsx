@@ -1,4 +1,5 @@
 import { NavLink } from 'react-router-dom';
+import { switchSystemUrl } from '@fmp/pos-client';
 
 const NAV = [
   { to: '/register', icon: 'bi-cash-stack', label: 'Register' },
@@ -63,6 +64,25 @@ export function Sidebar({ onLock }: { onLock: () => void }) {
           </NavLink>
         ))}
       </div>
+      <button
+        onClick={() => {
+          window.location.href = switchSystemUrl('retail');
+        }}
+        title="Switch to Retail store"
+        style={{
+          background: 'transparent',
+          border: 'none',
+          color: '#9aa1ad',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: 5,
+          marginBottom: 14,
+        }}
+      >
+        <i className="bi bi-shop" style={{ fontSize: 18 }} />
+        <span style={{ font: '600 8.5px Inter, sans-serif', letterSpacing: '0.06em' }}>RETAIL</span>
+      </button>
       <button
         onClick={onLock}
         title="Lock / switch user"

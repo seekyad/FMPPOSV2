@@ -1,4 +1,5 @@
 import { NavLink } from 'react-router-dom';
+import { switchSystemUrl } from '@fmp/pos-client';
 
 const NAV = [
   { to: '/sales', icon: 'bi-cash-stack', label: 'Sales' },
@@ -65,6 +66,16 @@ export function Sidebar({ onLock }: { onLock: () => void }) {
           </NavLink>
         ))}
       </div>
+      <button
+        onClick={() => {
+          window.location.href = switchSystemUrl('repair');
+        }}
+        title="Switch to Repair shop"
+        style={{ background: 'transparent', border: 'none', color: '#9aa1ad', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, marginBottom: 14 }}
+      >
+        <i className="bi bi-wrench-adjustable" style={{ fontSize: 18 }} />
+        <span style={{ font: '600 8.5px Inter, sans-serif', letterSpacing: '0.06em' }}>REPAIR</span>
+      </button>
       <button
         onClick={onLock}
         title="Lock / switch user"

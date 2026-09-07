@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { AuthResponse } from '@fmp/shared';
 import { Button } from '@fmp/ui';
-import { api, session } from './api';
+import { api, session, switchSystemUrl, type PosSystem } from './api';
 
 interface Staff {
   id: number;
@@ -10,14 +10,15 @@ interface Staff {
   role: string;
 }
 
-/** First-run terminal setup + per-shift PIN lock screen. */
-export function PinScreen({ onSignedIn }: { onSignedIn: () => void }) {
+/** First-run terminal setup + per-shift PIN lock screen + system choice. */
+export function PinScreen({ system, onSignedIn }: { system: PosSystem; onSignedIn: () => void }) {
   const [staff, setStaff] = useState<Staff[]>([]);
   const [needsSetup, setNeedsSetup] = useState(false);
   const [stores, setStores] = useState<{ id: number; name: string }[]>([]);
   const [terminalName, setTerminalName] = useState('Front counter');
   const [selected, setSelected] = useState<Staff | null>(null);
   const [pin, setPin] = useState('');
+  const [pickingSystem, setPickingSystem] = useState(false);
   const [error, setError] = useState('');
 
   async function loadStaff() {
@@ -58,10 +59,18 @@ export function PinScreen({ onSignedIn }: { onSignedIn: () => void }) {
         body: JSON.stringify({ deviceToken: session.deviceToken, userId: selected.id, pin: fullPin }),
       });
       session.set(auth);
-      onSignedIn();
+      setPickingSystem(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Sign-in failed');
       setPin('');
+    }
+  }
+
+  function pickSystem(target: PosSystem) {
+    if (target === system) {
+      onSignedIn();
+    } else {
+      window.location.href = switchSystemUrl(target);
     }
   }
 
@@ -102,7 +111,67 @@ export function PinScreen({ onSignedIn }: { onSignedIn: () => void }) {
         FMP
       </div>
 
-      {needsSetup ? (
+      {pickingSystem ? (
+        <>
+          <div style={{ color: '#fff', font: '700 17px Inter, sans-serif' }}>
+            Welcome, {session.user?.name?.split(' ')[0]} — which system?
+          </div>
+          <div style={{ display: 'flex', gap: 16 }}>
+            {(
+              [
+                { id: 'repair' as const, icon: 'bi-wrench-adjustable', title: 'Repair shop', caption: 'Register · Repairs · Trade-ins' },
+                { id: 'retail' as const, icon: 'bi-shop', title: 'Retail store', caption: 'Sales · Activations · Bill pay' },
+              ]
+            ).map((s) => (
+              <button
+                key={s.id}
+                onClick={() => pickSystem(s.id)}
+                style={{
+                  width: 210,
+                  padding: '26px 0 22px',
+                  background: 'rgba(255,255,255,0.06)',
+                  border: '1px solid rgba(255,255,255,0.14)',
+                  borderRadius: 18,
+                  color: '#fff',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: 10,
+                }}
+              >
+                <span
+                  style={{
+                    width: 54,
+                    height: 54,
+                    borderRadius: 16,
+                    background: s.id === 'repair' ? 'var(--orange)' : '#fff',
+                    color: s.id === 'repair' ? '#fff' : 'var(--navy)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 22,
+                  }}
+                >
+                  <i className={`bi ${s.icon}`} />
+                </span>
+                <span style={{ font: '700 15px Inter, sans-serif' }}>{s.title}</span>
+                <span style={{ font: '500 11px Inter, sans-serif', color: '#9aa1ad' }}>{s.caption}</span>
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={() => {
+              session.clear();
+              setPickingSystem(false);
+              setSelected(null);
+              setPin('');
+            }}
+            style={{ background: 'none', border: 'none', color: '#9aa1ad', font: '600 13px Inter, sans-serif' }}
+          >
+            ← Not you? Back to staff
+          </button>
+        </>
+      ) : needsSetup ? (
         <div style={{ background: '#fff', borderRadius: 20, padding: 28, width: 380 }}>
           <h2 style={{ margin: '0 0 4px', font: '700 20px Inter, sans-serif' }}>Register this terminal</h2>
           <p style={{ margin: '0 0 16px', color: 'var(--ink-3)', fontSize: 13 }}>

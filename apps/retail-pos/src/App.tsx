@@ -10,7 +10,7 @@ export function App() {
   const [signedIn, setSignedIn] = useState(() => Boolean(session.token));
 
   if (!signedIn) {
-    return <PinScreen onSignedIn={() => setSignedIn(true)} />;
+    return <PinScreen system="retail" onSignedIn={() => setSignedIn(true)} />;
   }
 
   return (

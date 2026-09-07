@@ -4,6 +4,9 @@ import { defineConfig } from 'vite';
 export default defineConfig({
   plugins: [react()],
   base: '/retail/',
+  optimizeDeps: {
+    exclude: ['@fmp/pos-client', '@fmp/ui', '@fmp/shared'],
+  },
   server: {
     proxy: {
       '/api': 'http://localhost:3001',
