@@ -1,6 +1,7 @@
 /** Label printing lives in @fmp/pos-client so the shared Inventory screen can
  *  print too; this re-export keeps the old repair-pos import paths working. */
 export {
+  code128Widths,
   printTicketLabel,
   printDeviceLabel,
   printInventoryLabel,

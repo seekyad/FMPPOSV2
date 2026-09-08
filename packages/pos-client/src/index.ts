@@ -1,6 +1,7 @@
 export { adoptSessionFromHash, api, ApiError, session, switchSystemUrl, type PosSystem } from './api';
 export { formatPhoneInput, lineKey, type CartCustomer, type CartLine } from './cart';
 export {
+  code128Widths,
   printTicketLabel,
   printDeviceLabel,
   printInventoryLabel,

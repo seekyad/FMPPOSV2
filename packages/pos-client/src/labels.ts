@@ -16,6 +16,7 @@ export interface TagPrefs {
   passcode?: boolean;
   notes?: boolean;
   promise?: boolean;
+  barcode?: boolean;
   price?: boolean;
 }
 
@@ -24,6 +25,7 @@ export interface DeviceLabelPrefs {
   carrier?: boolean;
   storage?: boolean;
   condition?: boolean;
+  barcode?: boolean;
   imei?: boolean;
   price?: boolean;
 }
@@ -31,6 +33,7 @@ export interface DeviceLabelPrefs {
 /** Parts / accessories price label — always 50 × 30 mm. */
 export interface InventoryLabelPrefs {
   sku?: boolean;
+  barcode?: boolean;
   price?: boolean;
 }
 
@@ -50,6 +53,7 @@ export const TAG_DEFAULTS: Required<TagPrefs> = {
   passcode: false,
   notes: false,
   promise: false,
+  barcode: true,
   price: true,
 };
 
@@ -57,12 +61,14 @@ export const DEVICE_LABEL_DEFAULTS: Required<DeviceLabelPrefs> = {
   carrier: true,
   storage: true,
   condition: true,
+  barcode: true,
   imei: true,
   price: true,
 };
 
 export const INVENTORY_LABEL_DEFAULTS: Required<InventoryLabelPrefs> = {
   sku: true,
+  barcode: true,
   price: true,
 };
 
@@ -73,6 +79,68 @@ export function setLabelPrefs(p?: LabelPrefs | null) {
 }
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+/* ------------------------------------------------------------------ */
+/* Code 128 — real, scannable barcodes with no library                 */
+/* ------------------------------------------------------------------ */
+
+// Standard Code 128 element widths: 6 per symbol (bar/space alternating), stop has 7.
+const C128 = (
+  '212222 222122 222221 121223 121322 131222 122213 122312 132212 221213 ' +
+  '221312 231212 112232 122132 122231 113222 123122 123221 223211 221132 ' +
+  '221231 213212 223112 312131 311222 321122 321221 312212 322112 322211 ' +
+  '212123 212321 232121 111323 131123 131321 112313 132113 132311 211313 ' +
+  '231113 231311 112133 112331 132131 113123 113321 133121 313121 211331 ' +
+  '231131 213113 213311 213131 311123 311321 331121 312113 312311 332111 ' +
+  '314111 221411 431111 111224 111422 121124 121421 141122 141221 112214 ' +
+  '112412 122114 122411 142112 142211 241211 221114 413111 241112 134111 ' +
+  '111242 121142 121241 114212 124112 124211 411212 421112 421211 212141 ' +
+  '214121 412121 111143 111341 131141 114113 114311 411113 411311 113141 ' +
+  '114131 311141 411131 211412 211214 211232 2331112'
+).split(' ');
+
+/**
+ * Element widths (bar, space, bar, …) for a Code 128 barcode of the given
+ * text — code C for digit runs, code B otherwise. Returns null when the text
+ * can't be encoded.
+ */
+export function code128Widths(data: string): number[] | null {
+  if (!data) return null;
+  const codes: number[] = [];
+  if (/^\d{4,}$/.test(data)) {
+    codes.push(105); // start C
+    const pairEnd = data.length - (data.length % 2);
+    for (let i = 0; i < pairEnd; i += 2) codes.push(Number(data.slice(i, i + 2)));
+    if (data.length % 2 === 1) {
+      codes.push(100); // switch to B for the odd trailing digit
+      codes.push(data.charCodeAt(data.length - 1) - 32);
+    }
+  } else {
+    codes.push(104); // start B
+    for (const ch of data) {
+      const v = ch.charCodeAt(0) - 32;
+      if (v < 0 || v > 94) return null;
+      codes.push(v);
+    }
+  }
+  let sum = codes[0]!;
+  for (let i = 1; i < codes.length; i++) sum += codes[i]! * i;
+  codes.push(sum % 103);
+  codes.push(106); // stop
+  const widths: number[] = [];
+  for (const c of codes) for (const d of C128[c]!) widths.push(Number(d));
+  return widths;
+}
+
+/** Barcode as flex spans that fill the label width — bars first, alternating. */
+function barcodeHtml(data: string, heightMm: number): string {
+  const widths = code128Widths(data);
+  if (!widths) return '';
+  const spans = widths
+    .map((w, i) => `<span style="flex:${w};background:${i % 2 === 0 ? '#000' : 'transparent'}"></span>`)
+    .join('');
+  return `<div style="display:flex;height:${heightMm}mm;margin:1.2mm 0.5mm 0.4mm">${spans}</div>`;
+}
 
 function openLabelWindow(title: string, sizeH: '30mm' | '80mm', style: string, bodyHtml: string): boolean {
   const w = window.open('', '_blank', 'width=420,height=320');
@@ -144,6 +212,7 @@ export function printTicketLabel(fields: TicketLabelFields, opts?: { skipLog?: b
   const rows = [...head];
   if (head.length > 0 && body.length > 0) rows.push('<div class="rule"></div>');
   rows.push(...body);
+  if (on('barcode')) rows.push(barcodeHtml(fields.number, 8));
   if (on('price') && fields.priceText) {
     const status = fields.paid === true ? 'PAID' : fields.paid === false ? 'UNPAID' : '';
     rows.push(
@@ -202,6 +271,7 @@ export function printDeviceLabel(fields: DeviceLabelFields, opts?: { skipLog?: b
     `<div class="top"><span class="model">${esc(fields.name)}</span>${on('price') ? `<span class="price">${formatCents(fields.priceCents)}</span>` : ''}</div>`,
   ];
   if (specs.length > 0) rows.push(`<div class="spec">${esc(specs.join(' · '))}</div>`);
+  if (on('barcode') && fields.imei) rows.push(barcodeHtml(fields.imei, 5));
   if (on('imei') && fields.imei) rows.push(`<div class="imei">${esc(fields.imei)}</div>`);
 
   const opened = openLabelWindow(
@@ -212,7 +282,7 @@ export function printDeviceLabel(fields: DeviceLabelFields, opts?: { skipLog?: b
     .model { font-size: 10pt; font-weight: 800; line-height: 1.08; letter-spacing: -0.01em; }
     .price { font-size: 10pt; font-weight: 800; white-space: nowrap; }
     .spec { font-size: 7.5pt; font-weight: 700; text-transform: uppercase; margin-top: 1mm; }
-    .imei { font-size: 7.5pt; font-weight: 700; letter-spacing: 0.06em; text-align: center; margin-top: 2mm; border-top: 0.5pt solid #000; padding-top: 1mm; }
+    .imei { font-size: 7.5pt; font-weight: 700; letter-spacing: 0.06em; text-align: center; margin-top: 0.6mm; }
     `,
     rows.join('\n'),
   );
@@ -236,6 +306,7 @@ export function printInventoryLabel(fields: InventoryLabelFields, opts?: { skipL
   const on = (k: keyof InventoryLabelPrefs): boolean => prefs.inventory?.[k] ?? INVENTORY_LABEL_DEFAULTS[k];
 
   const rows: string[] = [`<div class="model">${esc(fields.name)}</div>`];
+  if (on('barcode') && fields.sku) rows.push(barcodeHtml(fields.sku, 5));
   const bottom: string[] = [];
   if (on('sku') && fields.sku) bottom.push(`<span class="sku">${esc(fields.sku)}</span>`);
   if (on('price')) bottom.push(`<span class="price">${formatCents(fields.priceCents)}</span>`);

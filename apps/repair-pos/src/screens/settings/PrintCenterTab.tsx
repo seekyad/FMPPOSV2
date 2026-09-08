@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Button } from '@fmp/ui';
 import { api, session } from '@fmp/pos-client';
 import {
+  code128Widths,
   DEVICE_LABEL_DEFAULTS,
   INVENTORY_LABEL_DEFAULTS,
   TAG_DEFAULTS,
@@ -65,6 +66,7 @@ const TAG_FIELDS: Array<{ key: keyof TagPrefs; label: string }> = [
   { key: 'passcode', label: 'Passcode' },
   { key: 'notes', label: 'Intake notes' },
   { key: 'promise', label: 'Promised time' },
+  { key: 'barcode', label: 'Barcode (ticket number)' },
   { key: 'price', label: 'Price and paid status' },
 ];
 
@@ -72,14 +74,29 @@ const DEVICE_FIELDS: Array<{ key: keyof DeviceLabelPrefs; label: string }> = [
   { key: 'carrier', label: 'Carrier' },
   { key: 'storage', label: 'Storage' },
   { key: 'condition', label: 'Condition grade' },
+  { key: 'barcode', label: 'Barcode (IMEI)' },
   { key: 'imei', label: 'IMEI / serial number' },
   { key: 'price', label: 'Price' },
 ];
 
 const INVENTORY_FIELDS: Array<{ key: keyof InventoryLabelPrefs; label: string }> = [
   { key: 'sku', label: 'SKU' },
+  { key: 'barcode', label: 'Barcode (SKU)' },
   { key: 'price', label: 'Price' },
 ];
+
+/** Preview-scale render of the real Code 128 bars the label will print. */
+function BarcodePreview({ data, height }: { data: string; height: number }) {
+  const widths = code128Widths(data);
+  if (!widths) return null;
+  return (
+    <span style={{ display: 'flex', height, margin: '4px 1px 2px' }}>
+      {widths.map((w, i) => (
+        <span key={i} style={{ flex: w, background: i % 2 === 0 ? '#111' : 'transparent' }} />
+      ))}
+    </span>
+  );
+}
 
 const RECEIPT_FIELDS: Array<{ key: 'store' | 'customer' | 'terms' | 'footer'; label: string }> = [
   { key: 'store', label: 'Store name, address and phone' },
@@ -502,6 +519,7 @@ export function PrintCenterTab() {
                   )}
                   {tagOn('promise') && <span style={{ fontSize: 9.5, fontWeight: 600, marginTop: 2 }}>Promised: {SAMPLE_TAG.promised}</span>}
                   <span style={{ flex: 1 }} />
+                  {tagOn('barcode') && <BarcodePreview data={SAMPLE_TAG.number} height={26} />}
                   {tagOn('price') && (
                     <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, border: '2px solid #111', padding: '3px 7px' }}>
                       <span style={{ fontSize: 18, fontWeight: 800 }}>{SAMPLE_TAG.priceText}</span>
@@ -537,8 +555,9 @@ export function PrintCenterTab() {
                     </span>
                   )}
                   <span style={{ flex: 1 }} />
+                  {devOn('barcode') && <BarcodePreview data={SAMPLE_DEVICE.imei} height={18} />}
                   {devOn('imei') && (
-                    <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textAlign: 'center', borderTop: '1px solid #111', paddingTop: 4 }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textAlign: 'center' }}>
                       {SAMPLE_DEVICE.imei}
                     </span>
                   )}
@@ -561,6 +580,7 @@ export function PrintCenterTab() {
                 >
                   <span style={{ fontSize: 12.5, fontWeight: 700, lineHeight: 1.15 }}>{SAMPLE_INVENTORY.name}</span>
                   <span style={{ flex: 1 }} />
+                  {invOn('barcode') && <BarcodePreview data={SAMPLE_INVENTORY.sku} height={18} />}
                   <span style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
                     {invOn('sku') && <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.05em', color: '#333' }}>{SAMPLE_INVENTORY.sku}</span>}
                     {invOn('price') && <span style={{ fontSize: 16, fontWeight: 800, marginLeft: 'auto' }}>$79.99</span>}
