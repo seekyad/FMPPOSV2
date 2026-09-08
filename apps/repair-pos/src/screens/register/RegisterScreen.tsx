@@ -259,6 +259,46 @@ export function RegisterScreen() {
     { icon: 'bi-plus-circle', title: 'Custom item', caption: 'Use the ring-up pad above', bg: 'var(--card)', onClick: () => ringUpRef.current?.focus() },
   ];
 
+  /** Big tiles above the register: icon badge + text filling the row. */
+  const renderPrimary = (a: (typeof smartActions)[number], iconColor: string) => (
+    <button
+      key={a.title}
+      onClick={a.onClick}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 12,
+        textAlign: 'left',
+        background: a.bg,
+        border: '1px solid var(--line-soft)',
+        borderRadius: 14,
+        padding: '11px 14px',
+        boxShadow: 'var(--shadow-card)',
+      }}
+    >
+      <span
+        style={{
+          width: 46,
+          height: 46,
+          borderRadius: 13,
+          background: 'var(--card)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0,
+        }}
+      >
+        <i className={`bi ${a.icon}`} style={{ fontSize: 23, color: iconColor }} />
+      </span>
+      <span style={{ minWidth: 0 }}>
+        <div style={{ font: '700 16.5px Inter, sans-serif', whiteSpace: 'nowrap' }}>
+          {a.title} <i className="bi bi-chevron-right" style={{ fontSize: 11.5, color: 'var(--ink-4)' }} />
+        </div>
+        <div style={{ fontSize: 12.5, color: 'var(--ink-3)', marginTop: 2 }}>{a.caption}</div>
+      </span>
+    </button>
+  );
+
   const renderAction = (a: (typeof smartActions)[number]) => (
     <button
       key={a.title}
@@ -356,7 +396,7 @@ export function RegisterScreen() {
 
         {/* Primary actions live right above the register */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginTop: 12 }}>
-          {smartActions.slice(0, 3).map(renderAction)}
+          {smartActions.slice(0, 3).map((a, i) => renderPrimary(a, ['var(--orange)', 'var(--navy)', 'var(--green)'][i]!))}
         </div>
 
         <RingUpPad
