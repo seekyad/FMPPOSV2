@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { computeTotals, formatCents } from '@fmp/shared';
 import { Button, Modal } from '@fmp/ui';
-import { api, session, useNarrow, RingUpPad, type RingUpPadHandle } from '@fmp/pos-client';
+import { api, useNarrow, RingUpPad, type RingUpPadHandle } from '@fmp/pos-client';
 import { useRef } from 'react';
 import { lineKey, type CartCustomer, type CartLine } from '@fmp/pos-client';
 import { CustomerModal } from '@fmp/pos-client';
@@ -27,8 +27,13 @@ interface TakenInToday {
 
 type OpenModal = null | 'customer' | 'accessory' | 'device' | 'note' | 'tradein' | 'payout';
 
+interface OnDuty {
+  userId: number;
+  name: string;
+  clockIn: string;
+}
+
 export function RegisterScreen() {
-  const user = session.user;
   const narrow = useNarrow();
   const [lines, setLines] = useState<CartLine[]>([]);
   const [customer, setCustomer] = useState<CartCustomer | null>(null);
@@ -44,6 +49,19 @@ export function RegisterScreen() {
   const [depositTicket, setDepositTicket] = useState<{ id: number; number: string; balanceCents: number } | null>(null);
   /** cart line waiting for a price punched on the pad */
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [now, setNow] = useState(() => new Date());
+  const [onDuty, setOnDuty] = useState<OnDuty[]>([]);
+
+  useEffect(() => {
+    const tick = setInterval(() => setNow(new Date()), 10_000);
+    const refresh = () => void api<OnDuty[]>('/api/timeclock/on-duty').then(setOnDuty).catch(() => {});
+    refresh();
+    const poll = setInterval(refresh, 60_000);
+    return () => {
+      clearInterval(tick);
+      clearInterval(poll);
+    };
+  }, []);
   const [done, setDone] = useState<null | { changeCents: number | null; receiptText: string; printed: boolean }>(null);
   const [error, setError] = useState('');
   const [resumedSaleId, setResumedSaleId] = useState<number | null>(null);
@@ -345,10 +363,13 @@ export function RegisterScreen() {
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
-            <h1 style={{ margin: 0, font: '700 27.5px Inter, sans-serif' }}>New sale</h1>
-            <div style={{ color: 'var(--ink-3)', fontSize: 14, marginTop: 2 }}>
-              {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })} · {user?.name}
-            </div>
+            <h1 style={{ margin: 0, font: '700 27.5px Inter, sans-serif' }}>
+              {now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+              <span style={{ color: 'var(--ink-3)', fontWeight: 600 }}>
+                {' '}
+                · {now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+              </span>
+            </h1>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <Link to="/pending" style={{ textDecoration: 'none' }}>
@@ -454,6 +475,46 @@ export function RegisterScreen() {
             </Link>
           ))}
           {takenIn.length === 0 && <div style={{ fontSize: 14, color: 'var(--ink-4)' }}>No repairs taken in yet.</div>}
+        </div>
+
+        {/* Footer: who is on the clock right now */}
+        <div style={{ marginTop: 'auto', paddingTop: 14 }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 9,
+              flexWrap: 'wrap',
+              borderTop: '1px solid var(--line-soft)',
+              paddingTop: 10,
+            }}
+          >
+            <span style={{ font: '600 11.5px Inter, sans-serif', color: 'var(--ink-4)', letterSpacing: '0.08em' }}>
+              CLOCKED IN
+            </span>
+            {onDuty.map((p) => (
+              <span
+                key={p.userId}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 7,
+                  background: 'var(--green-bg)',
+                  color: 'var(--green)',
+                  borderRadius: 999,
+                  padding: '5px 13px',
+                  font: '600 13.5px Inter, sans-serif',
+                }}
+              >
+                <span style={{ width: 7, height: 7, borderRadius: 999, background: 'var(--green)' }} />
+                {p.name} · since{' '}
+                {new Date(p.clockIn).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+              </span>
+            ))}
+            {onDuty.length === 0 && (
+              <span style={{ fontSize: 13.5, color: 'var(--ink-4)' }}>No one is clocked in.</span>
+            )}
+          </div>
         </div>
       </div>
 

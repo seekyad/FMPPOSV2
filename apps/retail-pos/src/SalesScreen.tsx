@@ -4,7 +4,6 @@ import { Button, Modal } from '@fmp/ui';
 import { useRef } from 'react';
 import {
   api,
-  session,
   lineKey,
   CustomerModal,
   InventoryPickerModal,
@@ -19,9 +18,14 @@ import {
 
 type OpenModal = null | 'customer' | 'accessory' | 'device';
 
+interface OnDuty {
+  userId: number;
+  name: string;
+  clockIn: string;
+}
+
 /** Retail register: device & accessory sales on the shared inventory. */
 export function SalesScreen() {
-  const user = session.user;
   const narrow = useNarrow();
   const [lines, setLines] = useState<CartLine[]>([]);
   const [customer, setCustomer] = useState<CartCustomer | null>(null);
@@ -32,10 +36,21 @@ export function SalesScreen() {
   const [done, setDone] = useState<null | { changeCents: number | null; receiptText: string; printed: boolean }>(null);
   const [error, setError] = useState('');
 
+  const [now, setNow] = useState(() => new Date());
+  const [onDuty, setOnDuty] = useState<OnDuty[]>([]);
+
   useEffect(() => {
     void api<{ taxRateBp: number }>('/api/settings/store')
       .then((s) => setTaxRateBp(s.taxRateBp))
       .catch(() => {});
+    const tick = setInterval(() => setNow(new Date()), 10_000);
+    const refresh = () => void api<OnDuty[]>('/api/timeclock/on-duty').then(setOnDuty).catch(() => {});
+    refresh();
+    const poll = setInterval(refresh, 60_000);
+    return () => {
+      clearInterval(tick);
+      clearInterval(poll);
+    };
   }, []);
 
   const totals = useMemo(
@@ -146,10 +161,13 @@ export function SalesScreen() {
       }
     >
       <div style={{ flex: narrow ? '0 0 auto' : 1, minWidth: 0, padding: '22px 24px', overflow: narrow ? 'visible' : 'auto' }}>
-        <h1 style={{ margin: 0, font: '700 27.5px Inter, sans-serif' }}>New sale</h1>
-        <div style={{ color: 'var(--ink-3)', fontSize: 14, marginTop: 2 }}>
-          {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })} · {user?.name}
-        </div>
+        <h1 style={{ margin: 0, font: '700 27.5px Inter, sans-serif' }}>
+          {now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+          <span style={{ color: 'var(--ink-3)', fontWeight: 600 }}>
+            {' '}
+            · {now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+          </span>
+        </h1>
         {/* Primary selling tiles live right above the register */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12, marginTop: 16 }}>
           {tiles.slice(0, 2).map(renderTile)}
@@ -171,6 +189,43 @@ export function SalesScreen() {
         />
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12, marginTop: 16 }}>
           {tiles.slice(2).map(renderTile)}
+        </div>
+
+        {/* Footer: who is on the clock right now */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 9,
+            flexWrap: 'wrap',
+            borderTop: '1px solid var(--line-soft)',
+            paddingTop: 10,
+            marginTop: 18,
+          }}
+        >
+          <span style={{ font: '600 11.5px Inter, sans-serif', color: 'var(--ink-4)', letterSpacing: '0.08em' }}>
+            CLOCKED IN
+          </span>
+          {onDuty.map((p) => (
+            <span
+              key={p.userId}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 7,
+                background: 'var(--green-bg)',
+                color: 'var(--green)',
+                borderRadius: 999,
+                padding: '5px 13px',
+                font: '600 13.5px Inter, sans-serif',
+              }}
+            >
+              <span style={{ width: 7, height: 7, borderRadius: 999, background: 'var(--green)' }} />
+              {p.name} · since{' '}
+              {new Date(p.clockIn).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+            </span>
+          ))}
+          {onDuty.length === 0 && <span style={{ fontSize: 13.5, color: 'var(--ink-4)' }}>No one is clocked in.</span>}
         </div>
       </div>
 

@@ -42,6 +42,18 @@ timeclockRouter.get('/', async (req, res) => {
   res.json({ entries: rows.map((r) => ({ ...r.entry, userName: r.userName })), openEntry: myOpen ?? null });
 });
 
+/** Everyone in the store currently clocked in — shown in the register footer. */
+timeclockRouter.get('/on-duty', async (req, res) => {
+  const db = await getDb();
+  const rows = await db
+    .select({ userId: schema.timeEntries.userId, name: schema.users.name, clockIn: schema.timeEntries.clockIn })
+    .from(schema.timeEntries)
+    .innerJoin(schema.users, eq(schema.timeEntries.userId, schema.users.id))
+    .where(and(isNull(schema.timeEntries.clockOut), eq(schema.users.storeId, req.session!.storeId)))
+    .orderBy(schema.timeEntries.clockIn);
+  res.json(rows);
+});
+
 timeclockRouter.post('/clock-in', async (req, res) => {
   const db = await getDb();
   const [open] = await db
