@@ -309,15 +309,15 @@ export function RegisterScreen() {
         boxShadow: 'var(--shadow-card)',
       }}
     >
-      <i className={`bi ${opts.icon}`} style={{ fontSize: 29 }} />
-      <span>
+      <i className={`bi ${opts.icon}`} style={{ fontSize: 30 }} />
+      <span style={{ font: '700 19px Inter, sans-serif', letterSpacing: '0.03em', textTransform: 'uppercase' }}>
         {opts.label}
-        {opts.badge != null && (
-          <span style={{ marginLeft: 8, background: opts.badgeBg, borderRadius: 999, padding: '1px 9px', fontSize: 13 }}>
-            {opts.badge}
-          </span>
-        )}
       </span>
+      {opts.badge != null && (
+        <span style={{ background: opts.badgeBg, borderRadius: 999, padding: '2px 14px', font: '700 15.5px Inter, sans-serif' }}>
+          {opts.badge}
+        </span>
+      )}
     </button>
   );
 
