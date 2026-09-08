@@ -269,17 +269,18 @@ export function RegisterScreen() {
         textAlign: 'left',
         background: a.bg,
         border: '1px solid var(--line-soft)',
-        borderRadius: 14,
-        padding: '14px 16px',
+        borderRadius: 12,
+        padding: '10px 13px',
         opacity: a.disabled ? 0.5 : 1,
         boxShadow: 'var(--shadow-card)',
       }}
     >
-      <i className={`bi ${a.icon}`} style={{ fontSize: 19.5 }} />
-      <div style={{ font: '700 16px Inter, sans-serif', marginTop: 8 }}>
-        {a.title} <i className="bi bi-chevron-right" style={{ fontSize: 11.5, color: 'var(--ink-4)' }} />
+      <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+        <i className={`bi ${a.icon}`} style={{ fontSize: 16.5 }} />
+        <span style={{ font: '700 15px Inter, sans-serif' }}>{a.title}</span>
+        <i className="bi bi-chevron-right" style={{ fontSize: 11, color: 'var(--ink-4)' }} />
       </div>
-      <div style={{ fontSize: 12.5, color: 'var(--ink-3)', marginTop: 2 }}>{a.caption}</div>
+      <div style={{ fontSize: 12, color: 'var(--ink-3)', marginTop: 3 }}>{a.caption}</div>
     </button>
   );
 
@@ -376,7 +377,7 @@ export function RegisterScreen() {
         <div style={{ font: '600 11.5px Inter, sans-serif', color: 'var(--ink-4)', letterSpacing: '0.08em', margin: '18px 0 8px' }}>
           SMART ACTIONS
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
           {smartActions.slice(3).map(renderAction)}
         </div>
 
