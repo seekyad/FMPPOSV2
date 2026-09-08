@@ -568,26 +568,26 @@ export function RegisterScreen() {
               key={s.id}
               onClick={() => openReceipt(s)}
               style={{
-                minWidth: 195,
-                flexShrink: 0,
+                flex: '1 0 250px',
+                maxWidth: 360,
                 textAlign: 'left',
                 background: 'var(--card)',
                 borderRadius: 12,
                 border: '1px solid var(--line-soft)',
-                padding: '10px 13px',
+                padding: '12px 16px',
                 boxShadow: 'var(--shadow-card)',
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
-                <span style={{ font: '700 14px Inter, sans-serif' }}>#{s.ticketNumber}</span>
-                <span style={{ fontSize: 11.5, color: 'var(--ink-4)' }}>
+                <span style={{ font: '700 15px Inter, sans-serif' }}>#{s.ticketNumber}</span>
+                <span style={{ fontSize: 12.5, color: 'var(--ink-4)' }}>
                   {new Date(s.completedAt ?? s.createdAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
                 </span>
               </div>
-              <div style={{ fontSize: 12.5, color: 'var(--ink-3)', marginTop: 2 }}>{s.customerName ?? 'Walk-in'}</div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 5 }}>
-                <span style={{ font: '700 15.5px Inter, sans-serif' }}>{formatCents(s.totalCents)}</span>
-                <span style={{ fontSize: 11.5, color: 'var(--orange)', fontWeight: 600 }}>
+              <div style={{ fontSize: 13, color: 'var(--ink-3)', marginTop: 2 }}>{s.customerName ?? 'Walk-in'}</div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 }}>
+                <span style={{ font: '700 17px Inter, sans-serif' }}>{formatCents(s.totalCents)}</span>
+                <span style={{ fontSize: 12.5, color: 'var(--orange)', fontWeight: 600 }}>
                   <i className="bi bi-receipt" /> Receipt
                 </span>
               </div>
