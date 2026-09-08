@@ -121,12 +121,16 @@ async function buildReceipt(
   payments: Array<{ method: string; amountCents: number; tenderedCents?: number | null; changeCents?: number | null }>,
 ): Promise<ReceiptData> {
   const [store] = await db.select().from(schema.stores).where(eq(schema.stores.id, storeId));
+  const [customer] = sale.customerId
+    ? await db.select().from(schema.customers).where(eq(schema.customers.id, sale.customerId))
+    : [];
   return {
     header: store?.receiptHeader ?? store?.name ?? 'FMP',
     address: store?.address,
     phone: store?.phone,
     ticketNumber: sale.ticketNumber,
     cashier,
+    customer: customer?.name ?? null,
     createdAt: sale.completedAt ?? sale.createdAt,
     lines: lines.map((l) => ({
       description: l.description,
@@ -351,6 +355,7 @@ salesRouter.get('/recent', async (req, res) => {
     .select({
       sale: schema.sales,
       customerName: schema.customers.name,
+      lineSummary: sql<string>`(select string_agg(l.description, ', ') from sale_lines l where l.sale_id = ${schema.sales.id})`,
     })
     .from(schema.sales)
     .leftJoin(schema.customers, eq(schema.sales.customerId, schema.customers.id))
@@ -363,7 +368,7 @@ salesRouter.get('/recent', async (req, res) => {
     )
     .orderBy(desc(schema.sales.createdAt))
     .limit(30);
-  res.json(rows.map((r) => ({ ...r.sale, customerName: r.customerName })));
+  res.json(rows.map((r) => ({ ...r.sale, customerName: r.customerName, lineSummary: r.lineSummary })));
 });
 
 salesRouter.get('/:id', async (req, res) => {
@@ -397,6 +402,26 @@ salesRouter.get('/:id/receipt', async (req, res) => {
   const [cashier] = await db.select().from(schema.users).where(eq(schema.users.id, sale.userId));
   const receipt = await buildReceipt(db, sale.storeId, cashier?.name ?? '', sale, lines, paymentRows);
   res.json({ receiptText: receiptText(receipt) });
+});
+
+/** Reprint a sale's receipt on the store's thermal printer. */
+salesRouter.post('/:id/print', async (req, res) => {
+  const db = await getDb();
+  const id = Number(req.params.id);
+  const [sale] = await db.select().from(schema.sales).where(eq(schema.sales.id, id));
+  if (!sale || sale.storeId !== req.session!.storeId) {
+    res.status(404).json({ error: 'Sale not found' });
+    return;
+  }
+  const lines = await db.select().from(schema.saleLines).where(eq(schema.saleLines.saleId, id));
+  const paymentRows = await db
+    .select()
+    .from(schema.payments)
+    .where(and(eq(schema.payments.saleId, id), isNull(schema.payments.ticketId)));
+  const [cashier] = await db.select().from(schema.users).where(eq(schema.users.id, sale.userId));
+  const receipt = await buildReceipt(db, sale.storeId, cashier?.name ?? '', sale, lines, paymentRows);
+  const printed = emitBridge(req, { kind: 'receipt', escposBase64: receiptEscpos(receipt, false) });
+  res.json({ printed });
 });
 
 /** Void a parked or same-day completed sale. Manager only. */

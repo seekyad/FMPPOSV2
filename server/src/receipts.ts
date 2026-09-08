@@ -6,6 +6,7 @@ export interface ReceiptData {
   phone?: string | null;
   ticketNumber: string;
   cashier: string;
+  customer?: string | null;
   createdAt: Date;
   lines: Array<{ description: string; qty: number; totalCents: number }>;
   subtotalCents: number;
@@ -38,6 +39,7 @@ export function receiptText(r: ReceiptData): string {
   out.push('-'.repeat(WIDTH));
   out.push(row(`${r.refund ? 'REFUND ' : ''}Ticket #${r.ticketNumber}`, r.createdAt.toLocaleDateString('en-US')));
   out.push(row(`Cashier: ${r.cashier}`, r.createdAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })));
+  if (r.customer) out.push(row('Customer:', r.customer));
   out.push('-'.repeat(WIDTH));
   for (const line of r.lines) {
     const desc = line.qty > 1 ? `${line.qty} x ${line.description}` : line.description;

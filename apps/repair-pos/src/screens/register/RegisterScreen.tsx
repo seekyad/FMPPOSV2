@@ -63,6 +63,7 @@ interface RecentSale {
   createdAt: string;
   completedAt: string | null;
   customerName: string | null;
+  lineSummary: string | null;
 }
 
 export function RegisterScreen() {
@@ -125,11 +126,19 @@ export function RegisterScreen() {
   const [cancelTicket, setCancelTicket] = useState<{ id: number; number: string } | null>(null);
   const [cancelReason, setCancelReason] = useState('');
   const [recent, setRecent] = useState<RecentSale[]>([]);
-  const [receiptView, setReceiptView] = useState<null | { number: string; text: string }>(null);
+  const [receiptView, setReceiptView] = useState<null | { id: number; number: string; text: string }>(null);
+  const [receiptMsg, setReceiptMsg] = useState('');
+  const [refunding, setRefunding] = useState(false);
+  const [refundMethod, setRefundMethod] = useState<'cash' | 'store_credit'>('cash');
+  const [refundReason, setRefundReason] = useState('');
 
   function openReceipt(s: RecentSale) {
+    setReceiptMsg('');
+    setRefunding(false);
+    setRefundReason('');
+    setRefundMethod('cash');
     void api<{ receiptText: string }>(`/api/sales/${s.id}/receipt`)
-      .then((r) => setReceiptView({ number: s.ticketNumber, text: r.receiptText }))
+      .then((r) => setReceiptView({ id: s.id, number: s.ticketNumber, text: r.receiptText }))
       .catch(() => {});
   }
 
@@ -578,13 +587,27 @@ export function RegisterScreen() {
                 boxShadow: 'var(--shadow-card)',
               }}
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
-                <span style={{ font: '700 15px Inter, sans-serif' }}>#{s.ticketNumber}</span>
-                <span style={{ fontSize: 12.5, color: 'var(--ink-4)' }}>
-                  {new Date(s.completedAt ?? s.createdAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'flex-start' }}>
+                <span style={{ font: '700 15.5px Inter, sans-serif' }}>{s.customerName ?? 'Walk-in'}</span>
+                <span style={{ textAlign: 'right', flexShrink: 0 }}>
+                  <div style={{ fontSize: 12.5, color: 'var(--ink-4)' }}>
+                    {new Date(s.completedAt ?? s.createdAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--ink-4)' }}>#{s.ticketNumber}</div>
                 </span>
               </div>
-              <div style={{ fontSize: 13, color: 'var(--ink-3)', marginTop: 2 }}>{s.customerName ?? 'Walk-in'}</div>
+              <div
+                style={{
+                  fontSize: 13,
+                  color: 'var(--ink-2)',
+                  marginTop: 2,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {s.lineSummary ?? '—'}
+              </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 }}>
                 <span style={{ font: '700 17px Inter, sans-serif' }}>{formatCents(s.totalCents)}</span>
                 <span style={{ fontSize: 12.5, color: 'var(--orange)', fontWeight: 600 }}>
@@ -1063,6 +1086,101 @@ export function RegisterScreen() {
             >
               {receiptView.text}
             </pre>
+            {receiptMsg && <div style={{ marginTop: 8, fontSize: 14, color: 'var(--ink-2)' }}>{receiptMsg}</div>}
+            {!refunding ? (
+              <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                <Button
+                  variant="secondary"
+                  style={{ flex: 1 }}
+                  onClick={async () => {
+                    try {
+                      const r = await api<{ printed: boolean }>(`/api/sales/${receiptView.id}/print`, { method: 'POST' });
+                      setReceiptMsg(r.printed ? 'Sent to printer.' : 'Print bridge offline.');
+                    } catch {
+                      setReceiptMsg('Could not print.');
+                    }
+                  }}
+                >
+                  <i className="bi bi-printer" /> Print
+                </Button>
+                <Button variant="secondary" style={{ flex: 1 }} onClick={() => setRefunding(true)}>
+                  <i className="bi bi-arrow-counterclockwise" /> Refund
+                </Button>
+                <Button
+                  variant="danger"
+                  style={{ flex: 1 }}
+                  onClick={async () => {
+                    try {
+                      await api(`/api/sales/${receiptView.id}/void`, { method: 'POST', body: JSON.stringify({}) });
+                      setReceiptView(null);
+                      await refreshSide();
+                    } catch (e) {
+                      setReceiptMsg(e instanceof Error ? e.message : 'Could not void sale');
+                    }
+                  }}
+                >
+                  Void sale
+                </Button>
+              </div>
+            ) : (
+              <div style={{ marginTop: 12, border: '1px solid var(--line-soft)', borderRadius: 12, padding: '12px 14px' }}>
+                <div style={{ font: '600 14.5px Inter, sans-serif' }}>Refund this sale</div>
+                <div style={{ display: 'flex', gap: 8, marginTop: 9 }}>
+                  {(
+                    [
+                      ['cash', 'Cash back'],
+                      ['store_credit', 'Store credit'],
+                    ] as const
+                  ).map(([m, label]) => (
+                    <button
+                      key={m}
+                      onClick={() => setRefundMethod(m)}
+                      style={{
+                        flex: 1,
+                        minHeight: 42,
+                        borderRadius: 10,
+                        border: refundMethod === m ? '1px solid var(--navy)' : '1px solid var(--line)',
+                        background: refundMethod === m ? 'var(--navy)' : 'var(--card)',
+                        color: refundMethod === m ? '#fff' : 'var(--ink-2)',
+                        font: '600 14px Inter, sans-serif',
+                      }}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <input
+                  value={refundReason}
+                  onChange={(e) => setRefundReason(e.target.value)}
+                  placeholder="Reason (optional)"
+                  style={{ width: '100%', marginTop: 9, padding: '10px 12px', borderRadius: 10, border: '1px solid var(--line)', fontSize: 14.5 }}
+                />
+                <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                  <Button variant="ghost" style={{ flex: 1 }} onClick={() => setRefunding(false)}>
+                    Back
+                  </Button>
+                  <Button
+                    variant="danger"
+                    style={{ flex: 2 }}
+                    onClick={async () => {
+                      try {
+                        await api(`/api/sales/${receiptView.id}/refund`, {
+                          method: 'POST',
+                          body: JSON.stringify({ method: refundMethod, reason: refundReason.trim() || undefined }),
+                        });
+                        setReceiptView(null);
+                        await refreshSide();
+                      } catch (e) {
+                        setRefunding(false);
+                        setReceiptMsg(e instanceof Error ? e.message : 'Could not refund sale');
+                      }
+                    }}
+                  >
+                    Refund full sale
+                  </Button>
+                </div>
+              </div>
+            )}
           </>
         )}
       </Modal>
