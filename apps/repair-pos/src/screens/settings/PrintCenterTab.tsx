@@ -63,7 +63,8 @@ const SAMPLE_TAG = {
   passcode: '4417',
   notes: 'Hairline crack top left · charges intermittently',
   promised: 'today 5:30 PM',
-  priceText: '$89.00 due',
+  priceText: '$89.00',
+  paid: false,
 };
 
 const chipStyle = (active: boolean) =>
@@ -388,35 +389,67 @@ export function PrintCenterTab() {
                   {preview || 'Loading preview…'}
                 </pre>
               ) : (
-                <div
-                  style={{
-                    width: 189,
-                    height: (tag.size ?? '50x30') === '50x80' ? 302 : 113,
-                    background: 'var(--card)',
-                    border: '1px solid var(--line)',
-                    borderRadius: 2,
-                    padding: '8px 10px',
-                    overflow: 'hidden',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 1,
-                  }}
-                >
-                  {tagOn('date') && <span style={{ fontSize: 9.5 }}>09/08/26 5:30 PM</span>}
-                  {tagOn('ticket') && <span style={{ font: '800 14px Inter, sans-serif' }}>{SAMPLE_TAG.number}</span>}
-                  {tagOn('customer') && <span style={{ font: '700 12px Inter, sans-serif' }}>{SAMPLE_TAG.customer}</span>}
-                  {tagOn('phone') && <span style={{ fontSize: 10 }}>{SAMPLE_TAG.phone}</span>}
-                  {tagOn('device') && <span style={{ fontSize: 10, borderTop: '1px solid var(--ink)', paddingTop: 2, marginTop: 2 }}>{SAMPLE_TAG.device}</span>}
-                  {tagOn('repair') && <span style={{ font: '700 10.5px Inter, sans-serif', textTransform: 'uppercase' }}>{SAMPLE_TAG.issue}</span>}
-                  {tagOn('passcode') && <span style={{ fontSize: 10 }}>Passcode {SAMPLE_TAG.passcode}</span>}
-                  {tagOn('notes') && <span style={{ fontSize: 8.5, color: 'var(--ink-3)', borderTop: '1px dotted var(--ink-3)', paddingTop: 2 }}>{SAMPLE_TAG.notes}</span>}
-                  {tagOn('promise') && <span style={{ fontSize: 9.5 }}>Promised: {SAMPLE_TAG.promised}</span>}
-                  {tagOn('price') && (
-                    <span style={{ alignSelf: 'flex-start', font: '800 11.5px Inter, sans-serif', border: '1.5px solid var(--ink)', padding: '1px 5px', marginTop: 3 }}>
-                      {SAMPLE_TAG.priceText}
-                    </span>
-                  )}
-                </div>
+                (() => {
+                  const tall = (tag.size ?? '50x30') === '50x80';
+                  const fs = tall
+                    ? { date: 13, tkt: 11, name: 20, phone: 17, dev: 14, rep: 14, pass: 13, small: 9.5, price: 18, status: 10 }
+                    : { date: 9.5, tkt: 8.5, name: 13.5, phone: 11.5, dev: 10.5, rep: 10.5, pass: 10, small: 8, price: 12, status: 8 };
+                  return (
+                    <div
+                      style={{
+                        width: 189,
+                        height: tall ? 302 : 113,
+                        background: '#fff',
+                        color: '#111',
+                        border: '1px solid var(--line)',
+                        borderRadius: 2,
+                        padding: tall ? '12px 12px' : '7px 9px',
+                        overflow: 'hidden',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 1,
+                      }}
+                    >
+                      {tagOn('date') && <span style={{ fontSize: fs.date, fontWeight: 700 }}>08/31/26 3:58 PM</span>}
+                      {tagOn('ticket') && <span style={{ fontSize: fs.tkt, fontWeight: 700, color: '#555' }}>Ticket {SAMPLE_TAG.number}</span>}
+                      {tagOn('customer') && (
+                        <span style={{ fontSize: fs.name, fontWeight: 800, lineHeight: 1.05, letterSpacing: '-0.01em' }}>{SAMPLE_TAG.customer}</span>
+                      )}
+                      {tagOn('phone') && <span style={{ fontSize: fs.phone, fontWeight: 700 }}>{SAMPLE_TAG.phone}</span>}
+                      {(tagOn('date') || tagOn('ticket') || tagOn('customer') || tagOn('phone')) &&
+                        (tagOn('device') || tagOn('repair') || tagOn('passcode') || tagOn('notes') || tagOn('promise')) && (
+                          <span style={{ borderTop: '2px solid #111', margin: '4px 0' }} />
+                        )}
+                      {tagOn('device') && <span style={{ fontSize: fs.dev, fontWeight: 700 }}>{SAMPLE_TAG.device}</span>}
+                      {tagOn('repair') && (
+                        <span style={{ fontSize: fs.rep, fontWeight: 800, textTransform: 'uppercase', lineHeight: 1.1 }}>{SAMPLE_TAG.issue}</span>
+                      )}
+                      {tagOn('passcode') && <span style={{ fontSize: fs.pass, fontWeight: 700, marginTop: 2 }}>Passcode {SAMPLE_TAG.passcode}</span>}
+                      {tagOn('notes') && (
+                        <span style={{ fontSize: fs.small, lineHeight: 1.25, borderTop: '1px dotted #555', paddingTop: 3, marginTop: 3 }}>
+                          {SAMPLE_TAG.notes}
+                        </span>
+                      )}
+                      {tagOn('promise') && <span style={{ fontSize: fs.small, fontWeight: 600, marginTop: 2 }}>Promised: {SAMPLE_TAG.promised}</span>}
+                      <span style={{ flex: 1 }} />
+                      {tagOn('price') && (
+                        <span
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: 6,
+                            border: '2px solid #111',
+                            padding: '3px 7px',
+                          }}
+                        >
+                          <span style={{ fontSize: fs.price, fontWeight: 800 }}>{SAMPLE_TAG.priceText}</span>
+                          <span style={{ fontSize: fs.status, fontWeight: 800, letterSpacing: '0.08em' }}>UNPAID</span>
+                        </span>
+                      )}
+                    </div>
+                  );
+                })()
               )}
             </div>
             <span style={{ fontSize: 12, color: 'var(--ink-4)' }}>

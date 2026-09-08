@@ -373,7 +373,8 @@ export function NewRepairWindow({
           issue: serviceSummary,
           passcode: devices[0]?.unlockValue || null,
           notes: devices[0]?.conditionNotes || null,
-          priceText: `${formatCents(res.ticket.totalCents)} due`,
+          priceText: formatCents(res.ticket.totalCents),
+          paid: false,
         });
       }
       onCreated(

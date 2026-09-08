@@ -417,7 +417,7 @@ export function RegisterScreen() {
   async function printLineLabel(ticketId: number) {
     try {
       const d = await api<{
-        ticket: { number: string };
+        ticket: { number: string; totalCents: number };
         customer: { name: string; phone: string | null } | null;
         devices: Array<{ label: string }>;
         lines: Array<{ description: string }>;
@@ -429,7 +429,8 @@ export function RegisterScreen() {
         phone: d.customer?.phone,
         device: d.devices.map((x) => x.label).join(' + '),
         issue: d.lines.map((x) => x.description).join(', '),
-        priceText: d.balanceCents > 0 ? `${formatCents(d.balanceCents)} due` : 'Paid',
+        priceText: formatCents(d.balanceCents > 0 ? d.balanceCents : d.ticket.totalCents),
+        paid: d.balanceCents <= 0,
       });
     } catch {
       setError('Could not load the ticket for its label.');
@@ -1233,7 +1234,8 @@ export function RegisterScreen() {
                         phone: t.customerPhone,
                         device: t.deviceSummary ?? '',
                         issue: t.serviceSummary ?? '',
-                        priceText: balance > 0 ? `${formatCents(balance)} due` : 'Paid',
+                        priceText: formatCents(balance > 0 ? balance : t.totalCents),
+                        paid: balance <= 0,
                       })
                     }
                     style={{ minHeight: 38, borderRadius: 9, border: '1px solid var(--line)', background: 'var(--card)', color: 'var(--ink)', font: '600 13.5px Inter, sans-serif', padding: '0 12px' }}

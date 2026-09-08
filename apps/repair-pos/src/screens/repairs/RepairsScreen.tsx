@@ -463,7 +463,8 @@ export function RepairsScreen() {
                     phone: detail.customer?.phone,
                     device: detail.devices.map((d) => d.label).join(' + '),
                     issue: detail.lines.map((l) => l.description).join(', '),
-                    priceText: detail.balanceCents > 0 ? `${formatCents(detail.balanceCents)} due` : 'Paid',
+                    priceText: formatCents(detail.balanceCents > 0 ? detail.balanceCents : detail.ticket.totalCents),
+                    paid: detail.balanceCents <= 0,
                   })
                 }
               >
