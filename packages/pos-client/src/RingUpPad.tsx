@@ -439,17 +439,17 @@ export const RingUpPad = forwardRef<
               </div>
             )}
 
-            <div className="mt-auto flex gap-2.5">
+            <div className="mt-auto flex gap-2.5 [container-type:inline-size]">
               <button
                 onClick={resetAll}
-                className="flex min-h-[60px] w-[110px] items-center justify-center rounded-xl border border-line bg-card text-[15.5px] font-bold text-ink-2"
+                className="flex min-h-[60px] w-[110px] items-center justify-center rounded-xl border border-line bg-card text-[15.5px] font-bold uppercase text-ink-2"
               >
                 Back
               </button>
               <button
                 onClick={confirmCurrent}
                 disabled={!canConfirm || busy}
-                className={`flex min-h-[60px] flex-1 items-center justify-center gap-2 rounded-xl text-[17px] font-bold ${
+                className={`flex min-h-[60px] flex-1 items-center justify-center gap-2 rounded-xl text-[clamp(12px,3.4cqw,17px)] font-bold uppercase whitespace-nowrap ${
                   !canConfirm || busy ? disabledBtn : 'bg-green text-white'
                 }`}
               >
