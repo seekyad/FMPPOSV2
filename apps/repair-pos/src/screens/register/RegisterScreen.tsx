@@ -371,19 +371,6 @@ export function RegisterScreen() {
               </span>
             </h1>
           </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <Link to="/pending" style={{ textDecoration: 'none' }}>
-              <Button variant="secondary">
-                On Hold{' '}
-                <span style={{ background: 'var(--line-soft)', borderRadius: 999, padding: '1px 8px', fontSize: 12.5 }}>{parkedCount}</span>
-              </Button>
-            </Link>
-            <Link to="/repairs" style={{ textDecoration: 'none' }}>
-              <Button variant="dark">
-                Repairs <span style={{ background: 'var(--orange)', borderRadius: 999, padding: '1px 8px', fontSize: 12.5 }}>{takenIn.length}</span>
-              </Button>
-            </Link>
-          </div>
         </div>
 
         <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
@@ -701,6 +688,24 @@ export function RegisterScreen() {
 
         <div style={{ borderTop: '1px solid var(--line-soft)', padding: '12px 20px 16px' }}>
           {error && <div style={{ color: 'var(--red)', fontSize: 14, marginBottom: 8 }}>{error}</div>}
+          <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
+            <Link to="/pending" style={{ flex: 1, textDecoration: 'none' }}>
+              <Button variant="secondary" style={{ width: '100%' }}>
+                On Hold{' '}
+                <span style={{ background: 'var(--line-soft)', borderRadius: 999, padding: '1px 8px', fontSize: 12.5 }}>
+                  {parkedCount}
+                </span>
+              </Button>
+            </Link>
+            <Link to="/repairs" style={{ flex: 1, textDecoration: 'none' }}>
+              <Button variant="dark" style={{ width: '100%' }}>
+                Repairs{' '}
+                <span style={{ background: 'var(--orange)', borderRadius: 999, padding: '1px 8px', fontSize: 12.5 }}>
+                  {takenIn.length}
+                </span>
+              </Button>
+            </Link>
+          </div>
           <div style={{ display: 'flex', gap: 10 }}>
             <button
               onClick={clearSale}
