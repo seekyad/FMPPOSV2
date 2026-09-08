@@ -458,8 +458,8 @@ export const RingUpPad = forwardRef<
                   : paying < remaining
                     ? `Take ${formatCents(paying)} — more to collect`
                     : method === 'cash'
-                      ? `Complete · change ${formatCents(Math.max(change, 0))}`
-                      : `Complete · ${formatCents(paying)}`}
+                      ? `Complete - Change Due: ${formatCents(Math.max(change, 0))}`
+                      : `Complete - ${formatCents(paying)}`}
               </button>
             </div>
           </>
