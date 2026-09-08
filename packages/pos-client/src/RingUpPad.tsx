@@ -345,7 +345,7 @@ export const RingUpPad = forwardRef<
                 </span>
               </div>
             ) : null}
-            <div className="mt-auto flex flex-wrap gap-2.5">
+            <div className="mt-auto flex flex-1 flex-wrap gap-2.5">
               <button
                 onClick={add}
                 disabled={cents <= 0}
