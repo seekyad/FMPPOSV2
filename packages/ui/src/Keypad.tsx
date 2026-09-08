@@ -23,11 +23,11 @@ export function Keypad({
       key={label}
       onClick={onClick}
       style={{
-        height: 64,
-        borderRadius: 12,
+        height: 78,
+        borderRadius: 14,
         border: '1px solid var(--line)',
         background: 'var(--card)',
-        font: '600 22px Inter, sans-serif',
+        font: '600 27px Inter, sans-serif',
         color: 'var(--ink)',
         ...style,
       }}
@@ -36,7 +36,7 @@ export function Keypad({
     </button>
   );
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
       {key('7', () => onDigit(7))}
       {key('8', () => onDigit(8))}
       {key('9', () => onDigit(9))}

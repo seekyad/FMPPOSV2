@@ -268,7 +268,7 @@ export const RingUpPad = forwardRef<
 
       <div className="flex flex-wrap gap-4">
         {/* keys */}
-        <div className="w-[360px] max-w-full flex-none max-[1080px]:w-full max-[1080px]:max-w-[440px]">
+        <div className="w-[410px] max-w-full flex-none max-[1080px]:w-full max-[1080px]:max-w-[480px]">
           <Keypad
             onDigit={(d) => keypadTarget.set(Math.min(keypadTarget.value * 10 + d, 9_999_999))}
             onDoubleZero={() => keypadTarget.set(Math.min(keypadTarget.value * 100, 9_999_999))}
