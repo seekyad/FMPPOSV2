@@ -9,6 +9,7 @@ import { CustomerModal } from '@fmp/pos-client';
 import { InventoryPickerModal, type PickableItem } from '@fmp/pos-client';
 import { type PaymentDraft } from '@fmp/pos-client';
 import { NewRepairWindow, type CreatedTicket } from '../repairs/NewRepairWindow';
+import { printTicketLabel } from '../repairs/labels';
 import { DepositModal } from '../repairs/DepositModal';
 import { TradeInModal } from './TradeInModal';
 import { PayoutModal } from './PayoutModal';
@@ -31,6 +32,7 @@ interface RepairRow {
   id: number;
   number: string;
   status: string;
+  customerId: number | null;
   callFlag: boolean;
   promisedAt: string | null;
   totalCents: number;
@@ -74,12 +76,45 @@ export function RegisterScreen() {
   const [onDuty, setOnDuty] = useState<OnDuty[]>([]);
   const [repairTickets, setRepairTickets] = useState<RepairRow[]>([]);
 
+  /** Popup shows only today's tickets, open work sorted on top; everything
+   *  older lives on the repairs board where it can be looked up. */
   function openRepairsPopup() {
     setModal('repairs');
-    void api<{ rows: RepairRow[] }>('/api/repairs?filter=open')
-      .then((r) => setRepairTickets(r.rows))
+    const order = ['open', 'in_progress', 'waiting_part', 'completed'];
+    void api<{ rows: RepairRow[] }>('/api/repairs?filter=today')
+      .then((r) =>
+        setRepairTickets(
+          r.rows
+            .filter((x) => order.includes(x.status))
+            .sort((a, b) => order.indexOf(a.status) - order.indexOf(b.status)),
+        ),
+      )
       .catch(() => setRepairTickets([]));
   }
+
+  /** Popup card action: pull the ticket's balance into the current sale. */
+  function collectTicketBalance(t: RepairRow) {
+    const balance = t.totalCents - t.paidCents;
+    if (balance <= 0) return;
+    setLines((prev) => [
+      ...prev,
+      {
+        key: lineKey(),
+        kind: 'repair',
+        description: `${t.number} · balance`,
+        qty: 1,
+        unitCents: Math.round(balance / (1 + taxRateBp / 10000)),
+        discountCents: 0,
+        taxable: true,
+        ticketId: t.id,
+      },
+    ]);
+    if (t.customerId && t.customerName) setCustomer({ id: t.customerId, name: t.customerName, phone: t.customerPhone });
+    setModal(null);
+  }
+
+  const [cancelTicket, setCancelTicket] = useState<{ id: number; number: string } | null>(null);
+  const [cancelReason, setCancelReason] = useState('');
 
   useEffect(() => {
     const tick = setInterval(() => setNow(new Date()), 10_000);
@@ -847,14 +882,34 @@ export function RegisterScreen() {
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
           <h2 style={{ margin: 0, font: '700 20.5px Inter, sans-serif' }}>
-            Open repairs{' '}
+            Today&rsquo;s repairs{' '}
             <span style={{ background: 'var(--orange-soft)', color: 'var(--orange)', borderRadius: 999, padding: '2px 12px', font: '700 15px Inter, sans-serif', verticalAlign: 'middle' }}>
               {repairTickets.length}
             </span>
+            <span style={{ display: 'block', font: '400 13px Inter, sans-serif', color: 'var(--ink-3)', marginTop: 3 }}>
+              Older tickets are on the repairs board.
+            </span>
           </h2>
-          <Link to="/repairs" style={{ font: '600 14.5px Inter, sans-serif', color: 'var(--orange)', textDecoration: 'none' }}>
-            Open repairs board <i className="bi bi-arrow-right" />
-          </Link>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 16 }}>
+            <Link to="/repairs" style={{ font: '600 14.5px Inter, sans-serif', color: 'var(--orange)', textDecoration: 'none' }}>
+              Open repairs board <i className="bi bi-arrow-right" />
+            </Link>
+            <button
+              onClick={() => setModal(null)}
+              title="Close"
+              style={{
+                width: 42,
+                height: 42,
+                borderRadius: 11,
+                border: '1px solid var(--line)',
+                background: 'var(--card)',
+                color: 'var(--ink-2)',
+                fontSize: 17,
+              }}
+            >
+              <i className="bi bi-x-lg" />
+            </button>
+          </span>
         </div>
         <div
           style={{
@@ -901,14 +956,92 @@ export function RegisterScreen() {
                     {balance > 0 ? `Balance ${formatCents(balance)}` : 'Paid'}
                   </span>
                 </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 9 }}>
+                  {balance > 0 && (
+                    <button
+                      onClick={() => collectTicketBalance(t)}
+                      style={{ flex: 1, minHeight: 38, borderRadius: 9, border: 'none', background: 'var(--orange)', color: '#fff', font: '600 13.5px Inter, sans-serif', whiteSpace: 'nowrap', padding: '0 10px' }}
+                    >
+                      Collect at register
+                    </button>
+                  )}
+                  {balance > 0 && (
+                    <button
+                      onClick={() => {
+                        setDepositTicket({ id: t.id, number: t.number, balanceCents: balance });
+                        setModal(null);
+                      }}
+                      style={{ minHeight: 38, borderRadius: 9, border: '1px solid var(--line)', background: 'var(--card)', color: 'var(--ink)', font: '600 13.5px Inter, sans-serif', padding: '0 12px' }}
+                    >
+                      Deposit
+                    </button>
+                  )}
+                  <button
+                    onClick={() =>
+                      printTicketLabel({
+                        number: t.number,
+                        customer: t.customerName ?? '',
+                        device: t.deviceSummary ?? '',
+                        issue: t.serviceSummary ?? '',
+                      })
+                    }
+                    style={{ minHeight: 38, borderRadius: 9, border: '1px solid var(--line)', background: 'var(--card)', color: 'var(--ink)', font: '600 13.5px Inter, sans-serif', padding: '0 12px' }}
+                  >
+                    <i className="bi bi-tag" /> Label
+                  </button>
+                  <button
+                    onClick={() => {
+                      setCancelReason('');
+                      setCancelTicket({ id: t.id, number: t.number });
+                    }}
+                    style={{ minHeight: 38, borderRadius: 9, border: 'none', background: 'var(--red-bg)', color: 'var(--red)', font: '600 13.5px Inter, sans-serif', padding: '0 12px' }}
+                  >
+                    Cancel
+                  </button>
+                </div>
               </div>
             );
           })}
           {repairTickets.length === 0 && (
             <div style={{ gridColumn: 'span 3', textAlign: 'center', color: 'var(--ink-4)', fontSize: 15, padding: '30px 0' }}>
-              No open repairs right now.
+              No repairs taken in today.
             </div>
           )}
+        </div>
+      </Modal>
+
+      {/* Cancel-ticket confirmation from the repairs popup */}
+      <Modal open={cancelTicket !== null} onClose={() => setCancelTicket(null)} width={400}>
+        <h2 style={{ margin: 0, font: '700 20.5px Inter, sans-serif' }}>Cancel {cancelTicket?.number}?</h2>
+        <textarea
+          value={cancelReason}
+          onChange={(e) => setCancelReason(e.target.value)}
+          rows={3}
+          placeholder="Reason (required)"
+          style={{ width: '100%', marginTop: 12, padding: '11px 13px', borderRadius: 10, border: '1px solid var(--line)', fontSize: 15, resize: 'none' }}
+        />
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 10 }}>
+          <Button variant="ghost" onClick={() => setCancelTicket(null)}>Keep ticket</Button>
+          <Button
+            variant="danger"
+            disabled={cancelReason.trim().length < 2}
+            onClick={async () => {
+              try {
+                await api(`/api/repairs/${cancelTicket!.id}/cancel`, {
+                  method: 'POST',
+                  body: JSON.stringify({ reason: cancelReason.trim() }),
+                });
+                setCancelTicket(null);
+                setRepairTickets((prev) => prev.filter((r) => r.id !== cancelTicket!.id));
+                await refreshSide();
+              } catch (e) {
+                setError(e instanceof Error ? e.message : 'Could not cancel ticket');
+                setCancelTicket(null);
+              }
+            }}
+          >
+            Cancel ticket
+          </Button>
         </div>
       </Modal>
 
