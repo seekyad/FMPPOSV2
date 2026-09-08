@@ -373,23 +373,31 @@ export function RegisterScreen() {
               onUseDescription={(text) => addPendingItem(text)}
             />
           </div>
-          {['Accessory', 'Service fee'].map((preset) => (
+          {[
+            { label: 'Accessory', icon: 'bi-lightning-charge' },
+            { label: 'Service fee', icon: 'bi-tools' },
+          ].map((preset) => (
             <button
-              key={preset}
-              onClick={() => addPendingItem(preset)}
+              key={preset.label}
+              onClick={() => addPendingItem(preset.label)}
               style={{
                 marginTop: 12,
-                minHeight: 45,
+                minHeight: 50,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
                 borderRadius: 12,
-                border: '1px solid var(--line)',
+                border: '1px solid var(--line-soft)',
                 background: 'var(--card)',
                 color: 'var(--ink)',
                 padding: '0 18px',
-                font: '600 14.5px Inter, sans-serif',
+                font: '700 15px Inter, sans-serif',
                 whiteSpace: 'nowrap',
+                boxShadow: 'var(--shadow-card)',
               }}
             >
-              {preset}
+              <i className={`bi ${preset.icon}`} style={{ fontSize: 16, color: 'var(--orange)' }} />
+              {preset.label}
             </button>
           ))}
         </div>
@@ -795,18 +803,23 @@ function SearchBar({
 
   return (
     <div style={{ position: 'relative', marginTop: 12 }}>
-      <i className="bi bi-search" style={{ position: 'absolute', left: 14, top: 13, color: 'var(--ink-4)', fontSize: 16 }} />
+      <i
+        className="bi bi-search"
+        style={{ position: 'absolute', left: 15, top: '50%', transform: 'translateY(-50%)', color: 'var(--ink-4)', fontSize: 16.5 }}
+      />
       <input
         value={q}
         onChange={(e) => setQ(e.target.value)}
         placeholder="Search phone, customer, product, or IMEI"
         style={{
           width: '100%',
-          padding: '12px 14px 12px 38px',
+          height: 50,
+          padding: '0 14px 0 41px',
           borderRadius: 12,
-          border: '1px solid var(--line)',
+          border: '1px solid var(--line-soft)',
           background: 'var(--card)',
-          fontSize: 15,
+          fontSize: 15.5,
+          boxShadow: 'var(--shadow-card)',
         }}
       />
       {(q.trim().length >= 2 || (results && (results.customers.length > 0 || results.items.length > 0))) && (
