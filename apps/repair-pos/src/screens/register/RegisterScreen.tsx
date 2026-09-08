@@ -1130,17 +1130,20 @@ export function RegisterScreen() {
                 key={t.id}
                 style={{ border: '1px solid var(--line-soft)', borderRadius: 12, padding: '12px 14px', boxShadow: 'var(--shadow-card)' }}
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ font: '700 15.5px Inter, sans-serif' }}>{t.number}</span>
-                  <span style={{ background: chip.bg, color: chip.color, borderRadius: 999, padding: '3px 11px', font: '600 12.5px Inter, sans-serif' }}>
-                    {chip.label}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                  <span style={{ font: '700 17px Inter, sans-serif', minWidth: 0 }}>{t.customerName ?? 'Walk-in'}</span>
+                  <span
+                    style={{ background: chip.bg, color: chip.color, borderRadius: 999, padding: '3px 11px', font: '600 12.5px Inter, sans-serif', whiteSpace: 'nowrap', flexShrink: 0 }}
+                  >
+                    {t.number}: {chip.label}
                   </span>
                 </div>
-                <div style={{ fontSize: 13.5, color: 'var(--ink-2)', marginTop: 4 }}>
-                  {t.customerName ?? 'Walk-in'}
-                  {t.customerPhone ? ` · ${t.customerPhone}` : ''}
-                </div>
-                <div style={{ fontSize: 13, color: 'var(--ink-3)', marginTop: 2 }}>
+                {t.customerPhone && (
+                  <div style={{ font: '600 15px Inter, sans-serif', color: 'var(--ink-2)', marginTop: 2 }}>
+                    {t.customerPhone}
+                  </div>
+                )}
+                <div style={{ fontSize: 13, color: 'var(--ink-3)', marginTop: 3 }}>
                   {t.deviceSummary ?? '—'}
                   {t.serviceSummary ? ` — ${t.serviceSummary}` : ''}
                 </div>
