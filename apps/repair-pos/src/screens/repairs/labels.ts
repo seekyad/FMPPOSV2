@@ -16,3 +16,4 @@ export {
   type LabelPrefs,
   type TicketLabelFields,
 } from '@fmp/pos-client';
+export { TicketLabelPreview } from '@fmp/pos-client';

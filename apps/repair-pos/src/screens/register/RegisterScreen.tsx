@@ -9,7 +9,7 @@ import { CustomerModal } from '@fmp/pos-client';
 import { InventoryPickerModal, type PickableItem } from '@fmp/pos-client';
 import { type PaymentDraft } from '@fmp/pos-client';
 import { NewRepairWindow, type CreatedTicket } from '../repairs/NewRepairWindow';
-import { printTicketLabel, setLabelPrefs, type LabelPrefs } from '../repairs/labels';
+import { printTicketLabel, setLabelPrefs, TicketLabelPreview, type LabelPrefs, type TicketLabelFields } from '../repairs/labels';
 import { DepositModal } from '../repairs/DepositModal';
 import { TradeInModal } from './TradeInModal';
 import { PayoutModal } from './PayoutModal';
@@ -413,7 +413,10 @@ export function RegisterScreen() {
     }
   }
 
-  /** Label button on a repair line in the cart: fetch the ticket and print its device tag. */
+  /** Ticket tag ready to print, shown in the preview popup first. */
+  const [labelPreview, setLabelPreview] = useState<TicketLabelFields | null>(null);
+
+  /** Label action on cart lines and recent cards: fetch the ticket and preview its tag. */
   async function printLineLabel(ticketId: number) {
     try {
       const d = await api<{
@@ -423,7 +426,7 @@ export function RegisterScreen() {
         lines: Array<{ description: string }>;
         balanceCents: number;
       }>(`/api/repairs/${ticketId}`);
-      printTicketLabel({
+      setLabelPreview({
         number: d.ticket.number,
         customer: d.customer?.name ?? '',
         phone: d.customer?.phone,
@@ -1391,6 +1394,41 @@ export function RegisterScreen() {
                 </div>
               </div>
             )}
+          </>
+        )}
+      </Modal>
+
+      {/* Label preview from the Label actions — print goes out from here */}
+      <Modal open={labelPreview !== null} onClose={() => setLabelPreview(null)} width={330}>
+        {labelPreview && (
+          <>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h2 style={{ margin: 0, font: '700 20.5px Inter, sans-serif' }}>Label · {labelPreview.number}</h2>
+              <button
+                onClick={() => setLabelPreview(null)}
+                title="Close"
+                style={{ width: 40, height: 40, borderRadius: 11, border: '1px solid var(--line)', background: 'var(--card)', color: 'var(--ink-2)', fontSize: 16 }}
+              >
+                <i className="bi bi-x-lg" />
+              </button>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'center', background: 'var(--line-soft)', borderRadius: 12, padding: 16, marginTop: 12 }}>
+              <TicketLabelPreview fields={labelPreview} />
+            </div>
+            <div style={{ fontSize: 12.5, color: 'var(--ink-4)', textAlign: 'center', marginTop: 8 }}>
+              50 × 80 mm · shown near true size
+            </div>
+            <Button
+              variant="primary"
+              size="lg"
+              style={{ width: '100%', marginTop: 12 }}
+              onClick={() => {
+                printTicketLabel(labelPreview);
+                setLabelPreview(null);
+              }}
+            >
+              <i className="bi bi-printer" /> Print label
+            </Button>
           </>
         )}
       </Modal>

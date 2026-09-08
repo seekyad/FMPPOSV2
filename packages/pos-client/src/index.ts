@@ -16,6 +16,7 @@ export {
   type LabelPrefs,
   type TicketLabelFields,
 } from './labels';
+export { TicketLabelPreview } from './LabelPreview';
 export { PinScreen } from './PinScreen';
 export { CustomItemModal } from './CustomItemModal';
 export { PaymentModal, type PaymentDraft } from './PaymentModal';

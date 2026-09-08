@@ -78,6 +78,11 @@ export function setLabelPrefs(p?: LabelPrefs | null) {
   prefs = p ?? {};
 }
 
+/** The cached claim-tag prefs with defaults filled in, for on-screen previews. */
+export function getTagPrefs(): Required<TagPrefs> {
+  return { ...TAG_DEFAULTS, ...prefs.tag };
+}
+
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
 /* ------------------------------------------------------------------ */
