@@ -42,6 +42,8 @@ export function RegisterScreen() {
   const [taxRateBp, setTaxRateBp] = useState(cachedTaxRateBp);
   const ringUpRef = useRef<RingUpPadHandle>(null);
   const [depositTicket, setDepositTicket] = useState<{ id: number; number: string; balanceCents: number } | null>(null);
+  /** cart line waiting for a price punched on the pad */
+  const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [done, setDone] = useState<null | { changeCents: number | null; receiptText: string; printed: boolean }>(null);
   const [error, setError] = useState('');
   const [resumedSaleId, setResumedSaleId] = useState<number | null>(null);
@@ -151,6 +153,19 @@ export function RegisterScreen() {
     setCustomer(null);
     setNote('');
     setResumedSaleId(null);
+    setSelectedKey(null);
+  }
+
+  /** Accessory / Service fee / typed search text: goes straight into the sale,
+   *  selected and waiting for its price from the pad. */
+  function addPendingItem(description: string) {
+    const key = lineKey();
+    setLines((prev) => [
+      ...prev,
+      { key, kind: 'custom', description, qty: 1, unitCents: 0, discountCents: 0, taxable: true },
+    ]);
+    setSelectedKey(key);
+    ringUpRef.current?.focus();
   }
 
   async function park() {
@@ -202,11 +217,19 @@ export function RegisterScreen() {
     }
   }
 
-  /** Ring-up pad card fast path: add the punched amount (if any) and complete as card. */
+  /** Punched amount from the pad: prices the selected line, otherwise adds a new custom item. */
+  function applyAmount(item: { description: string; unitCents: number; taxable: boolean }): CartLine[] {
+    if (selectedKey && lines.some((l) => l.key === selectedKey)) {
+      const next = lines.map((l) => (l.key === selectedKey ? { ...l, unitCents: item.unitCents } : l));
+      setSelectedKey(null);
+      return next;
+    }
+    return [...lines, { key: lineKey(), kind: 'custom' as const, qty: 1, discountCents: 0, ...item }];
+  }
+
+  /** Ring-up pad card fast path: apply the punched amount (if any) and complete as card. */
   function collectCard(item: { description: string; unitCents: number; taxable: boolean } | null) {
-    const effective = item
-      ? [...lines, { key: lineKey(), kind: 'custom' as const, qty: 1, discountCents: 0, ...item }]
-      : lines;
+    const effective = item ? applyAmount(item) : lines;
     if (effective.length === 0) return;
     setError('');
     setLines(effective);
@@ -306,13 +329,13 @@ export function RegisterScreen() {
             <SearchBar
               onAddItem={addItem}
               onPickCustomer={(c) => setCustomer(c)}
-              onUseDescription={(text) => ringUpRef.current?.setDescription(text)}
+              onUseDescription={(text) => addPendingItem(text)}
             />
           </div>
           {['Accessory', 'Service fee'].map((preset) => (
             <button
               key={preset}
-              onClick={() => ringUpRef.current?.setDescription(preset)}
+              onClick={() => addPendingItem(preset)}
               style={{
                 marginTop: 16,
                 minHeight: 45,
@@ -345,9 +368,7 @@ export function RegisterScreen() {
           busy={busy}
           taxRemovedInSale={lines.some((l) => !l.taxable)}
           showItemOptions={false}
-          onAdd={(item) =>
-            setLines((prev) => [...prev, { key: lineKey(), kind: 'custom', qty: 1, discountCents: 0, ...item }])
-          }
+          onAdd={(item) => setLines(applyAmount(item))}
           onCollectCard={collectCard}
           onComplete={(p) => void complete(p)}
         />
@@ -456,15 +477,37 @@ export function RegisterScreen() {
         <div style={{ flex: 1, overflow: 'auto', padding: '12px 20px' }}>
           {lines.map((l) => (
             <div key={l.key} style={{ borderBottom: '1px solid var(--line-soft)', padding: '10px 0' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div
+                onClick={
+                  l.kind === 'custom'
+                    ? () => setSelectedKey((k) => (k === l.key ? null : l.key))
+                    : undefined
+                }
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'flex-start',
+                  cursor: l.kind === 'custom' ? 'pointer' : undefined,
+                  background: selectedKey === l.key ? 'var(--orange-soft)' : undefined,
+                  borderRadius: 10,
+                  margin: '0 -8px',
+                  padding: '6px 8px',
+                }}
+              >
                 <span style={{ font: '600 15px Inter, sans-serif' }}>{l.description}</span>
                 <span style={{ textAlign: 'right' }}>
                   <span style={{ font: '700 15px Inter, sans-serif' }}>{formatCents(l.qty * l.unitCents - l.discountCents)}</span>
-                  <span style={{ display: 'block', fontSize: 12.5, color: 'var(--ink-3)' }}>
-                    {l.taxable
-                      ? `Tax ${formatCents(Math.round(((l.qty * l.unitCents - l.discountCents) * taxRateBp) / 10000))}`
-                      : 'No tax'}
-                  </span>
+                  {l.kind === 'custom' && l.unitCents === 0 ? (
+                    <span style={{ display: 'block', fontSize: 12.5, fontWeight: 600, color: 'var(--amber)' }}>
+                      {selectedKey === l.key ? 'Punch the price on the pad' : 'Needs price — tap to select'}
+                    </span>
+                  ) : (
+                    <span style={{ display: 'block', fontSize: 12.5, color: 'var(--ink-3)' }}>
+                      {l.taxable
+                        ? `Tax ${formatCents(Math.round(((l.qty * l.unitCents - l.discountCents) * taxRateBp) / 10000))}`
+                        : 'No tax'}
+                    </span>
+                  )}
                 </span>
               </div>
               {l.detail && <div style={{ fontSize: 12.5, color: 'var(--ink-3)' }}>{l.detail}</div>}
@@ -488,7 +531,10 @@ export function RegisterScreen() {
                 )}
                 <span style={{ marginLeft: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
                   <button
-                    onClick={() => setLines((prev) => prev.filter((x) => x.key !== l.key))}
+                    onClick={() => {
+                      setLines((prev) => prev.filter((x) => x.key !== l.key));
+                      if (selectedKey === l.key) setSelectedKey(null);
+                    }}
                     style={{
                       border: 'none',
                       background: 'var(--red-bg)',
