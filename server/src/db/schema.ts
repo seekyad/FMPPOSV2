@@ -237,6 +237,24 @@ export const inventoryMovements = pgTable('inventory_movements', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
 });
 
+/** Every receipt or label sent to a printer — the Print center queue, and the payload to reprint it. */
+export const printJobs = pgTable(
+  'print_jobs',
+  {
+    id: serial('id').primaryKey(),
+    storeId: integer('store_id').notNull().references(() => stores.id),
+    userId: integer('user_id').references(() => users.id),
+    kind: text('kind', { enum: ['receipt', 'label'] }).notNull(),
+    name: text('name').notNull(),
+    detail: text('detail'),
+    status: text('status', { enum: ['sent', 'failed'] }).notNull(),
+    /** receipt jobs: { escposBase64 } to re-send; label jobs: the label fields to re-render */
+    payload: jsonb('payload'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => [index('print_jobs_store_idx').on(t.storeId, t.createdAt)],
+);
+
 export const purchases = pgTable('purchases', {
   id: serial('id').primaryKey(),
   storeId: integer('store_id').notNull().references(() => stores.id),
@@ -290,6 +308,8 @@ export const saleLines = pgTable('sale_lines', {
   taxable: boolean('taxable').notNull().default(true),
   inventoryItemId: integer('inventory_item_id').references(() => inventoryItems.id),
   ticketLineId: integer('ticket_line_id'),
+  /** repair lines: the ticket whose balance this line pays down */
+  ticketId: integer('ticket_id').references(() => repairTickets.id),
 });
 
 export const payments = pgTable('payments', {

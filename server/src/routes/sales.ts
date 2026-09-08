@@ -5,6 +5,7 @@ import { computeTotals } from '@fmp/shared';
 import { getDb, schema } from '../db/index';
 import { requireAuth, requireRole } from '../auth';
 import { receiptEscpos, receiptText, type ReceiptData } from '../receipts';
+import { applyReceiptPrefs, logPrintJob, printSettingsOf } from './print';
 import { audit, emitBridge, emitStore, nextTicketNumber } from '../util';
 import { getOpenDrawer } from './drawer';
 
@@ -124,7 +125,7 @@ async function buildReceipt(
   const [customer] = sale.customerId
     ? await db.select().from(schema.customers).where(eq(schema.customers.id, sale.customerId))
     : [];
-  return {
+  return applyReceiptPrefs({
     header: store?.receiptHeader ?? store?.name ?? 'FMP',
     address: store?.address,
     phone: store?.phone,
@@ -144,7 +145,7 @@ async function buildReceipt(
     payments,
     footer: store?.receiptFooter,
     refund: sale.refundOfSaleId != null,
-  };
+  }, printSettingsOf(store).receipt);
 }
 
 /**
@@ -273,9 +274,14 @@ salesRouter.post('/complete', async (req, res) => {
   const receipt = await buildReceipt(db, req.session!.storeId, req.session!.name, sale, lines, paymentRows);
   let printed = false;
   if (body.data.printReceipt) {
-    printed = emitBridge(req, {
+    const escposBase64 = receiptEscpos(receipt, cashPayment != null && receipt.kickDrawer !== false);
+    printed = emitBridge(req, { kind: 'receipt', escposBase64 });
+    await logPrintJob(req, {
       kind: 'receipt',
-      escposBase64: receiptEscpos(receipt, cashPayment != null),
+      name: `Sales receipt — #${sale.ticketNumber}`,
+      detail: `${receipt.paperWidth ?? 80}mm · Rongta`,
+      printed,
+      payload: { escposBase64: receiptEscpos(receipt, false) },
     });
   }
 
@@ -357,6 +363,7 @@ salesRouter.get('/recent', async (req, res) => {
       customerName: schema.customers.name,
       customerPhone: schema.customers.phone,
       lineSummary: sql<string>`(select string_agg(l.description, ', ') from sale_lines l where l.sale_id = ${schema.sales.id})`,
+      ticketId: sql<number | null>`(select p.ticket_id from payments p where p.sale_id = ${schema.sales.id} and p.ticket_id is not null limit 1)`,
     })
     .from(schema.sales)
     .leftJoin(schema.customers, eq(schema.sales.customerId, schema.customers.id))
@@ -370,7 +377,13 @@ salesRouter.get('/recent', async (req, res) => {
     .orderBy(desc(schema.sales.createdAt))
     .limit(30);
   res.json(
-    rows.map((r) => ({ ...r.sale, customerName: r.customerName, customerPhone: r.customerPhone, lineSummary: r.lineSummary })),
+    rows.map((r) => ({
+      ...r.sale,
+      customerName: r.customerName,
+      customerPhone: r.customerPhone,
+      lineSummary: r.lineSummary,
+      ticketId: r.ticketId,
+    })),
   );
 });
 
@@ -425,7 +438,15 @@ salesRouter.post('/:id/print', async (req, res) => {
   const [cashier] =
     sale.userId == null ? [] : await db.select().from(schema.users).where(eq(schema.users.id, sale.userId));
   const receipt = await buildReceipt(db, sale.storeId, cashier?.name ?? '', sale, lines, paymentRows);
-  const printed = emitBridge(req, { kind: 'receipt', escposBase64: receiptEscpos(receipt, false) });
+  const escposBase64 = receiptEscpos(receipt, false);
+  const printed = emitBridge(req, { kind: 'receipt', escposBase64 });
+  await logPrintJob(req, {
+    kind: 'receipt',
+    name: `Reprint — #${sale.ticketNumber}`,
+    detail: `${receipt.paperWidth ?? 80}mm · Rongta`,
+    printed,
+    payload: { escposBase64 },
+  });
   res.json({ printed });
 });
 

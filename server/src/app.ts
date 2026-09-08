@@ -7,6 +7,7 @@ import { catalogRouter } from './routes/catalog';
 import { customersRouter } from './routes/customers';
 import { drawerRouter } from './routes/drawer';
 import { inventoryRouter } from './routes/inventory';
+import { printRouter } from './routes/print';
 import { repairsRouter } from './routes/repairs';
 import { retailRouter } from './routes/retail';
 import { reportsRouter } from './routes/reports';
@@ -33,6 +34,7 @@ export function createApp() {
   app.use('/api/tradein', tradeinRouter);
   app.use('/api/timeclock', timeclockRouter);
   app.use('/api/settings', settingsRouter);
+  app.use('/api/print', printRouter);
   app.use('/api/reports', reportsRouter);
   app.use('/api/terminal', terminalRouter);
   app.use('/api/retail', retailRouter);

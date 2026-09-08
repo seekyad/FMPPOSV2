@@ -460,8 +460,10 @@ export function RepairsScreen() {
                   printTicketLabel({
                     number: detail.ticket.number,
                     customer: detail.customer?.name ?? '',
+                    phone: detail.customer?.phone,
                     device: detail.devices.map((d) => d.label).join(' + '),
                     issue: detail.lines.map((l) => l.description).join(', '),
+                    priceText: detail.balanceCents > 0 ? `${formatCents(detail.balanceCents)} due` : 'Paid',
                   })
                 }
               >

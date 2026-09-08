@@ -1,0 +1,2 @@
+ALTER TABLE "sale_lines" ADD COLUMN "ticket_id" integer;--> statement-breakpoint
+ALTER TABLE "sale_lines" ADD CONSTRAINT "sale_lines_ticket_id_repair_tickets_id_fk" FOREIGN KEY ("ticket_id") REFERENCES "public"."repair_tickets"("id") ON DELETE no action ON UPDATE no action;

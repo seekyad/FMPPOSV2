@@ -368,8 +368,12 @@ export function NewRepairWindow({
         printTicketLabel({
           number: res.ticket.number,
           customer: cust.name,
+          phone: cust.phone,
           device: deviceSummary,
           issue: serviceSummary,
+          passcode: devices[0]?.unlockValue || null,
+          notes: devices[0]?.conditionNotes || null,
+          priceText: `${formatCents(res.ticket.totalCents)} due`,
         });
       }
       onCreated(

@@ -9,7 +9,7 @@ import { CustomerModal } from '@fmp/pos-client';
 import { InventoryPickerModal, type PickableItem } from '@fmp/pos-client';
 import { type PaymentDraft } from '@fmp/pos-client';
 import { NewRepairWindow, type CreatedTicket } from '../repairs/NewRepairWindow';
-import { printTicketLabel } from '../repairs/labels';
+import { printTicketLabel, setLabelPrefs, type TagPrefs } from '../repairs/labels';
 import { DepositModal } from '../repairs/DepositModal';
 import { TradeInModal } from './TradeInModal';
 import { PayoutModal } from './PayoutModal';
@@ -66,6 +66,8 @@ interface RecentSale {
   customerName: string | null;
   customerPhone: string | null;
   lineSummary: string | null;
+  /** first repair ticket paid on this sale, for its claim-tag label */
+  ticketId: number | null;
 }
 
 export function RegisterScreen() {
@@ -212,10 +214,11 @@ export function RegisterScreen() {
 
   useEffect(() => {
     void refreshSide();
-    void api<{ taxRateBp: number }>('/api/settings/store')
+    void api<{ taxRateBp: number; settings?: { print?: { tag?: TagPrefs } } }>('/api/settings/store')
       .then((s) => {
         cachedTaxRateBp = s.taxRateBp;
         setTaxRateBp(s.taxRateBp);
+        setLabelPrefs(s.settings?.print?.tag);
       })
       .catch(() => {});
     // resume support: PendingSales stashes a sale here before navigating over
@@ -415,15 +418,18 @@ export function RegisterScreen() {
     try {
       const d = await api<{
         ticket: { number: string };
-        customer: { name: string } | null;
+        customer: { name: string; phone: string | null } | null;
         devices: Array<{ label: string }>;
         lines: Array<{ description: string }>;
+        balanceCents: number;
       }>(`/api/repairs/${ticketId}`);
       printTicketLabel({
         number: d.ticket.number,
         customer: d.customer?.name ?? '',
+        phone: d.customer?.phone,
         device: d.devices.map((x) => x.label).join(' + '),
         issue: d.lines.map((x) => x.description).join(', '),
+        priceText: d.balanceCents > 0 ? `${formatCents(d.balanceCents)} due` : 'Paid',
       });
     } catch {
       setError('Could not load the ticket for its label.');
@@ -723,10 +729,23 @@ export function RegisterScreen() {
               >
                 {s.lineSummary ?? '—'}
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto', paddingTop: 8, width: '100%' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginTop: 'auto', paddingTop: 8, width: '100%' }}>
                 <span style={{ font: '700 17px Inter, sans-serif' }}>{formatCents(s.totalCents)}</span>
-                <span style={{ fontSize: 12.5, color: 'var(--orange)', fontWeight: 600 }}>
-                  <i className="bi bi-receipt" /> Receipt
+                <span style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  {s.ticketId != null && (
+                    <span
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void printLineLabel(s.ticketId!);
+                      }}
+                      style={{ fontSize: 12.5, color: 'var(--ink-2)', fontWeight: 600 }}
+                    >
+                      <i className="bi bi-tag" /> Label
+                    </span>
+                  )}
+                  <span style={{ fontSize: 12.5, color: 'var(--orange)', fontWeight: 600 }}>
+                    <i className="bi bi-receipt" /> Receipt
+                  </span>
                 </span>
               </div>
             </button>
@@ -1211,8 +1230,10 @@ export function RegisterScreen() {
                       printTicketLabel({
                         number: t.number,
                         customer: t.customerName ?? '',
+                        phone: t.customerPhone,
                         device: t.deviceSummary ?? '',
                         issue: t.serviceSummary ?? '',
+                        priceText: balance > 0 ? `${formatCents(balance)} due` : 'Paid',
                       })
                     }
                     style={{ minHeight: 38, borderRadius: 9, border: '1px solid var(--line)', background: 'var(--card)', color: 'var(--ink)', font: '600 13.5px Inter, sans-serif', padding: '0 12px' }}

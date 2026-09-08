@@ -14,54 +14,82 @@ export interface ReceiptData {
   taxCents: number;
   totalCents: number;
   payments: Array<{ method: string; amountCents: number; tenderedCents?: number | null; changeCents?: number | null }>;
+  terms?: string | null;
   footer?: string | null;
   refund?: boolean;
+  /** print-center prefs baked in by buildReceipt */
+  paperWidth?: 80 | 58;
+  kickDrawer?: boolean;
 }
 
-const WIDTH = 42; // chars on 80mm Rongta at font A
+/** chars per line: 80mm Rongta font A = 42, 58mm = 32 */
+const widthOf = (r: ReceiptData) => (r.paperWidth === 58 ? 32 : 42);
 
-function row(left: string, right: string): string {
-  const space = Math.max(1, WIDTH - left.length - right.length);
+function row(width: number, left: string, right: string): string {
+  const space = Math.max(1, width - left.length - right.length);
   return left + ' '.repeat(space) + right;
 }
 
-function center(text: string): string {
-  const pad = Math.max(0, Math.floor((WIDTH - text.length) / 2));
+function center(width: number, text: string): string {
+  const pad = Math.max(0, Math.floor((width - text.length) / 2));
   return ' '.repeat(pad) + text;
+}
+
+function wrap(width: number, text: string): string[] {
+  const out: string[] = [];
+  let line = '';
+  for (const word of text.split(/\s+/)) {
+    if (line && line.length + word.length + 1 > width) {
+      out.push(line);
+      line = word;
+    } else {
+      line = line ? `${line} ${word}` : word;
+    }
+  }
+  if (line) out.push(line);
+  return out;
 }
 
 /** Plain-text body shared by the browser fallback and the ESC/POS job. */
 export function receiptText(r: ReceiptData): string {
+  const W = widthOf(r);
   const out: string[] = [];
-  out.push(center(r.header));
-  if (r.address) out.push(center(r.address));
-  if (r.phone) out.push(center(r.phone));
-  out.push('-'.repeat(WIDTH));
-  out.push(row(`${r.refund ? 'REFUND ' : ''}Ticket #${r.ticketNumber}`, r.createdAt.toLocaleDateString('en-US')));
-  out.push(row(`Cashier: ${r.cashier}`, r.createdAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })));
-  if (r.customer) out.push(row('Customer:', r.customer));
-  out.push('-'.repeat(WIDTH));
+  const pushCentered = (txt: string) => {
+    for (const l of wrap(W, txt)) out.push(center(W, l));
+  };
+  if (r.header) pushCentered(r.header);
+  if (r.address) pushCentered(r.address);
+  if (r.phone) pushCentered(r.phone);
+  out.push('-'.repeat(W));
+  out.push(row(W, `${r.refund ? 'REFUND ' : ''}Ticket #${r.ticketNumber}`, r.createdAt.toLocaleDateString('en-US')));
+  out.push(row(W, `Cashier: ${r.cashier}`, r.createdAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })));
+  if (r.customer) out.push(row(W, 'Customer:', r.customer));
+  out.push('-'.repeat(W));
   for (const line of r.lines) {
     const desc = line.qty > 1 ? `${line.qty} x ${line.description}` : line.description;
-    out.push(row(desc.slice(0, WIDTH - 10), formatCents(line.totalCents)));
+    out.push(row(W, desc.slice(0, W - 10), formatCents(line.totalCents)));
   }
-  out.push('-'.repeat(WIDTH));
-  out.push(row('Subtotal', formatCents(r.subtotalCents)));
-  if (r.discountCents > 0) out.push(row('Discount', `-${formatCents(r.discountCents)}`));
-  out.push(row('Tax', formatCents(r.taxCents)));
-  out.push(row('TOTAL', formatCents(r.totalCents)));
+  out.push('-'.repeat(W));
+  out.push(row(W, 'Subtotal', formatCents(r.subtotalCents)));
+  if (r.discountCents > 0) out.push(row(W, 'Discount', `-${formatCents(r.discountCents)}`));
+  out.push(row(W, 'Tax', formatCents(r.taxCents)));
+  out.push(row(W, 'TOTAL', formatCents(r.totalCents)));
   out.push('');
   for (const p of r.payments) {
     const label = p.method === 'store_credit' ? 'Store credit' : p.method[0]!.toUpperCase() + p.method.slice(1);
-    out.push(row(label, formatCents(p.amountCents)));
+    out.push(row(W, label, formatCents(p.amountCents)));
     if (p.method === 'cash' && p.tenderedCents != null) {
-      out.push(row('  Tendered', formatCents(p.tenderedCents)));
-      out.push(row('  Change', formatCents(p.changeCents ?? 0)));
+      out.push(row(W, '  Tendered', formatCents(p.tenderedCents)));
+      out.push(row(W, '  Change', formatCents(p.changeCents ?? 0)));
     }
+  }
+  if (r.terms) {
+    out.push('');
+    out.push(...wrap(W, r.terms));
   }
   if (r.footer) {
     out.push('');
-    out.push(center(r.footer));
+    pushCentered(r.footer);
   }
   return out.join('\n');
 }
