@@ -262,7 +262,7 @@ export const RingUpPad = forwardRef<
   const cardBlocked = taxRemovedInSale || (cents > 0 && !taxable);
 
   return (
-    <div ref={containerRef} className="mt-4 flex flex-col gap-3 rounded-2xl border border-line-soft bg-card p-4 shadow-sm">
+    <div ref={containerRef} className="mt-3 flex flex-col gap-2.5 rounded-2xl border border-line-soft bg-card p-3 shadow-sm">
       {/* register display spans the whole pad */}
       {displayPanel}
 

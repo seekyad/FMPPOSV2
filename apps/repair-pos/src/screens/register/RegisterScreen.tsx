@@ -297,7 +297,7 @@ export function RegisterScreen() {
         style={{
           flex: narrow ? '0 0 auto' : 1,
           minWidth: 0,
-          padding: '22px 24px',
+          padding: '16px 18px',
           display: 'flex',
           flexDirection: 'column',
           overflow: narrow ? 'visible' : 'auto',
@@ -338,7 +338,7 @@ export function RegisterScreen() {
               key={preset}
               onClick={() => addPendingItem(preset)}
               style={{
-                marginTop: 16,
+                marginTop: 12,
                 minHeight: 45,
                 borderRadius: 12,
                 border: '1px solid var(--line)',
@@ -355,7 +355,7 @@ export function RegisterScreen() {
         </div>
 
         {/* Primary actions live right above the register */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginTop: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginTop: 12 }}>
           {smartActions.slice(0, 3).map(renderAction)}
         </div>
 
@@ -374,14 +374,14 @@ export function RegisterScreen() {
           onComplete={(p) => void complete(p)}
         />
 
-        <div style={{ font: '600 11.5px Inter, sans-serif', color: 'var(--ink-4)', letterSpacing: '0.08em', margin: '18px 0 8px' }}>
+        <div style={{ font: '600 11.5px Inter, sans-serif', color: 'var(--ink-4)', letterSpacing: '0.08em', margin: '14px 0 7px' }}>
           SMART ACTIONS
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
           {smartActions.slice(3).map(renderAction)}
         </div>
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', margin: '20px 0 8px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', margin: '14px 0 7px' }}>
           <span style={{ font: '600 11.5px Inter, sans-serif', color: 'var(--ink-4)', letterSpacing: '0.08em' }}>
             TAKEN IN TODAY{' '}
             <span style={{ color: 'var(--orange)' }}>
@@ -754,7 +754,7 @@ function SearchBar({
   }, [q]);
 
   return (
-    <div style={{ position: 'relative', marginTop: 16 }}>
+    <div style={{ position: 'relative', marginTop: 12 }}>
       <i className="bi bi-search" style={{ position: 'absolute', left: 14, top: 13, color: 'var(--ink-4)', fontSize: 16 }} />
       <input
         value={q}
