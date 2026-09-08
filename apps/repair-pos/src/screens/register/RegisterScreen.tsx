@@ -399,6 +399,26 @@ export function RegisterScreen() {
     }
   }
 
+  /** Label button on a repair line in the cart: fetch the ticket and print its device tag. */
+  async function printLineLabel(ticketId: number) {
+    try {
+      const d = await api<{
+        ticket: { number: string };
+        customer: { name: string } | null;
+        devices: Array<{ label: string }>;
+        lines: Array<{ description: string }>;
+      }>(`/api/repairs/${ticketId}`);
+      printTicketLabel({
+        number: d.ticket.number,
+        customer: d.customer?.name ?? '',
+        device: d.devices.map((x) => x.label).join(' + '),
+        issue: d.lines.map((x) => x.description).join(', '),
+      });
+    } catch {
+      setError('Could not load the ticket for its label.');
+    }
+  }
+
   /** Punched amount from the pad: prices the selected line, otherwise adds a new custom item. */
   function applyAmount(item: { description: string; unitCents: number; taxable: boolean }): CartLine[] {
     if (selectedKey && lines.some((l) => l.key === selectedKey)) {
@@ -892,6 +912,21 @@ export function RegisterScreen() {
                   </span>
                 )}
                 <span style={{ marginLeft: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+                  {l.kind === 'repair' && l.ticketId != null && lines.find((x) => x.ticketId === l.ticketId) === l && (
+                    <button
+                      onClick={() => void printLineLabel(l.ticketId!)}
+                      style={{
+                        border: '1px solid var(--line)',
+                        background: 'var(--card)',
+                        color: 'var(--ink)',
+                        borderRadius: 8,
+                        padding: '6px 14px',
+                        font: '600 13px Inter, sans-serif',
+                      }}
+                    >
+                      <i className="bi bi-tag" /> Label
+                    </button>
+                  )}
                   <button
                     onClick={() => {
                       setLines((prev) => prev.filter((x) => x.key !== l.key));
