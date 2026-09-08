@@ -25,7 +25,28 @@ interface TakenInToday {
   deviceSummary: string | null;
 }
 
-type OpenModal = null | 'customer' | 'accessory' | 'device' | 'note' | 'tradein' | 'payout';
+type OpenModal = null | 'customer' | 'accessory' | 'device' | 'note' | 'tradein' | 'payout' | 'repairs';
+
+interface RepairRow {
+  id: number;
+  number: string;
+  status: string;
+  callFlag: boolean;
+  promisedAt: string | null;
+  totalCents: number;
+  paidCents: number;
+  customerName: string | null;
+  customerPhone: string | null;
+  deviceSummary: string | null;
+  serviceSummary: string | null;
+}
+
+const REPAIR_STATUS: Record<string, { label: string; bg: string; color: string }> = {
+  open: { label: 'Open', bg: 'var(--line-soft)', color: 'var(--ink-2)' },
+  in_progress: { label: 'In progress', bg: 'var(--blue-bg)', color: 'var(--navy)' },
+  waiting_part: { label: 'Waiting on part', bg: 'var(--amber-bg)', color: 'var(--amber)' },
+  completed: { label: 'Ready', bg: 'var(--green-bg)', color: 'var(--green)' },
+};
 
 interface OnDuty {
   userId: number;
@@ -51,6 +72,14 @@ export function RegisterScreen() {
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [now, setNow] = useState(() => new Date());
   const [onDuty, setOnDuty] = useState<OnDuty[]>([]);
+  const [repairTickets, setRepairTickets] = useState<RepairRow[]>([]);
+
+  function openRepairsPopup() {
+    setModal('repairs');
+    void api<{ rows: RepairRow[] }>('/api/repairs?filter=open')
+      .then((r) => setRepairTickets(r.rows))
+      .catch(() => setRepairTickets([]));
+  }
 
   useEffect(() => {
     const tick = setInterval(() => setNow(new Date()), 10_000);
@@ -736,9 +765,14 @@ export function RegisterScreen() {
             <Link to="/pending" style={{ textDecoration: 'none', display: 'grid' }}>
               {footerTile({ label: 'On Hold', icon: 'bi-clock-history', badge: parkedCount, badgeBg: 'var(--line-soft)' })}
             </Link>
-            <Link to="/repairs" style={{ textDecoration: 'none', display: 'grid' }}>
-              {footerTile({ label: 'Repairs', icon: 'bi-wrench-adjustable', badge: takenIn.length, badgeBg: 'var(--orange)', navy: true })}
-            </Link>
+            {footerTile({
+              label: 'Repairs',
+              icon: 'bi-wrench-adjustable',
+              badge: takenIn.length,
+              badgeBg: 'var(--orange)',
+              navy: true,
+              onClick: openRepairsPopup,
+            })}
             {footerTile({ label: 'Clear', icon: 'bi-x-circle', red: true, disabled: lines.length === 0, onClick: clearSale })}
             {footerTile({
               label: 'Hold sale',
@@ -804,6 +838,79 @@ export function RegisterScreen() {
         </div>
       )}
       <DepositModal ticket={depositTicket} onClose={() => setDepositTicket(null)} onDone={() => void refreshSide()} />
+
+      {/* Quick repairs overview: compact ticket cards */}
+      <Modal
+        open={modal === 'repairs'}
+        onClose={() => setModal(null)}
+        style={{ width: '80vw', height: '80vh', maxWidth: '80vw', display: 'flex', flexDirection: 'column' }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+          <h2 style={{ margin: 0, font: '700 20.5px Inter, sans-serif' }}>
+            Open repairs{' '}
+            <span style={{ background: 'var(--orange-soft)', color: 'var(--orange)', borderRadius: 999, padding: '2px 12px', font: '700 15px Inter, sans-serif', verticalAlign: 'middle' }}>
+              {repairTickets.length}
+            </span>
+          </h2>
+          <Link to="/repairs" style={{ font: '600 14.5px Inter, sans-serif', color: 'var(--orange)', textDecoration: 'none' }}>
+            Open repairs board <i className="bi bi-arrow-right" />
+          </Link>
+        </div>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(3, 1fr)',
+            gap: 10,
+            marginTop: 14,
+            flex: 1,
+            overflow: 'auto',
+            alignContent: 'start',
+          }}
+        >
+          {repairTickets.map((t) => {
+            const balance = t.totalCents - t.paidCents;
+            const chip = REPAIR_STATUS[t.status] ?? REPAIR_STATUS.open!;
+            return (
+              <div
+                key={t.id}
+                style={{ border: '1px solid var(--line-soft)', borderRadius: 12, padding: '12px 14px', boxShadow: 'var(--shadow-card)' }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ font: '700 15.5px Inter, sans-serif' }}>{t.number}</span>
+                  <span style={{ background: chip.bg, color: chip.color, borderRadius: 999, padding: '3px 11px', font: '600 12.5px Inter, sans-serif' }}>
+                    {chip.label}
+                  </span>
+                </div>
+                <div style={{ fontSize: 13.5, color: 'var(--ink-2)', marginTop: 4 }}>
+                  {t.customerName ?? 'Walk-in'}
+                  {t.customerPhone ? ` · ${t.customerPhone}` : ''}
+                </div>
+                <div style={{ fontSize: 13, color: 'var(--ink-3)', marginTop: 2 }}>
+                  {t.deviceSummary ?? '—'}
+                  {t.serviceSummary ? ` — ${t.serviceSummary}` : ''}
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 7 }}>
+                  <span style={{ fontSize: 12.5, color: 'var(--orange)', fontWeight: 600 }}>
+                    {t.callFlag && (
+                      <>
+                        <i className="bi bi-telephone" /> Customer wants a call
+                      </>
+                    )}
+                  </span>
+                  <span style={{ font: '700 14.5px Inter, sans-serif', color: balance > 0 ? 'var(--red)' : 'var(--green)' }}>
+                    {balance > 0 ? `Balance ${formatCents(balance)}` : 'Paid'}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+          {repairTickets.length === 0 && (
+            <div style={{ gridColumn: 'span 3', textAlign: 'center', color: 'var(--ink-4)', fontSize: 15, padding: '30px 0' }}>
+              No open repairs right now.
+            </div>
+          )}
+        </div>
+      </Modal>
 
       <Modal open={modal === 'note'} onClose={() => setModal(null)} width={380}>
         <h2 style={{ margin: 0, font: '700 20.5px Inter, sans-serif' }}>Quick note</h2>
