@@ -62,6 +62,7 @@ interface RecentSale {
   totalCents: number;
   createdAt: string;
   completedAt: string | null;
+  customerId: number | null;
   customerName: string | null;
   customerPhone: string | null;
   lineSummary: string | null;
@@ -127,7 +128,9 @@ export function RegisterScreen() {
   const [cancelTicket, setCancelTicket] = useState<{ id: number; number: string } | null>(null);
   const [cancelReason, setCancelReason] = useState('');
   const [recent, setRecent] = useState<RecentSale[]>([]);
-  const [receiptView, setReceiptView] = useState<null | { id: number; number: string; text: string }>(null);
+  const [receiptView, setReceiptView] = useState<null | { id: number; number: string; text: string; completedAt: string | null }>(null);
+  /** completed sale reopened in the cart; Save writes back to the same ticket */
+  const [editingSale, setEditingSale] = useState<{ id: number; number: string } | null>(null);
   const [receiptMsg, setReceiptMsg] = useState('');
   const [refunding, setRefunding] = useState(false);
   const [refundMethod, setRefundMethod] = useState<'cash' | 'store_credit'>('cash');
@@ -139,7 +142,9 @@ export function RegisterScreen() {
     setRefundReason('');
     setRefundMethod('cash');
     void api<{ receiptText: string }>(`/api/sales/${s.id}/receipt`)
-      .then((r) => setReceiptView({ id: s.id, number: s.ticketNumber, text: r.receiptText }))
+      .then((r) =>
+        setReceiptView({ id: s.id, number: s.ticketNumber, text: r.receiptText, completedAt: s.completedAt ?? s.createdAt }),
+      )
       .catch(() => {});
   }
 
@@ -153,7 +158,12 @@ export function RegisterScreen() {
       clearInterval(poll);
     };
   }, []);
-  const [done, setDone] = useState<null | { changeCents: number | null; receiptText: string; printed: boolean }>(null);
+  const [done, setDone] = useState<null | {
+    changeCents: number | null;
+    receiptText: string;
+    printed: boolean;
+    updated?: boolean;
+  }>(null);
   const [error, setError] = useState('');
   const [resumedSaleId, setResumedSaleId] = useState<number | null>(null);
 
@@ -264,7 +274,67 @@ export function RegisterScreen() {
     setCustomer(null);
     setNote('');
     setResumedSaleId(null);
+    setEditingSale(null);
     setSelectedKey(null);
+  }
+
+  /** Receipt popup "Edit": reopen a same-day sale in the cart for repricing. */
+  async function startEditSale() {
+    if (!receiptView) return;
+    if (lines.length > 0 || editingSale) {
+      setReceiptMsg('Finish or clear the current sale first, then edit.');
+      return;
+    }
+    try {
+      const s = await api<{
+        customerId: number | null;
+        lines: Array<Pick<CartLine, 'kind' | 'description' | 'qty' | 'unitCents' | 'discountCents' | 'taxable'> & {
+          inventoryItemId: number | null;
+          ticketId: number | null;
+        }>;
+      }>(`/api/sales/${receiptView.id}`);
+      const src = recent.find((r) => r.id === receiptView.id);
+      setLines(
+        s.lines.map((l) => ({
+          key: lineKey(),
+          kind: l.kind,
+          description: l.description,
+          qty: l.qty,
+          unitCents: l.unitCents,
+          discountCents: l.discountCents,
+          taxable: l.taxable,
+          inventoryItemId: l.inventoryItemId ?? undefined,
+          ticketId: l.ticketId ?? undefined,
+        })),
+      );
+      setCustomer(
+        s.customerId && src?.customerName ? { id: s.customerId, name: src.customerName, phone: src.customerPhone } : null,
+      );
+      setEditingSale({ id: receiptView.id, number: receiptView.number });
+      setReceiptView(null);
+    } catch {
+      setReceiptMsg('Could not load the sale.');
+    }
+  }
+
+  /** Write the edited cart back onto the original sale and show the new receipt. */
+  async function saveAmend(useLines: CartLine[] = lines) {
+    if (!editingSale || useLines.length === 0) return;
+    setBusy(true);
+    setError('');
+    try {
+      const res = await api<{ receiptText: string }>(`/api/sales/${editingSale.id}/amend`, {
+        method: 'POST',
+        body: JSON.stringify({ lines: useLines.map(({ key, detail, serialized, ...l }) => l) }),
+      });
+      setDone({ changeCents: null, receiptText: res.receiptText, printed: false, updated: true });
+      clearSale();
+      await refreshSide();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not update sale');
+    } finally {
+      setBusy(false);
+    }
   }
 
   /** Accessory / Service fee / typed search text: goes straight into the sale,
@@ -561,8 +631,11 @@ export function RegisterScreen() {
           taxRemovedInSale={lines.some((l) => !l.taxable)}
           showItemOptions={false}
           onAdd={(item) => setLines(applyAmount(item))}
-          onCollectCard={collectCard}
-          onComplete={(p) => void complete(p)}
+          onCollectCard={(item) => {
+            if (editingSale) void saveAmend(item ? applyAmount(item) : lines);
+            else collectCard(item);
+          }}
+          onComplete={(p) => (editingSale ? void saveAmend() : void complete(p))}
         />
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginTop: 12 }}>
@@ -686,6 +759,32 @@ export function RegisterScreen() {
           <h2 style={{ margin: 0, font: '700 20.5px Inter, sans-serif' }}>
             Current sale <span style={{ color: 'var(--orange)' }}>items: {lines.reduce((n, l) => n + l.qty, 0)}</span>
           </h2>
+          {editingSale && (
+            <div
+              style={{
+                marginTop: 10,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 8,
+                background: 'var(--amber-bg)',
+                color: 'var(--amber)',
+                borderRadius: 10,
+                padding: '9px 12px',
+                font: '600 13.5px Inter, sans-serif',
+              }}
+            >
+              <span>
+                <i className="bi bi-pencil-square" /> Editing #{editingSale.number} — tap an item, punch its new price
+              </span>
+              <button
+                onClick={clearSale}
+                style={{ border: 'none', background: 'none', color: 'var(--amber)', font: '700 13.5px Inter, sans-serif', textDecoration: 'underline', padding: '4px 2px', flexShrink: 0 }}
+              >
+                Cancel
+              </button>
+            </div>
+          )}
           {customer ? (
             <div
               style={{
@@ -741,7 +840,7 @@ export function RegisterScreen() {
             <div key={l.key} style={{ borderBottom: '1px solid var(--line-soft)', padding: '10px 0' }}>
               <div
                 onClick={
-                  l.kind === 'custom'
+                  l.kind === 'custom' || editingSale
                     ? () => setSelectedKey((k) => (k === l.key ? null : l.key))
                     : undefined
                 }
@@ -749,7 +848,7 @@ export function RegisterScreen() {
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'flex-start',
-                  cursor: l.kind === 'custom' ? 'pointer' : undefined,
+                  cursor: l.kind === 'custom' || editingSale ? 'pointer' : undefined,
                   background: selectedKey === l.key ? 'var(--orange-soft)' : undefined,
                   borderRadius: 10,
                   margin: '0 -8px',
@@ -759,7 +858,7 @@ export function RegisterScreen() {
                 <span style={{ font: '600 15px Inter, sans-serif' }}>{l.description}</span>
                 <span style={{ textAlign: 'right' }}>
                   <span style={{ font: '700 15px Inter, sans-serif' }}>{formatCents(l.qty * l.unitCents - l.discountCents)}</span>
-                  {l.kind === 'custom' && l.unitCents === 0 ? (
+                  {(l.kind === 'custom' && l.unitCents === 0) || selectedKey === l.key ? (
                     <span style={{ display: 'block', fontSize: 12.5, fontWeight: 600, color: 'var(--amber)' }}>
                       {selectedKey === l.key ? 'Punch the price on the pad' : 'Needs price — tap to select'}
                     </span>
@@ -866,12 +965,20 @@ export function RegisterScreen() {
               onClick: openRepairsPopup,
             })}
             {footerTile({ label: 'Clear', icon: 'bi-x-circle', red: true, disabled: lines.length === 0, onClick: clearSale })}
-            {footerTile({
-              label: 'Hold sale',
-              icon: 'bi-pause-circle',
-              disabled: lines.length === 0 || busy,
-              onClick: () => void park(),
-            })}
+            {editingSale
+              ? footerTile({
+                  label: 'Save',
+                  icon: 'bi-check-circle',
+                  navy: true,
+                  disabled: lines.length === 0 || busy,
+                  onClick: () => void saveAmend(),
+                })
+              : footerTile({
+                  label: 'Hold sale',
+                  icon: 'bi-pause-circle',
+                  disabled: lines.length === 0 || busy,
+                  onClick: () => void park(),
+                })}
           </div>
         </div>
       </div>
@@ -1098,10 +1205,9 @@ export function RegisterScreen() {
             </pre>
             {receiptMsg && <div style={{ marginTop: 8, fontSize: 14, color: 'var(--ink-2)' }}>{receiptMsg}</div>}
             {!refunding ? (
-              <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 12 }}>
                 <Button
                   variant="secondary"
-                  style={{ flex: 1 }}
                   onClick={async () => {
                     try {
                       const r = await api<{ printed: boolean }>(`/api/sales/${receiptView.id}/print`, { method: 'POST' });
@@ -1113,12 +1219,17 @@ export function RegisterScreen() {
                 >
                   <i className="bi bi-printer" /> Print
                 </Button>
-                <Button variant="secondary" style={{ flex: 1 }} onClick={() => setRefunding(true)}>
+                {receiptView.completedAt != null &&
+                  new Date(receiptView.completedAt).toDateString() === new Date().toDateString() && (
+                    <Button variant="secondary" onClick={() => void startEditSale()}>
+                      <i className="bi bi-pencil-square" /> Edit
+                    </Button>
+                  )}
+                <Button variant="secondary" onClick={() => setRefunding(true)}>
                   <i className="bi bi-arrow-counterclockwise" /> Refund
                 </Button>
                 <Button
                   variant="danger"
-                  style={{ flex: 1 }}
                   onClick={async () => {
                     try {
                       await api(`/api/sales/${receiptView.id}/void`, { method: 'POST', body: JSON.stringify({}) });
@@ -1249,7 +1360,9 @@ export function RegisterScreen() {
         {done && (
           <div style={{ textAlign: 'center' }}>
             <i className="bi bi-check-circle-fill" style={{ fontSize: 43, color: 'var(--green)' }} />
-            <h2 style={{ margin: '10px 0 4px', font: '700 23px Inter, sans-serif' }}>Sale complete</h2>
+            <h2 style={{ margin: '10px 0 4px', font: '700 23px Inter, sans-serif' }}>
+              {done.updated ? 'Sale updated' : 'Sale complete'}
+            </h2>
             {done.changeCents != null && done.changeCents > 0 && (
               <div style={{ background: 'var(--green-bg)', color: 'var(--green)', borderRadius: 12, padding: '12px 0', margin: '12px 0', font: '800 30px Inter, sans-serif' }}>
                 Change {formatCents(done.changeCents)}
@@ -1275,7 +1388,7 @@ export function RegisterScreen() {
               </pre>
             )}
             <Button variant="primary" size="lg" style={{ width: '100%', marginTop: 12 }} onClick={() => setDone(null)}>
-              New sale
+              {done.updated ? 'Done' : 'New sale'}
             </Button>
           </div>
         )}

@@ -174,6 +174,51 @@ describe('sales flow', () => {
     expect(res.body.totals.totalCents).toBe(1590); // (2000-500) * 1.06
   });
 
+  it('amends a same-day sale in place: new price, resized payment, restocked item', async () => {
+    const sale = await request(app)
+      .post('/api/sales/complete')
+      .set(auth(employeeToken))
+      .send({
+        lines: [
+          { kind: 'product', description: 'Tempered glass protector', qty: 2, unitCents: 1500, taxable: true, inventoryItemId: glassId },
+          { kind: 'custom', description: 'Install fee', qty: 1, unitCents: 1000, taxable: true },
+        ],
+        payments: [{ method: 'cash', amountCents: 4240, tenderedCents: 5000 }],
+      });
+    expect(sale.status).toBe(200);
+    const before = await qtyOf(glassId);
+
+    const denied = await request(app)
+      .post(`/api/sales/${sale.body.sale.id}/amend`)
+      .set(auth(employeeToken))
+      .send({ lines: [{ kind: 'custom', description: 'Install fee', qty: 1, unitCents: 500, taxable: true }] });
+    expect(denied.status).toBe(403);
+
+    // drop one protector and cut the install fee to $5
+    const amended = await request(app)
+      .post(`/api/sales/${sale.body.sale.id}/amend`)
+      .set(auth(managerToken))
+      .send({
+        lines: [
+          { kind: 'product', description: 'Tempered glass protector', qty: 1, unitCents: 1500, taxable: true, inventoryItemId: glassId },
+          { kind: 'custom', description: 'Install fee', qty: 1, unitCents: 500, taxable: true },
+        ],
+      });
+    expect(amended.status).toBe(200);
+    expect(amended.body.receiptText).toContain('$21.20'); // (1500 + 500) * 1.06
+
+    const detail = await request(app).get(`/api/sales/${sale.body.sale.id}`).set(auth(managerToken));
+    expect(detail.body.totalCents).toBe(2120);
+    expect(detail.body.lines).toHaveLength(2);
+    expect(detail.body.payments).toHaveLength(1);
+    expect(detail.body.payments[0].amountCents).toBe(2120);
+    expect(await qtyOf(glassId)).toBe(before + 1); // the dropped protector went back on the shelf
+
+    // receipt for the sale re-renders with the edited totals
+    const receipt = await request(app).get(`/api/sales/${sale.body.sale.id}/receipt`).set(auth(managerToken));
+    expect(receipt.body.receiptText).toContain('$21.20');
+  });
+
   it('logs sales where tax was removed on a custom item', async () => {
     const res = await request(app)
       .post('/api/sales/complete')

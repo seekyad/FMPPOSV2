@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { and, desc, eq, gte, ilike, inArray, isNull, or, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, ilike, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { computeTotals } from '@fmp/shared';
 import { getDb, schema } from '../db/index';
@@ -427,6 +427,148 @@ salesRouter.post('/:id/print', async (req, res) => {
   const receipt = await buildReceipt(db, sale.storeId, cashier?.name ?? '', sale, lines, paymentRows);
   const printed = emitBridge(req, { kind: 'receipt', escposBase64: receiptEscpos(receipt, false) });
   res.json({ printed });
+});
+
+/**
+ * Edit a same-day completed sale in place: replace its lines, retotal, resize
+ * the recorded payment by the difference, and sync inventory and ticket
+ * payments. Manager only; the edit is audited.
+ */
+salesRouter.post('/:id/amend', requireRole('manager'), async (req, res) => {
+  const body = z.object({ lines: z.array(lineSchema).min(1) }).safeParse(req.body);
+  if (!body.success) {
+    res.status(400).json({ error: 'Invalid lines', detail: body.error.flatten() });
+    return;
+  }
+  const db = await getDb();
+  const id = Number(req.params.id);
+  const [sale] = await db.select().from(schema.sales).where(eq(schema.sales.id, id));
+  if (!sale || sale.storeId !== req.session!.storeId || sale.status !== 'completed') {
+    res.status(404).json({ error: 'Completed sale not found' });
+    return;
+  }
+  if (sale.refundOfSaleId != null) {
+    res.status(400).json({ error: 'Refunds cannot be edited' });
+    return;
+  }
+  if (new Date(sale.completedAt ?? sale.createdAt).toDateString() !== new Date().toDateString()) {
+    res.status(400).json({ error: "Only today's sales can be edited" });
+    return;
+  }
+
+  const newLines = body.data.lines;
+  const taxRate = await getTaxRate(db, sale.storeId);
+  const totals = computeTotals(
+    newLines.map((l) => ({ qty: l.qty, unitCents: l.unitCents, taxable: l.taxable, discountCents: l.discountCents })),
+    taxRate,
+  );
+  if (totals.totalCents <= 0) {
+    res.status(400).json({ error: 'Edited total must stay above zero — refund or void instead' });
+    return;
+  }
+
+  // Resize the recorded payment by the price difference (cash first, then card/tap).
+  const salePayments = await db
+    .select()
+    .from(schema.payments)
+    .where(and(eq(schema.payments.saleId, id), isNull(schema.payments.ticketId)));
+  const delta = totals.totalCents - sale.totalCents;
+  const adjust =
+    salePayments.find((p) => p.method === 'cash') ?? salePayments.find((p) => p.method !== 'store_credit');
+  if (delta !== 0) {
+    if (!adjust) {
+      res.status(400).json({ error: 'Store-credit sales cannot be edited — refund instead' });
+      return;
+    }
+    if (adjust.amountCents + delta <= 0) {
+      res.status(400).json({ error: 'Edit cuts below what the other tenders cover — refund instead' });
+      return;
+    }
+    if (adjust.method === 'cash') await getOpenDrawer(db, req.session!.storeId, req.session!.id);
+    await db
+      .update(schema.payments)
+      .set({
+        amountCents: adjust.amountCents + delta,
+        tenderedCents: adjust.tenderedCents != null ? adjust.amountCents + delta : null,
+        changeCents: adjust.changeCents != null ? 0 : null,
+      })
+      .where(eq(schema.payments.id, adjust.id));
+  }
+
+  // Swap the lines, moving inventory only by the per-item difference.
+  const oldLines = await db.select().from(schema.saleLines).where(eq(schema.saleLines.saleId, id));
+  const qtyByItem = new Map<number, number>();
+  for (const l of oldLines) {
+    if (l.kind === 'product' && l.inventoryItemId)
+      qtyByItem.set(l.inventoryItemId, (qtyByItem.get(l.inventoryItemId) ?? 0) - l.qty);
+  }
+  for (const l of newLines) {
+    if (l.kind === 'product' && l.inventoryItemId)
+      qtyByItem.set(l.inventoryItemId, (qtyByItem.get(l.inventoryItemId) ?? 0) + l.qty);
+  }
+  for (const [itemId, deltaQty] of qtyByItem) {
+    if (deltaQty === 0) continue;
+    const [item] = await db.select().from(schema.inventoryItems).where(eq(schema.inventoryItems.id, itemId));
+    if (!item) continue;
+    if (item.kind === 'device') {
+      await db
+        .update(schema.inventoryItems)
+        .set(deltaQty > 0 ? { status: 'sold', soldAt: new Date(), qty: 0 } : { status: 'in_stock', soldAt: null, qty: 1 })
+        .where(eq(schema.inventoryItems.id, itemId));
+    } else {
+      await db
+        .update(schema.inventoryItems)
+        .set({ qty: sql`greatest(${schema.inventoryItems.qty} - ${deltaQty}, 0)` })
+        .where(eq(schema.inventoryItems.id, itemId));
+    }
+    await db.insert(schema.inventoryMovements).values({
+      itemId,
+      deltaQty: -deltaQty,
+      kind: deltaQty > 0 ? 'sale' : 'refund_restock',
+      reason: `Sale #${sale.ticketNumber} edited`,
+      refId: id,
+      userId: req.session!.id,
+    });
+  }
+  await db.delete(schema.saleLines).where(eq(schema.saleLines.saleId, id));
+  await db.insert(schema.saleLines).values(newLines.map((l) => ({ ...l, saleId: id })));
+
+  await db
+    .update(schema.sales)
+    .set({
+      subtotalCents: totals.subtotalCents,
+      discountCents: totals.discountCents,
+      taxCents: totals.taxCents,
+      totalCents: totals.totalCents,
+    })
+    .where(eq(schema.sales.id, id));
+
+  // Repair lines: re-derive this sale's ticket payments from the new lines.
+  await db.delete(schema.payments).where(and(eq(schema.payments.saleId, id), isNotNull(schema.payments.ticketId)));
+  const primaryMethod = (adjust ?? salePayments[0])?.method ?? 'cash';
+  const byTicket = new Map<number, number>();
+  for (const line of newLines) {
+    if (line.kind !== 'repair' || !line.ticketId) continue;
+    const lineTotal = line.qty * line.unitCents - line.discountCents;
+    const withTax = line.taxable ? lineTotal + Math.round((lineTotal * taxRate) / 10000) : lineTotal;
+    byTicket.set(line.ticketId, (byTicket.get(line.ticketId) ?? 0) + withTax);
+  }
+  for (const [ticketId, amountCents] of byTicket) {
+    await db
+      .insert(schema.payments)
+      .values({ saleId: id, ticketId, method: primaryMethod, amountCents, userId: req.session!.id });
+  }
+
+  await audit(db, req, 'sale.amend', 'sale', id, { fromTotal: sale.totalCents, toTotal: totals.totalCents });
+  emitStore(req, 'sales-changed');
+
+  const [updated] = await db.select().from(schema.sales).where(eq(schema.sales.id, id));
+  const updatedPayments = await db
+    .select()
+    .from(schema.payments)
+    .where(and(eq(schema.payments.saleId, id), isNull(schema.payments.ticketId)));
+  const receipt = await buildReceipt(db, sale.storeId, req.session!.name, updated!, newLines, updatedPayments);
+  res.json({ receiptText: receiptText(receipt) });
 });
 
 /** Void a parked or same-day completed sale. Manager only. */
