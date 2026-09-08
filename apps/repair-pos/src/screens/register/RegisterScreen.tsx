@@ -56,6 +56,15 @@ interface OnDuty {
   clockIn: string;
 }
 
+interface RecentSale {
+  id: number;
+  ticketNumber: string;
+  totalCents: number;
+  createdAt: string;
+  completedAt: string | null;
+  customerName: string | null;
+}
+
 export function RegisterScreen() {
   const narrow = useNarrow();
   const [lines, setLines] = useState<CartLine[]>([]);
@@ -115,6 +124,14 @@ export function RegisterScreen() {
 
   const [cancelTicket, setCancelTicket] = useState<{ id: number; number: string } | null>(null);
   const [cancelReason, setCancelReason] = useState('');
+  const [recent, setRecent] = useState<RecentSale[]>([]);
+  const [receiptView, setReceiptView] = useState<null | { number: string; text: string }>(null);
+
+  function openReceipt(s: RecentSale) {
+    void api<{ receiptText: string }>(`/api/sales/${s.id}/receipt`)
+      .then((r) => setReceiptView({ number: s.ticketNumber, text: r.receiptText }))
+      .catch(() => {});
+  }
 
   useEffect(() => {
     const tick = setInterval(() => setNow(new Date()), 10_000);
@@ -140,12 +157,14 @@ export function RegisterScreen() {
   );
 
   async function refreshSide() {
-    const [parked, taken] = await Promise.all([
+    const [parked, taken, recentSales] = await Promise.all([
       api<unknown[]>('/api/sales/parked').catch(() => []),
       api<TakenInToday[]>('/api/repairs/taken-today').catch(() => []),
+      api<RecentSale[]>('/api/sales/recent').catch(() => []),
     ]);
     setParkedCount(parked.length);
     setTakenIn(taken);
+    setRecent(recentSales);
   }
 
   function handleRepairCreated(ticket: CreatedTicket, exit: 'board' | 'deposit' | 'sale') {
@@ -545,31 +564,41 @@ export function RegisterScreen() {
           {smartActions.slice(3).map(renderAction)}
         </div>
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', margin: '14px 0 7px' }}>
-          <span style={{ font: '600 11.5px Inter, sans-serif', color: 'var(--ink-4)', letterSpacing: '0.08em' }}>
-            TAKEN IN TODAY{' '}
-            <span style={{ color: 'var(--orange)' }}>
-              {takenIn.filter((t) => !['picked_up', 'cancelled', 'abandoned'].includes(t.status)).length} open
-            </span>
-          </span>
+        <div style={{ font: '600 11.5px Inter, sans-serif', color: 'var(--ink-4)', letterSpacing: '0.08em', margin: '14px 0 7px' }}>
+          RECENT TRANSACTIONS
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
-          {takenIn.map((t) => (
-            <Link key={t.id} to="/repairs" style={{ textDecoration: 'none', color: 'inherit' }}>
-              <div style={{ background: 'var(--card)', borderRadius: 12, border: '1px solid var(--line-soft)', padding: '10px 12px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ font: '600 14px Inter, sans-serif' }}>{t.customerName}</span>
-                  <span style={{ fontSize: 11.5, color: 'var(--ink-4)' }}>
-                    {new Date(t.createdAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
-                  </span>
-                </div>
-                <div style={{ fontSize: 12.5, color: 'var(--ink-3)', marginTop: 3 }}>
-                  <i className="bi bi-phone" style={{ fontSize: 11.5 }} /> {t.deviceSummary ?? t.number}
-                </div>
+        <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 6 }}>
+          {recent.map((s) => (
+            <button
+              key={s.id}
+              onClick={() => openReceipt(s)}
+              style={{
+                minWidth: 195,
+                flexShrink: 0,
+                textAlign: 'left',
+                background: 'var(--card)',
+                borderRadius: 12,
+                border: '1px solid var(--line-soft)',
+                padding: '10px 13px',
+                boxShadow: 'var(--shadow-card)',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
+                <span style={{ font: '700 14px Inter, sans-serif' }}>#{s.ticketNumber}</span>
+                <span style={{ fontSize: 11.5, color: 'var(--ink-4)' }}>
+                  {new Date(s.completedAt ?? s.createdAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                </span>
               </div>
-            </Link>
+              <div style={{ fontSize: 12.5, color: 'var(--ink-3)', marginTop: 2 }}>{s.customerName ?? 'Walk-in'}</div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 5 }}>
+                <span style={{ font: '700 15.5px Inter, sans-serif' }}>{formatCents(s.totalCents)}</span>
+                <span style={{ fontSize: 11.5, color: 'var(--orange)', fontWeight: 600 }}>
+                  <i className="bi bi-receipt" /> Receipt
+                </span>
+              </div>
+            </button>
           ))}
-          {takenIn.length === 0 && <div style={{ fontSize: 14, color: 'var(--ink-4)' }}>No repairs taken in yet.</div>}
+          {recent.length === 0 && <span style={{ fontSize: 14, color: 'var(--ink-4)' }}>No sales yet.</span>}
         </div>
 
         {/* Footer: who is on the clock right now */}
@@ -1008,6 +1037,39 @@ export function RegisterScreen() {
             </div>
           )}
         </div>
+      </Modal>
+
+      {/* Receipt viewer from the recent-transactions strip */}
+      <Modal open={receiptView !== null} onClose={() => setReceiptView(null)} width={430}>
+        {receiptView && (
+          <>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h2 style={{ margin: 0, font: '700 20.5px Inter, sans-serif' }}>Receipt #{receiptView.number}</h2>
+              <button
+                onClick={() => setReceiptView(null)}
+                title="Close"
+                style={{ width: 40, height: 40, borderRadius: 11, border: '1px solid var(--line)', background: 'var(--card)', color: 'var(--ink-2)', fontSize: 16 }}
+              >
+                <i className="bi bi-x-lg" />
+              </button>
+            </div>
+            <pre
+              style={{
+                textAlign: 'left',
+                background: 'var(--line-soft)',
+                borderRadius: 10,
+                padding: 12,
+                marginTop: 12,
+                fontSize: 12,
+                fontFamily: 'ui-monospace, monospace',
+                overflow: 'auto',
+                userSelect: 'text',
+              }}
+            >
+              {receiptView.text}
+            </pre>
+          </>
+        )}
       </Modal>
 
       {/* Cancel-ticket confirmation from the repairs popup */}

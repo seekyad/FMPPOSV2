@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { and, desc, eq, gte, ilike, inArray, or, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, ilike, inArray, isNull, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { computeTotals } from '@fmp/shared';
 import { getDb, schema } from '../db/index';
@@ -377,6 +377,26 @@ salesRouter.get('/:id', async (req, res) => {
   const lines = await db.select().from(schema.saleLines).where(eq(schema.saleLines.saleId, id));
   const paymentRows = await db.select().from(schema.payments).where(eq(schema.payments.saleId, id));
   res.json({ ...sale, lines, payments: paymentRows });
+});
+
+/** Re-render a sale's receipt for viewing from the recent-transactions strip. */
+salesRouter.get('/:id/receipt', async (req, res) => {
+  const db = await getDb();
+  const id = Number(req.params.id);
+  const [sale] = await db.select().from(schema.sales).where(eq(schema.sales.id, id));
+  if (!sale || sale.storeId !== req.session!.storeId) {
+    res.status(404).json({ error: 'Sale not found' });
+    return;
+  }
+  const lines = await db.select().from(schema.saleLines).where(eq(schema.saleLines.saleId, id));
+  // ticket payments duplicate the sale total for repair bookkeeping — leave them off the receipt
+  const paymentRows = await db
+    .select()
+    .from(schema.payments)
+    .where(and(eq(schema.payments.saleId, id), isNull(schema.payments.ticketId)));
+  const [cashier] = await db.select().from(schema.users).where(eq(schema.users.id, sale.userId));
+  const receipt = await buildReceipt(db, sale.storeId, cashier?.name ?? '', sale, lines, paymentRows);
+  res.json({ receiptText: receiptText(receipt) });
 });
 
 /** Void a parked or same-day completed sale. Manager only. */
