@@ -1,7 +1,19 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Button } from '@fmp/ui';
 import { api, session } from '@fmp/pos-client';
-import { printTicketLabel, setLabelPrefs, TAG_DEFAULTS, type TagPrefs } from '../repairs/labels';
+import {
+  DEVICE_LABEL_DEFAULTS,
+  INVENTORY_LABEL_DEFAULTS,
+  TAG_DEFAULTS,
+  printDeviceLabel,
+  printInventoryLabel,
+  printTicketLabel,
+  reprintLabelPayload,
+  setLabelPrefs,
+  type DeviceLabelPrefs,
+  type InventoryLabelPrefs,
+  type TagPrefs,
+} from '../repairs/labels';
 
 interface ReceiptPrefs {
   paper?: 80 | 58;
@@ -34,7 +46,16 @@ const RECEIPT_DEFAULTS: Required<ReceiptPrefs> = {
   kickDrawer: true,
 };
 
-const TAG_FIELDS: Array<{ key: keyof Omit<TagPrefs, 'size'>; label: string }> = [
+type Tpl = 'receipt' | 'tag' | 'device' | 'inventory';
+
+const TEMPLATES: Array<{ id: Tpl; name: string; meta: string }> = [
+  { id: 'receipt', name: 'Sales receipt', meta: '80mm thermal · Rongta' },
+  { id: 'tag', name: 'Repair claim tag', meta: '50 × 80 mm · Niimbot' },
+  { id: 'device', name: 'Device label', meta: '50 × 30 mm · phones & trade-ins' },
+  { id: 'inventory', name: 'Inventory label', meta: '50 × 30 mm · parts & accessories' },
+];
+
+const TAG_FIELDS: Array<{ key: keyof TagPrefs; label: string }> = [
   { key: 'date', label: 'Date and time' },
   { key: 'ticket', label: 'Ticket number' },
   { key: 'customer', label: 'Customer name' },
@@ -47,7 +68,20 @@ const TAG_FIELDS: Array<{ key: keyof Omit<TagPrefs, 'size'>; label: string }> = 
   { key: 'price', label: 'Price and paid status' },
 ];
 
-const RECEIPT_FIELDS: Array<{ key: keyof ReceiptPrefs; label: string }> = [
+const DEVICE_FIELDS: Array<{ key: keyof DeviceLabelPrefs; label: string }> = [
+  { key: 'carrier', label: 'Carrier' },
+  { key: 'storage', label: 'Storage' },
+  { key: 'condition', label: 'Condition grade' },
+  { key: 'imei', label: 'IMEI / serial number' },
+  { key: 'price', label: 'Price' },
+];
+
+const INVENTORY_FIELDS: Array<{ key: keyof InventoryLabelPrefs; label: string }> = [
+  { key: 'sku', label: 'SKU' },
+  { key: 'price', label: 'Price' },
+];
+
+const RECEIPT_FIELDS: Array<{ key: 'store' | 'customer' | 'terms' | 'footer'; label: string }> = [
   { key: 'store', label: 'Store name, address and phone' },
   { key: 'customer', label: 'Customer' },
   { key: 'terms', label: 'Terms' },
@@ -66,6 +100,17 @@ const SAMPLE_TAG = {
   priceText: '$89.00',
   paid: false,
 };
+
+const SAMPLE_DEVICE = {
+  name: 'iPhone 13 Pro',
+  storage: '128GB',
+  carrier: 'Unlocked',
+  conditionGrade: 'B',
+  imei: '356789102345671',
+  priceCents: 37999,
+};
+
+const SAMPLE_INVENTORY = { name: 'iPhone 14 Screen — Incell', sku: 'SCR-14-INC', priceCents: 7999 };
 
 const chipStyle = (active: boolean) =>
   ({
@@ -136,9 +181,11 @@ function FieldToggle({ label, on, onToggle, note }: { label: string; on: boolean
 export function PrintCenterTab() {
   const isManager = session.user?.role === 'manager';
   const [tab, setTab] = useState<'templates' | 'queue' | 'printers'>('templates');
-  const [tpl, setTpl] = useState<'receipt' | 'tag'>('receipt');
+  const [tpl, setTpl] = useState<Tpl>('receipt');
   const [receipt, setReceipt] = useState<ReceiptPrefs>({ ...RECEIPT_DEFAULTS });
   const [tag, setTag] = useState<TagPrefs>({ ...TAG_DEFAULTS });
+  const [device, setDevice] = useState<DeviceLabelPrefs>({ ...DEVICE_LABEL_DEFAULTS });
+  const [inventory, setInventory] = useState<InventoryLabelPrefs>({ ...INVENTORY_LABEL_DEFAULTS });
   const [preview, setPreview] = useState('');
   const [queue, setQueue] = useState<QueueJob[]>([]);
   const [bridgeOnline, setBridgeOnline] = useState(false);
@@ -151,10 +198,14 @@ export function PrintCenterTab() {
   };
 
   useEffect(() => {
-    void api<{ settings?: { print?: { receipt?: ReceiptPrefs; tag?: TagPrefs } } }>('/api/settings/store')
+    void api<{
+      settings?: { print?: { receipt?: ReceiptPrefs; tag?: TagPrefs; device?: DeviceLabelPrefs; inventory?: InventoryLabelPrefs } };
+    }>('/api/settings/store')
       .then((s) => {
         setReceipt({ ...RECEIPT_DEFAULTS, ...s.settings?.print?.receipt });
         setTag({ ...TAG_DEFAULTS, ...s.settings?.print?.tag });
+        setDevice({ ...DEVICE_LABEL_DEFAULTS, ...s.settings?.print?.device });
+        setInventory({ ...INVENTORY_LABEL_DEFAULTS, ...s.settings?.print?.inventory });
       })
       .catch(() => {});
     void api<{ bridgeOnline: boolean }>('/api/print/status').then((s) => setBridgeOnline(s.bridgeOnline)).catch(() => {});
@@ -183,9 +234,9 @@ export function PrintCenterTab() {
     try {
       await api('/api/settings/store', {
         method: 'PUT',
-        body: JSON.stringify({ settings: { print: { receipt, tag } } }),
+        body: JSON.stringify({ settings: { print: { receipt, tag, device, inventory } } }),
       });
-      setLabelPrefs(tag);
+      setLabelPrefs({ tag, device, inventory });
       flash('Template saved.');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Save failed');
@@ -205,10 +256,12 @@ export function PrintCenterTab() {
     }
   }
 
-  function printSampleTag() {
-    setLabelPrefs(tag);
-    printTicketLabel(SAMPLE_TAG, { skipLog: true });
-    flash('Sample tag opened in the print dialog.');
+  function printSample() {
+    setLabelPrefs({ tag, device, inventory });
+    if (tpl === 'tag') printTicketLabel(SAMPLE_TAG, { skipLog: true });
+    else if (tpl === 'device') printDeviceLabel(SAMPLE_DEVICE, { skipLog: true });
+    else printInventoryLabel(SAMPLE_INVENTORY, { skipLog: true });
+    flash('Sample label opened in the print dialog.');
   }
 
   async function reprint(job: QueueJob) {
@@ -217,7 +270,7 @@ export function PrintCenterTab() {
       const r = await api<{ printed: boolean; label?: Record<string, unknown> }>(`/api/print/jobs/${job.id}/reprint`, {
         method: 'POST',
       });
-      if (r.label) printTicketLabel(r.label as never, { skipLog: true });
+      if (r.label) reprintLabelPayload(r.label);
       flash(r.printed ? `Reprinting — ${job.name}` : 'Print bridge offline — nothing printed.');
       refreshQueue();
     } catch (e) {
@@ -225,8 +278,13 @@ export function PrintCenterTab() {
     }
   }
 
-  const tagOn = (k: keyof Omit<TagPrefs, 'size'>) => tag[k] ?? TAG_DEFAULTS[k];
+  const tagOn = (k: keyof TagPrefs) => tag[k] ?? TAG_DEFAULTS[k];
+  const devOn = (k: keyof DeviceLabelPrefs) => device[k] ?? DEVICE_LABEL_DEFAULTS[k];
+  const invOn = (k: keyof InventoryLabelPrefs) => inventory[k] ?? INVENTORY_LABEL_DEFAULTS[k];
   const rcptOn = (k: 'store' | 'customer' | 'footer' | 'terms') => receipt[k] ?? RECEIPT_DEFAULTS[k];
+
+  const sizeText =
+    tpl === 'receipt' ? `${receipt.paper ?? 80}MM` : tpl === 'tag' ? '50 × 80 MM' : '50 × 30 MM';
 
   return (
     <div style={{ maxWidth: 1060 }}>
@@ -253,63 +311,56 @@ export function PrintCenterTab() {
           {/* template list */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <span style={sectionLabel}>TEMPLATES</span>
-            {(
-              [
-                ['receipt', 'Sales receipt', '80mm thermal · Rongta'],
-                ['tag', 'Repair claim tag', 'device sticker · Niimbot'],
-              ] as const
-            ).map(([id, name, meta]) => (
+            {TEMPLATES.map((t) => (
               <button
-                key={id}
-                onClick={() => setTpl(id)}
+                key={t.id}
+                onClick={() => setTpl(t.id)}
                 style={{
                   ...cardStyle,
                   textAlign: 'left',
-                  borderLeft: tpl === id ? '4px solid var(--orange)' : '4px solid transparent',
-                  background: tpl === id ? 'var(--line-soft)' : 'var(--card)',
+                  borderLeft: tpl === t.id ? '4px solid var(--orange)' : '4px solid transparent',
+                  background: tpl === t.id ? 'var(--line-soft)' : 'var(--card)',
                 }}
               >
-                <div style={{ font: '700 15px Inter, sans-serif' }}>{name}</div>
-                <div style={{ fontSize: 12.5, color: 'var(--ink-3)', marginTop: 2 }}>{meta}</div>
+                <div style={{ font: '700 15px Inter, sans-serif' }}>{t.name}</div>
+                <div style={{ fontSize: 12.5, color: 'var(--ink-3)', marginTop: 2 }}>{t.meta}</div>
               </button>
             ))}
           </div>
 
           {/* editor */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div style={cardStyle}>
-              <div style={{ ...sectionLabel, marginBottom: 10 }}>{tpl === 'receipt' ? 'PAPER WIDTH' : 'LABEL PRESET'}</div>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                {tpl === 'receipt'
-                  ? (
-                      [
-                        [80, '80mm', '42 chars · Rongta'],
-                        [58, '58mm', '32 chars · belt printer'],
-                      ] as const
-                    ).map(([mm, label, sub]) => (
-                      <button key={mm} onClick={() => setReceipt((p) => ({ ...p, paper: mm }))} style={chipStyle((receipt.paper ?? 80) === mm)}>
-                        <div>{label}</div>
-                        <div style={{ fontSize: 11, opacity: 0.75 }}>{sub}</div>
-                      </button>
-                    ))
-                  : (
-                      [
-                        ['50x30', '50 × 30 mm', 'standard tag'],
-                        ['50x80', '50 × 80 mm', 'tall tag · fits notes'],
-                      ] as const
-                    ).map(([sz, label, sub]) => (
-                      <button key={sz} onClick={() => setTag((p) => ({ ...p, size: sz }))} style={chipStyle((tag.size ?? '50x30') === sz)}>
-                        <div>{label}</div>
-                        <div style={{ fontSize: 11, opacity: 0.75 }}>{sub}</div>
-                      </button>
-                    ))}
+            {tpl === 'receipt' ? (
+              <div style={cardStyle}>
+                <div style={{ ...sectionLabel, marginBottom: 10 }}>PAPER WIDTH</div>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {(
+                    [
+                      [80, '80mm', '42 chars · Rongta'],
+                      [58, '58mm', '32 chars · belt printer'],
+                    ] as const
+                  ).map(([mm, label, sub]) => (
+                    <button key={mm} onClick={() => setReceipt((p) => ({ ...p, paper: mm }))} style={chipStyle((receipt.paper ?? 80) === mm)}>
+                      <div>{label}</div>
+                      <div style={{ fontSize: 11, opacity: 0.75 }}>{sub}</div>
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            ) : (
+              <div style={{ ...cardStyle, display: 'flex', alignItems: 'center', gap: 10 }}>
+                <i className="bi bi-tag" style={{ fontSize: 17, color: 'var(--ink-3)' }} />
+                <span style={{ font: '600 14.5px Inter, sans-serif' }}>
+                  {tpl === 'tag' ? '50 × 80 mm tall tag' : '50 × 30 mm label'}
+                </span>
+                <span style={{ fontSize: 12.5, color: 'var(--ink-4)', marginLeft: 'auto' }}>Fixed stock size</span>
+              </div>
+            )}
 
             <div style={cardStyle}>
               <div style={{ ...sectionLabel, marginBottom: 10 }}>FIELDS</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {tpl === 'receipt' ? (
+                {tpl === 'receipt' && (
                   <>
                     <FieldToggle label="Line items" on onToggle={() => {}} note="Required" />
                     <FieldToggle label="Totals and tax" on onToggle={() => {}} note="Required" />
@@ -317,8 +368,8 @@ export function PrintCenterTab() {
                       <FieldToggle
                         key={f.key}
                         label={f.label}
-                        on={Boolean(rcptOn(f.key as never))}
-                        onToggle={() => setReceipt((p) => ({ ...p, [f.key]: !rcptOn(f.key as never) }))}
+                        on={Boolean(rcptOn(f.key))}
+                        onToggle={() => setReceipt((p) => ({ ...p, [f.key]: !rcptOn(f.key) }))}
                       />
                     ))}
                     {rcptOn('terms') && (
@@ -330,10 +381,36 @@ export function PrintCenterTab() {
                       />
                     )}
                   </>
-                ) : (
+                )}
+                {tpl === 'tag' &&
                   TAG_FIELDS.map((f) => (
                     <FieldToggle key={f.key} label={f.label} on={tagOn(f.key)} onToggle={() => setTag((p) => ({ ...p, [f.key]: !tagOn(f.key) }))} />
-                  ))
+                  ))}
+                {tpl === 'device' && (
+                  <>
+                    <FieldToggle label="Device name and model" on onToggle={() => {}} note="Required" />
+                    {DEVICE_FIELDS.map((f) => (
+                      <FieldToggle
+                        key={f.key}
+                        label={f.label}
+                        on={devOn(f.key)}
+                        onToggle={() => setDevice((p) => ({ ...p, [f.key]: !devOn(f.key) }))}
+                      />
+                    ))}
+                  </>
+                )}
+                {tpl === 'inventory' && (
+                  <>
+                    <FieldToggle label="Product name" on onToggle={() => {}} note="Required" />
+                    {INVENTORY_FIELDS.map((f) => (
+                      <FieldToggle
+                        key={f.key}
+                        label={f.label}
+                        on={invOn(f.key)}
+                        onToggle={() => setInventory((p) => ({ ...p, [f.key]: !invOn(f.key) }))}
+                      />
+                    ))}
+                  </>
                 )}
               </div>
             </div>
@@ -358,7 +435,7 @@ export function PrintCenterTab() {
                   <i className="bi bi-printer" /> Test print
                 </Button>
               ) : (
-                <Button variant="secondary" onClick={printSampleTag}>
+                <Button variant="secondary" onClick={printSample}>
                   <i className="bi bi-tag" /> Print sample
                 </Button>
               )}
@@ -368,11 +445,9 @@ export function PrintCenterTab() {
 
           {/* live preview */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <span style={sectionLabel}>
-              LIVE PREVIEW · {tpl === 'receipt' ? `${receipt.paper ?? 80}MM` : (tag.size ?? '50x30') === '50x80' ? '50 × 80 MM' : '50 × 30 MM'}
-            </span>
+            <span style={sectionLabel}>LIVE PREVIEW · {sizeText}</span>
             <div style={{ background: 'var(--line-soft)', borderRadius: 12, padding: 16, display: 'flex', justifyContent: 'center' }}>
-              {tpl === 'receipt' ? (
+              {tpl === 'receipt' && (
                 <pre
                   style={{
                     margin: 0,
@@ -388,68 +463,109 @@ export function PrintCenterTab() {
                 >
                   {preview || 'Loading preview…'}
                 </pre>
-              ) : (
-                (() => {
-                  const tall = (tag.size ?? '50x30') === '50x80';
-                  const fs = tall
-                    ? { date: 13, tkt: 11, name: 20, phone: 17, dev: 14, rep: 14, pass: 13, small: 9.5, price: 18, status: 10 }
-                    : { date: 9.5, tkt: 8.5, name: 13.5, phone: 11.5, dev: 10.5, rep: 10.5, pass: 10, small: 8, price: 12, status: 8 };
-                  return (
-                    <div
-                      style={{
-                        width: 189,
-                        height: tall ? 302 : 113,
-                        background: '#fff',
-                        color: '#111',
-                        border: '1px solid var(--line)',
-                        borderRadius: 2,
-                        padding: tall ? '12px 12px' : '7px 9px',
-                        overflow: 'hidden',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: 1,
-                      }}
-                    >
-                      {tagOn('date') && <span style={{ fontSize: fs.date, fontWeight: 700 }}>08/31/26 3:58 PM</span>}
-                      {tagOn('ticket') && <span style={{ fontSize: fs.tkt, fontWeight: 700, color: '#555' }}>Ticket {SAMPLE_TAG.number}</span>}
-                      {tagOn('customer') && (
-                        <span style={{ fontSize: fs.name, fontWeight: 800, lineHeight: 1.05, letterSpacing: '-0.01em' }}>{SAMPLE_TAG.customer}</span>
-                      )}
-                      {tagOn('phone') && <span style={{ fontSize: fs.phone, fontWeight: 700 }}>{SAMPLE_TAG.phone}</span>}
-                      {(tagOn('date') || tagOn('ticket') || tagOn('customer') || tagOn('phone')) &&
-                        (tagOn('device') || tagOn('repair') || tagOn('passcode') || tagOn('notes') || tagOn('promise')) && (
-                          <span style={{ borderTop: '2px solid #111', margin: '4px 0' }} />
-                        )}
-                      {tagOn('device') && <span style={{ fontSize: fs.dev, fontWeight: 700 }}>{SAMPLE_TAG.device}</span>}
-                      {tagOn('repair') && (
-                        <span style={{ fontSize: fs.rep, fontWeight: 800, textTransform: 'uppercase', lineHeight: 1.1 }}>{SAMPLE_TAG.issue}</span>
-                      )}
-                      {tagOn('passcode') && <span style={{ fontSize: fs.pass, fontWeight: 700, marginTop: 2 }}>Passcode {SAMPLE_TAG.passcode}</span>}
-                      {tagOn('notes') && (
-                        <span style={{ fontSize: fs.small, lineHeight: 1.25, borderTop: '1px dotted #555', paddingTop: 3, marginTop: 3 }}>
-                          {SAMPLE_TAG.notes}
-                        </span>
-                      )}
-                      {tagOn('promise') && <span style={{ fontSize: fs.small, fontWeight: 600, marginTop: 2 }}>Promised: {SAMPLE_TAG.promised}</span>}
-                      <span style={{ flex: 1 }} />
-                      {tagOn('price') && (
-                        <span
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            gap: 6,
-                            border: '2px solid #111',
-                            padding: '3px 7px',
-                          }}
-                        >
-                          <span style={{ fontSize: fs.price, fontWeight: 800 }}>{SAMPLE_TAG.priceText}</span>
-                          <span style={{ fontSize: fs.status, fontWeight: 800, letterSpacing: '0.08em' }}>UNPAID</span>
-                        </span>
-                      )}
-                    </div>
-                  );
-                })()
+              )}
+              {tpl === 'tag' && (
+                <div
+                  style={{
+                    width: 189,
+                    height: 302,
+                    background: '#fff',
+                    color: '#111',
+                    border: '1px solid var(--line)',
+                    borderRadius: 2,
+                    padding: '12px 12px',
+                    overflow: 'hidden',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 1,
+                  }}
+                >
+                  {tagOn('date') && <span style={{ fontSize: 13, fontWeight: 700 }}>08/31/26 3:58 PM</span>}
+                  {tagOn('ticket') && <span style={{ fontSize: 11, fontWeight: 700, color: '#555' }}>Ticket {SAMPLE_TAG.number}</span>}
+                  {tagOn('customer') && (
+                    <span style={{ fontSize: 20, fontWeight: 800, lineHeight: 1.05, letterSpacing: '-0.01em' }}>{SAMPLE_TAG.customer}</span>
+                  )}
+                  {tagOn('phone') && <span style={{ fontSize: 17, fontWeight: 700 }}>{SAMPLE_TAG.phone}</span>}
+                  {(tagOn('date') || tagOn('ticket') || tagOn('customer') || tagOn('phone')) &&
+                    (tagOn('device') || tagOn('repair') || tagOn('passcode') || tagOn('notes') || tagOn('promise')) && (
+                      <span style={{ borderTop: '2px solid #111', margin: '4px 0' }} />
+                    )}
+                  {tagOn('device') && <span style={{ fontSize: 14, fontWeight: 700 }}>{SAMPLE_TAG.device}</span>}
+                  {tagOn('repair') && (
+                    <span style={{ fontSize: 14, fontWeight: 800, textTransform: 'uppercase', lineHeight: 1.1 }}>{SAMPLE_TAG.issue}</span>
+                  )}
+                  {tagOn('passcode') && <span style={{ fontSize: 13, fontWeight: 700, marginTop: 2 }}>Passcode {SAMPLE_TAG.passcode}</span>}
+                  {tagOn('notes') && (
+                    <span style={{ fontSize: 9.5, lineHeight: 1.25, borderTop: '1px dotted #555', paddingTop: 3, marginTop: 3 }}>
+                      {SAMPLE_TAG.notes}
+                    </span>
+                  )}
+                  {tagOn('promise') && <span style={{ fontSize: 9.5, fontWeight: 600, marginTop: 2 }}>Promised: {SAMPLE_TAG.promised}</span>}
+                  <span style={{ flex: 1 }} />
+                  {tagOn('price') && (
+                    <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, border: '2px solid #111', padding: '3px 7px' }}>
+                      <span style={{ fontSize: 18, fontWeight: 800 }}>{SAMPLE_TAG.priceText}</span>
+                      <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.08em' }}>UNPAID</span>
+                    </span>
+                  )}
+                </div>
+              )}
+              {tpl === 'device' && (
+                <div
+                  style={{
+                    width: 189,
+                    height: 113,
+                    background: '#fff',
+                    color: '#111',
+                    border: '1px solid var(--line)',
+                    borderRadius: 2,
+                    padding: '8px 10px',
+                    overflow: 'hidden',
+                    display: 'flex',
+                    flexDirection: 'column',
+                  }}
+                >
+                  <span style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'flex-start' }}>
+                    <span style={{ fontSize: 13.5, fontWeight: 800, lineHeight: 1.08, letterSpacing: '-0.01em' }}>{SAMPLE_DEVICE.name}</span>
+                    {devOn('price') && <span style={{ fontSize: 13.5, fontWeight: 800, whiteSpace: 'nowrap' }}>$379.99</span>}
+                  </span>
+                  {(devOn('carrier') || devOn('storage') || devOn('condition')) && (
+                    <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', marginTop: 4 }}>
+                      {[devOn('carrier') && SAMPLE_DEVICE.carrier, devOn('storage') && SAMPLE_DEVICE.storage, devOn('condition') && `Grade ${SAMPLE_DEVICE.conditionGrade}`]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </span>
+                  )}
+                  <span style={{ flex: 1 }} />
+                  {devOn('imei') && (
+                    <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textAlign: 'center', borderTop: '1px solid #111', paddingTop: 4 }}>
+                      {SAMPLE_DEVICE.imei}
+                    </span>
+                  )}
+                </div>
+              )}
+              {tpl === 'inventory' && (
+                <div
+                  style={{
+                    width: 189,
+                    height: 113,
+                    background: '#fff',
+                    color: '#111',
+                    border: '1px solid var(--line)',
+                    borderRadius: 2,
+                    padding: '8px 10px',
+                    overflow: 'hidden',
+                    display: 'flex',
+                    flexDirection: 'column',
+                  }}
+                >
+                  <span style={{ fontSize: 12.5, fontWeight: 700, lineHeight: 1.15 }}>{SAMPLE_INVENTORY.name}</span>
+                  <span style={{ flex: 1 }} />
+                  <span style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
+                    {invOn('sku') && <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.05em', color: '#333' }}>{SAMPLE_INVENTORY.sku}</span>}
+                    {invOn('price') && <span style={{ fontSize: 16, fontWeight: 800, marginLeft: 'auto' }}>$79.99</span>}
+                  </span>
+                </div>
               )}
             </div>
             <span style={{ fontSize: 12, color: 'var(--ink-4)' }}>
@@ -492,7 +608,7 @@ export function PrintCenterTab() {
           ))}
           {queue.length === 0 && <div style={{ color: 'var(--ink-4)', fontSize: 15, padding: '30px 0', textAlign: 'center' }}>Nothing printed yet today.</div>}
           <span style={{ fontSize: 12.5, color: 'var(--ink-4)', marginTop: 6 }}>
-            Any receipt or label can also be reprinted from its own record — the sale, the ticket, or the cart line.
+            Any receipt or label can also be reprinted from its own record — the sale, the ticket, or the inventory row.
           </span>
         </div>
       )}
@@ -507,16 +623,14 @@ export function PrintCenterTab() {
               status: bridgeOnline ? 'Connected' : 'Bridge offline',
               good: bridgeOnline,
               test: () => void testPrint(),
-              testLabel: 'Test',
             },
             {
               role: 'LABELS',
               printer: 'Niimbot',
-              sub: 'Prints through the browser dialog at the size picked in the claim-tag template. Native bridge printing comes after validating your model.',
+              sub: 'Claim tags print on 50 × 80, device and inventory labels on 50 × 30, through the browser dialog. Native bridge printing comes after validating your model.',
               status: 'Browser print',
               good: true,
-              test: printSampleTag,
-              testLabel: 'Test',
+              test: printSample,
             },
             {
               role: 'CASH DRAWER',
@@ -525,7 +639,6 @@ export function PrintCenterTab() {
               status: (receipt.kickDrawer ?? true) ? 'Kicks on cash' : 'Kick disabled',
               good: receipt.kickDrawer ?? true,
               test: null,
-              testLabel: '',
             },
           ].map((r) => (
             <div key={r.role} style={{ ...cardStyle, display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
@@ -547,7 +660,7 @@ export function PrintCenterTab() {
               </span>
               {r.test && (
                 <Button variant="secondary" disabled={r.role === 'RECEIPTS' && !isManager} onClick={r.test}>
-                  {r.testLabel}
+                  Test
                 </Button>
               )}
             </div>

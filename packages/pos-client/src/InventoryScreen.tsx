@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { formatCents, parseDollars } from '@fmp/shared';
 import { Button, DataTable, Modal, StatusChip, type Column } from '@fmp/ui';
 import { api, session } from './api';
+import { printDeviceLabel, printInventoryLabel, setLabelPrefs, type LabelPrefs } from './labels';
 
 interface Item {
   id: number;
@@ -87,8 +88,11 @@ export function InventoryScreen() {
   }, [tab]);
 
   useEffect(() => {
-    void api<{ name: string }>('/api/settings/store')
-      .then((s) => setStoreName(s.name))
+    void api<{ name: string; settings?: { print?: LabelPrefs } }>('/api/settings/store')
+      .then((s) => {
+        setStoreName(s.name);
+        setLabelPrefs(s.settings?.print);
+      })
       .catch(() => {});
   }, []);
 
@@ -179,20 +183,44 @@ export function InventoryScreen() {
       key: 'actions',
       label: '',
       align: 'right',
-      render: (r) =>
-        r.status !== 'sold' ? (
+      render: (r) => (
+        <span style={{ display: 'inline-flex', gap: 4 }}>
           <button
             onClick={(e) => {
               e.stopPropagation();
-              setAdjusting(r);
+              if (r.kind === 'device') {
+                printDeviceLabel({
+                  name: r.name,
+                  storage: r.storage,
+                  carrier: r.carrier,
+                  conditionGrade: r.conditionGrade,
+                  imei: r.imei,
+                  priceCents: r.priceCents,
+                });
+              } else {
+                printInventoryLabel({ name: r.name, sku: r.sku, priceCents: r.priceCents });
+              }
             }}
-            title={isManager ? 'Adjust / remove' : 'Manager only'}
-            disabled={!isManager}
-            style={{ border: 'none', background: 'none', color: isManager ? 'var(--ink-3)' : 'var(--line)', fontSize: 16 }}
+            title="Print label"
+            style={{ border: 'none', background: 'none', color: 'var(--ink-3)', fontSize: 15 }}
           >
-            <i className="bi bi-three-dots" />
+            <i className="bi bi-tag" />
           </button>
-        ) : null,
+          {r.status !== 'sold' && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setAdjusting(r);
+              }}
+              title={isManager ? 'Adjust / remove' : 'Manager only'}
+              disabled={!isManager}
+              style={{ border: 'none', background: 'none', color: isManager ? 'var(--ink-3)' : 'var(--line)', fontSize: 16 }}
+            >
+              <i className="bi bi-three-dots" />
+            </button>
+          )}
+        </span>
+      ),
     },
   ];
 

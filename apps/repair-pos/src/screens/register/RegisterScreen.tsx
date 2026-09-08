@@ -9,7 +9,7 @@ import { CustomerModal } from '@fmp/pos-client';
 import { InventoryPickerModal, type PickableItem } from '@fmp/pos-client';
 import { type PaymentDraft } from '@fmp/pos-client';
 import { NewRepairWindow, type CreatedTicket } from '../repairs/NewRepairWindow';
-import { printTicketLabel, setLabelPrefs, type TagPrefs } from '../repairs/labels';
+import { printTicketLabel, setLabelPrefs, type LabelPrefs } from '../repairs/labels';
 import { DepositModal } from '../repairs/DepositModal';
 import { TradeInModal } from './TradeInModal';
 import { PayoutModal } from './PayoutModal';
@@ -214,11 +214,11 @@ export function RegisterScreen() {
 
   useEffect(() => {
     void refreshSide();
-    void api<{ taxRateBp: number; settings?: { print?: { tag?: TagPrefs } } }>('/api/settings/store')
+    void api<{ taxRateBp: number; settings?: { print?: LabelPrefs } }>('/api/settings/store')
       .then((s) => {
         cachedTaxRateBp = s.taxRateBp;
         setTaxRateBp(s.taxRateBp);
-        setLabelPrefs(s.settings?.print?.tag);
+        setLabelPrefs(s.settings?.print);
       })
       .catch(() => {});
     // resume support: PendingSales stashes a sale here before navigating over
