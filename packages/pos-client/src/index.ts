@@ -1,5 +1,5 @@
 export { adoptSessionFromHash, api, ApiError, session, switchSystemUrl, type PosSystem } from './api';
-export { lineKey, type CartCustomer, type CartLine } from './cart';
+export { formatPhoneInput, lineKey, type CartCustomer, type CartLine } from './cart';
 export { PinScreen } from './PinScreen';
 export { CustomItemModal } from './CustomItemModal';
 export { PaymentModal, type PaymentDraft } from './PaymentModal';

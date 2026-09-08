@@ -31,3 +31,22 @@
   --color-amber-bg: #fdf3e1;
   --color-amber: #b45309;
 }
+
+/* Slim rounded scrollbar for horizontal strips (recent transactions, etc.) */
+.fmp-hscroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
+}
+.fmp-hscroll::-webkit-scrollbar {
+  height: 7px;
+}
+.fmp-hscroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.fmp-hscroll::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: 999px;
+}
+.fmp-hscroll::-webkit-scrollbar-thumb:hover {
+  background: var(--ink-4);
+}

@@ -2,6 +2,7 @@
 import { formatCents } from '@fmp/shared';
 import { Button, DataTable, Modal, StatusChip } from '@fmp/ui';
 import { api } from './api';
+import { formatPhoneInput } from './cart';
 import { SidePanel } from './SidePanel';
 
 interface CustomerRow {
@@ -243,7 +244,10 @@ export function CustomersScreen() {
           <input
             key={f}
             value={form[f]}
-            onChange={(e) => setForm((prev) => ({ ...prev, [f]: e.target.value }))}
+            onChange={(e) =>
+              setForm((prev) => ({ ...prev, [f]: f === 'phone' ? formatPhoneInput(e.target.value) : e.target.value }))
+            }
+            inputMode={f === 'phone' ? 'tel' : undefined}
             placeholder={f === 'name' ? 'Full name *' : f[0]!.toUpperCase() + f.slice(1)}
             style={{ width: '100%', marginTop: 10, padding: '11px 13px', borderRadius: 10, border: '1px solid var(--line)', fontSize: 15 }}
           />

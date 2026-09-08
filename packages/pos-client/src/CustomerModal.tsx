@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Button, Modal } from '@fmp/ui';
 import { api } from './api';
-import type { CartCustomer } from './cart';
+import { formatPhoneInput, type CartCustomer } from './cart';
 
 /** Find-or-create customer, used to attach a customer to the sale. */
 export function CustomerModal({
@@ -94,7 +94,8 @@ export function CustomerModal({
           />
           <input
             value={phone}
-            onChange={(e) => setPhone(e.target.value)}
+            onChange={(e) => setPhone(formatPhoneInput(e.target.value))}
+            inputMode="tel"
             placeholder="Phone"
             style={{ width: '100%', marginTop: 8, padding: '11px 13px', borderRadius: 10, border: '1px solid var(--line)', fontSize: 15 }}
           />

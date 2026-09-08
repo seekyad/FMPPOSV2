@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { computeTotals, formatCents } from '@fmp/shared';
-import { api, session } from '@fmp/pos-client';
+import { api, formatPhoneInput, session } from '@fmp/pos-client';
 import type { CartCustomer } from '@fmp/pos-client';
 
 export interface CatalogService {
@@ -480,7 +480,13 @@ export function NewRepairWindow({
                 <label className="mt-3 block">
                   <span className={labelCls}>Phone number *</span>
                   <div className="relative">
-                    <input value={custPhone} onChange={(e) => setCustPhone(e.target.value)} placeholder="(___) ___-____" className={inputCls} />
+                    <input
+                      value={custPhone}
+                      onChange={(e) => setCustPhone(formatPhoneInput(e.target.value))}
+                      inputMode="tel"
+                      placeholder="(___) ___-____"
+                      className={inputCls}
+                    />
                     <i className="bi bi-search absolute top-1/2 right-3.5 -translate-y-1/2 text-[14px] text-ink-4" />
                   </div>
                 </label>

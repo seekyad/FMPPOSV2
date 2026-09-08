@@ -63,6 +63,7 @@ interface RecentSale {
   createdAt: string;
   completedAt: string | null;
   customerName: string | null;
+  customerPhone: string | null;
   lineSummary: string | null;
 }
 
@@ -571,7 +572,7 @@ export function RegisterScreen() {
         <div style={{ font: '600 11.5px Inter, sans-serif', color: 'var(--ink-4)', letterSpacing: '0.08em', margin: '14px 0 7px' }}>
           RECENT TRANSACTIONS
         </div>
-        <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 6 }}>
+        <div className="fmp-hscroll" style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 8, flexShrink: 0 }}>
           {recent.map((s) => (
             <button
               key={s.id}
@@ -579,16 +580,24 @@ export function RegisterScreen() {
               style={{
                 flex: '1 0 250px',
                 maxWidth: 360,
+                minHeight: 128,
+                display: 'flex',
+                flexDirection: 'column',
                 textAlign: 'left',
                 background: 'var(--card)',
                 borderRadius: 12,
                 border: '1px solid var(--line-soft)',
-                padding: '12px 16px',
+                padding: '14px 17px',
                 boxShadow: 'var(--shadow-card)',
               }}
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'flex-start' }}>
-                <span style={{ font: '700 15.5px Inter, sans-serif' }}>{s.customerName ?? 'Walk-in'}</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'flex-start', width: '100%' }}>
+                <span style={{ minWidth: 0 }}>
+                  <div style={{ font: '700 15.5px Inter, sans-serif' }}>{s.customerName ?? 'Walk-in'}</div>
+                  {s.customerPhone && (
+                    <div style={{ fontSize: 13.5, color: 'var(--ink-2)', marginTop: 1 }}>{s.customerPhone}</div>
+                  )}
+                </span>
                 <span style={{ textAlign: 'right', flexShrink: 0 }}>
                   <div style={{ fontSize: 12.5, color: 'var(--ink-4)' }}>
                     {new Date(s.completedAt ?? s.createdAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
@@ -598,17 +607,18 @@ export function RegisterScreen() {
               </div>
               <div
                 style={{
-                  fontSize: 13,
+                  fontSize: 13.5,
                   color: 'var(--ink-2)',
-                  marginTop: 2,
+                  marginTop: 4,
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
                   whiteSpace: 'nowrap',
+                  maxWidth: '100%',
                 }}
               >
                 {s.lineSummary ?? '—'}
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto', paddingTop: 8, width: '100%' }}>
                 <span style={{ font: '700 17px Inter, sans-serif' }}>{formatCents(s.totalCents)}</span>
                 <span style={{ fontSize: 12.5, color: 'var(--orange)', fontWeight: 600 }}>
                   <i className="bi bi-receipt" /> Receipt

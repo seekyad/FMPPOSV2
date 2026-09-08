@@ -355,6 +355,7 @@ salesRouter.get('/recent', async (req, res) => {
     .select({
       sale: schema.sales,
       customerName: schema.customers.name,
+      customerPhone: schema.customers.phone,
       lineSummary: sql<string>`(select string_agg(l.description, ', ') from sale_lines l where l.sale_id = ${schema.sales.id})`,
     })
     .from(schema.sales)
@@ -368,7 +369,9 @@ salesRouter.get('/recent', async (req, res) => {
     )
     .orderBy(desc(schema.sales.createdAt))
     .limit(30);
-  res.json(rows.map((r) => ({ ...r.sale, customerName: r.customerName, lineSummary: r.lineSummary })));
+  res.json(
+    rows.map((r) => ({ ...r.sale, customerName: r.customerName, customerPhone: r.customerPhone, lineSummary: r.lineSummary })),
+  );
 });
 
 salesRouter.get('/:id', async (req, res) => {
@@ -399,7 +402,8 @@ salesRouter.get('/:id/receipt', async (req, res) => {
     .select()
     .from(schema.payments)
     .where(and(eq(schema.payments.saleId, id), isNull(schema.payments.ticketId)));
-  const [cashier] = await db.select().from(schema.users).where(eq(schema.users.id, sale.userId));
+  const [cashier] =
+    sale.userId == null ? [] : await db.select().from(schema.users).where(eq(schema.users.id, sale.userId));
   const receipt = await buildReceipt(db, sale.storeId, cashier?.name ?? '', sale, lines, paymentRows);
   res.json({ receiptText: receiptText(receipt) });
 });
@@ -418,7 +422,8 @@ salesRouter.post('/:id/print', async (req, res) => {
     .select()
     .from(schema.payments)
     .where(and(eq(schema.payments.saleId, id), isNull(schema.payments.ticketId)));
-  const [cashier] = await db.select().from(schema.users).where(eq(schema.users.id, sale.userId));
+  const [cashier] =
+    sale.userId == null ? [] : await db.select().from(schema.users).where(eq(schema.users.id, sale.userId));
   const receipt = await buildReceipt(db, sale.storeId, cashier?.name ?? '', sale, lines, paymentRows);
   const printed = emitBridge(req, { kind: 'receipt', escposBase64: receiptEscpos(receipt, false) });
   res.json({ printed });
