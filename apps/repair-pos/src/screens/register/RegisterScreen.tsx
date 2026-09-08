@@ -277,6 +277,50 @@ export function RegisterScreen() {
     { icon: 'bi-plus-circle', title: 'Custom item', caption: 'Use the ring-up pad above', bg: 'var(--card)', onClick: () => ringUpRef.current?.focus() },
   ];
 
+  /** Square footer tiles under the cart: On Hold / Repairs / Clear / Hold sale. */
+  const footerTile = (opts: {
+    label: string;
+    icon: string;
+    badge?: number;
+    badgeBg?: string;
+    navy?: boolean;
+    red?: boolean;
+    disabled?: boolean;
+    onClick?: () => void;
+  }) => (
+    <button
+      key={opts.label}
+      onClick={opts.onClick}
+      disabled={opts.disabled}
+      style={{
+        aspectRatio: '1',
+        width: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 9,
+        borderRadius: 16,
+        border: opts.navy ? '1px solid var(--navy)' : '1px solid var(--line)',
+        background: opts.navy ? 'var(--navy)' : 'var(--card)',
+        color: opts.navy ? '#fff' : opts.red && !opts.disabled ? 'var(--red)' : opts.disabled ? 'var(--ink-4)' : 'var(--ink)',
+        font: '600 16.5px Inter, sans-serif',
+        opacity: opts.disabled ? 0.55 : 1,
+        boxShadow: 'var(--shadow-card)',
+      }}
+    >
+      <i className={`bi ${opts.icon}`} style={{ fontSize: 29 }} />
+      <span>
+        {opts.label}
+        {opts.badge != null && (
+          <span style={{ marginLeft: 8, background: opts.badgeBg, borderRadius: 999, padding: '1px 9px', fontSize: 13 }}>
+            {opts.badge}
+          </span>
+        )}
+      </span>
+    </button>
+  );
+
   /** Big tiles above the register: icon badge + text filling the row. */
   const renderPrimary = (a: (typeof smartActions)[number], iconColor: string) => (
     <button
@@ -688,44 +732,20 @@ export function RegisterScreen() {
 
         <div style={{ borderTop: '1px solid var(--line-soft)', padding: '12px 20px 16px' }}>
           {error && <div style={{ color: 'var(--red)', fontSize: 14, marginBottom: 8 }}>{error}</div>}
-          <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
-            <Link to="/pending" style={{ flex: 1, textDecoration: 'none' }}>
-              <Button variant="secondary" style={{ width: '100%' }}>
-                On Hold{' '}
-                <span style={{ background: 'var(--line-soft)', borderRadius: 999, padding: '1px 8px', fontSize: 12.5 }}>
-                  {parkedCount}
-                </span>
-              </Button>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <Link to="/pending" style={{ textDecoration: 'none', display: 'grid' }}>
+              {footerTile({ label: 'On Hold', icon: 'bi-clock-history', badge: parkedCount, badgeBg: 'var(--line-soft)' })}
             </Link>
-            <Link to="/repairs" style={{ flex: 1, textDecoration: 'none' }}>
-              <Button variant="dark" style={{ width: '100%' }}>
-                Repairs{' '}
-                <span style={{ background: 'var(--orange)', borderRadius: 999, padding: '1px 8px', fontSize: 12.5 }}>
-                  {takenIn.length}
-                </span>
-              </Button>
+            <Link to="/repairs" style={{ textDecoration: 'none', display: 'grid' }}>
+              {footerTile({ label: 'Repairs', icon: 'bi-wrench-adjustable', badge: takenIn.length, badgeBg: 'var(--orange)', navy: true })}
             </Link>
-          </div>
-          <div style={{ display: 'flex', gap: 10 }}>
-            <button
-              onClick={clearSale}
-              disabled={lines.length === 0}
-              style={{
-                flex: 1,
-                border: '1px solid var(--line)',
-                background: 'var(--card)',
-                color: lines.length === 0 ? 'var(--ink-4)' : 'var(--red)',
-                borderRadius: 11,
-                minHeight: 52,
-                font: '600 17px Inter, sans-serif',
-                opacity: lines.length === 0 ? 0.5 : 1,
-              }}
-            >
-              Clear
-            </button>
-            <Button variant="secondary" size="lg" style={{ flex: 1 }} disabled={lines.length === 0 || busy} onClick={() => void park()}>
-              Hold sale
-            </Button>
+            {footerTile({ label: 'Clear', icon: 'bi-x-circle', red: true, disabled: lines.length === 0, onClick: clearSale })}
+            {footerTile({
+              label: 'Hold sale',
+              icon: 'bi-pause-circle',
+              disabled: lines.length === 0 || busy,
+              onClick: () => void park(),
+            })}
           </div>
         </div>
       </div>
