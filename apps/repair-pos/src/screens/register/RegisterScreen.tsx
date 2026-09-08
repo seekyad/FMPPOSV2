@@ -205,6 +205,7 @@ export function RegisterScreen() {
           ticketId: ticket.id,
         })),
       ]);
+      setCustomer((prev) => prev ?? ticket.customer);
     }
     void refreshSide();
   }

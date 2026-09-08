@@ -148,7 +148,7 @@ export function RepairsScreen() {
         'fmp.resumeSale',
         JSON.stringify({
           id: null,
-          customer: null,
+          customer: ticket.customer,
           lines: ticket.lines.map((l) => ({
             kind: 'repair',
             description: `${ticket.number} · ${l.description}`,
@@ -432,7 +432,9 @@ export function RepairsScreen() {
                   <Button variant="primary" onClick={() => {
                     sessionStorage.setItem('fmp.resumeSale', JSON.stringify({
                       id: null,
-                      customer: detail.customer ? { id: detail.customer.id, name: detail.customer.name } : null,
+                      customer: detail.customer
+                        ? { id: detail.customer.id, name: detail.customer.name, phone: detail.customer.phone }
+                        : null,
                       lines: [{
                         kind: 'repair',
                         description: `${detail.ticket.number} · balance`,

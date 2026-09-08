@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { computeTotals, formatCents } from '@fmp/shared';
 import { api, formatPhoneInput, session } from '@fmp/pos-client';
 import type { CartCustomer } from '@fmp/pos-client';
+import { printTicketLabel } from './labels';
 
 export interface CatalogService {
   id: number;
@@ -46,6 +47,9 @@ export interface CreatedTicket {
   id: number;
   number: string;
   totalCents: number;
+  customer: CartCustomer;
+  deviceSummary: string;
+  serviceSummary: string;
   lines: Array<{ description: string; priceCents: number }>;
 }
 
@@ -94,6 +98,7 @@ export function NewRepairWindow({
   const [activeBrand, setActiveBrand] = useState<string | null>(null);
   const [activeFamily, setActiveFamily] = useState<string | null>(null);
   const [showPasscode, setShowPasscode] = useState(false);
+  const [printLabel, setPrintLabel] = useState(true);
   const [draftSaved, setDraftSaved] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -327,7 +332,7 @@ export function NewRepairWindow({
     }
     setBusy(true);
     try {
-      const res = await api<{ ticket: { id: number; number: string; totalCents: number } }>('/api/repairs', {
+      const res = await api<{ ticket: { id: number; number: string; totalCents: number; customerId: number } }>('/api/repairs', {
         method: 'POST',
         body: JSON.stringify({
           customerId: customer?.id ?? null,
@@ -353,11 +358,28 @@ export function NewRepairWindow({
           })),
         }),
       });
+      const cust: CartCustomer =
+        customer ?? { id: res.ticket.customerId, name: custName.trim(), phone: custPhone.trim() || null };
+      const deviceSummary = devices.map((d) => d.label).join(' + ');
+      const serviceSummary = lines
+        .map((l) => (l.tierLabel ? `${l.description} (${l.tierLabel})` : l.description))
+        .join(', ');
+      if (printLabel) {
+        printTicketLabel({
+          number: res.ticket.number,
+          customer: cust.name,
+          device: deviceSummary,
+          issue: serviceSummary,
+        });
+      }
       onCreated(
         {
           id: res.ticket.id,
           number: res.ticket.number,
           totalCents: res.ticket.totalCents,
+          customer: cust,
+          deviceSummary,
+          serviceSummary,
           lines: lines.map((l) => ({
             description: l.tierLabel ? `${l.description} (${l.tierLabel})` : l.description,
             priceCents: l.priceCents,
@@ -886,6 +908,18 @@ export function NewRepairWindow({
             </div>
             {error && <div className="mt-1 text-[13px] font-semibold text-red">{error}</div>}
           </div>
+          <button
+            onClick={() => setPrintLabel((v) => !v)}
+            className="flex items-center gap-2.5 rounded-xl border border-line bg-card px-4 py-3 text-left"
+          >
+            <i className={`bi ${printLabel ? 'bi-check-square-fill text-orange' : 'bi-square text-ink-4'} text-[17px]`} />
+            <span>
+              <span className="block text-[14.5px] font-bold text-ink">
+                <i className="bi bi-tag" /> Print label
+              </span>
+              <span className="block text-[12px] text-ink-4">Device tag when saved</span>
+            </span>
+          </button>
           <button
             onClick={() => void submit('board')}
             disabled={busy}
