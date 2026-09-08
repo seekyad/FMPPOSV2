@@ -162,7 +162,7 @@ export function SalesScreen() {
           totalCents={totals.totalCents}
           customer={customer}
           busy={busy}
-          taxRemovedInSale={lines.some((l) => l.kind === 'custom' && !l.taxable)}
+          taxRemovedInSale={lines.some((l) => !l.taxable)}
           onAdd={(item) =>
             setLines((prev) => [...prev, { key: lineKey(), kind: 'custom', qty: 1, discountCents: 0, ...item }])
           }
@@ -270,20 +270,35 @@ export function SalesScreen() {
                     </button>
                   </span>
                 )}
-                <button
-                  onClick={() => setLines((p) => p.filter((x) => x.key !== l.key))}
-                  style={{
-                    marginLeft: 'auto',
-                    border: 'none',
-                    background: 'var(--red-bg)',
-                    color: 'var(--red)',
-                    borderRadius: 8,
-                    padding: '6px 14px',
-                    font: '600 13px Inter, sans-serif',
-                  }}
-                >
-                  Remove
-                </button>
+                <span style={{ marginLeft: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+                  <button
+                    onClick={() => setLines((p) => p.filter((x) => x.key !== l.key))}
+                    style={{
+                      border: 'none',
+                      background: 'var(--red-bg)',
+                      color: 'var(--red)',
+                      borderRadius: 8,
+                      padding: '6px 14px',
+                      font: '600 13px Inter, sans-serif',
+                    }}
+                  >
+                    Remove
+                  </button>
+                  <button
+                    onClick={() => setLines((p) => p.map((x) => (x.key === l.key ? { ...x, taxable: !x.taxable } : x)))}
+                    title={l.taxable ? 'Tap to remove tax from this item (logged, cash only)' : 'Tax removed — tap to add it back'}
+                    style={{
+                      border: 'none',
+                      background: l.taxable ? 'var(--orange-soft)' : 'var(--line-soft)',
+                      color: l.taxable ? 'var(--orange)' : 'var(--ink-4)',
+                      borderRadius: 8,
+                      padding: '6px 14px',
+                      font: '600 13px Inter, sans-serif',
+                    }}
+                  >
+                    {l.taxable ? `Tax ${(taxRateBp / 100).toFixed(taxRateBp % 100 === 0 ? 0 : 2)}%` : 'No tax'}
+                  </button>
+                </span>
               </div>
             </div>
           ))}

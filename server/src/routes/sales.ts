@@ -277,8 +277,8 @@ salesRouter.post('/complete', async (req, res) => {
 
   await audit(db, req, 'sale.complete', 'sale', sale.id, { total: totals.totalCents });
 
-  // Custom items rung up with the tax toggle turned off are audited by name.
-  const taxRemoved = lines.filter((l) => l.kind === 'custom' && !l.taxable);
+  // Items sold with the tax toggle turned off are audited by name.
+  const taxRemoved = lines.filter((l) => !l.taxable);
   if (taxRemoved.length > 0) {
     await audit(db, req, 'sale.tax_removed', 'sale', sale.id, {
       lines: taxRemoved.map((l) => ({

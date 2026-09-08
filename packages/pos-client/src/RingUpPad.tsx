@@ -7,6 +7,8 @@ import type { PaymentDraft } from './PaymentModal';
 
 export interface RingUpPadHandle {
   focus: () => void;
+  /** set the description used for the next punched-in item (from the search bar or preset buttons) */
+  setDescription: (text: string) => void;
 }
 
 export interface RingUpItem {
@@ -33,13 +35,27 @@ export const RingUpPad = forwardRef<
     busy: boolean;
     /** true when the sale contains an item rung up with tax removed — card and tap are blocked */
     taxRemovedInSale?: boolean;
+    /** false hides the pad's own description/preset row (the parent provides them, e.g. via the search bar) */
+    showItemOptions?: boolean;
     onAdd: (item: RingUpItem) => void;
     /** card fast path: parent adds the pending item (if any) and completes as card */
     onCollectCard: (item: RingUpItem | null) => void;
     onComplete: (payments: PaymentDraft[]) => void;
   }
 >(function RingUpPad(
-  { taxRateBp, subtotalCents, taxCents, totalCents, customer, busy, taxRemovedInSale = false, onAdd, onCollectCard, onComplete },
+  {
+    taxRateBp,
+    subtotalCents,
+    taxCents,
+    totalCents,
+    customer,
+    busy,
+    taxRemovedInSale = false,
+    showItemOptions = true,
+    onAdd,
+    onCollectCard,
+    onComplete,
+  },
   ref,
 ) {
   const [mode, setMode] = useState<'entry' | 'tender'>('entry');
@@ -62,6 +78,10 @@ export const RingUpPad = forwardRef<
     focus() {
       containerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       descRef.current?.focus();
+    },
+    setDescription(text: string) {
+      setDescription(text);
+      containerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     },
   }));
 
@@ -261,11 +281,11 @@ export const RingUpPad = forwardRef<
         <div className="flex min-w-[300px] flex-1 flex-col gap-2.5">
         {mode === 'entry' ? (
           <>
-            <div className="flex flex-1 flex-col rounded-xl bg-line-soft px-4 py-3.5">
+            <div className="flex flex-col rounded-xl bg-line-soft px-4 py-3.5">
               <div className="text-[13px] font-semibold tracking-wide text-ink-3">
                 AMOUNT — TYPE ON KEYPAD OR TAP A QUICK AMOUNT
               </div>
-              <div className="mt-3 grid flex-1 grid-cols-[repeat(auto-fit,minmax(76px,1fr))] gap-2.5">
+              <div className="mt-3 grid grid-cols-[repeat(auto-fit,minmax(76px,1fr))] gap-2.5">
                 {QUICK_AMOUNTS.map((v) => (
                   <button
                     key={v}
@@ -279,82 +299,95 @@ export const RingUpPad = forwardRef<
                 ))}
               </div>
             </div>
-            <div className="flex flex-wrap items-center gap-2.5">
-              <input
-                ref={descRef}
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Description (optional)"
-                className="min-w-[160px] flex-1 rounded-[10px] border border-line bg-card px-3.5 py-3 text-[15px] text-ink placeholder:text-ink-4 focus:border-orange focus:outline-none"
-              />
-              {['Accessory', 'Service fee'].map((preset) => {
-                const active = description === preset;
-                return (
-                  <button
-                    key={preset}
-                    onClick={() => setDescription(active ? '' : preset)}
-                    className={`min-h-[46px] shrink-0 rounded-xl px-3.5 text-[14px] font-semibold ${
-                      active ? 'bg-navy text-white' : 'border border-line bg-card text-ink-2'
-                    }`}
-                  >
-                    {preset}
+            {showItemOptions ? (
+              <div className="flex flex-wrap items-center gap-2.5">
+                <input
+                  ref={descRef}
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Description (optional)"
+                  className="min-w-[160px] flex-1 rounded-[10px] border border-line bg-card px-3.5 py-3 text-[15px] text-ink placeholder:text-ink-4 focus:border-orange focus:outline-none"
+                />
+                {['Accessory', 'Service fee'].map((preset) => {
+                  const active = description === preset;
+                  return (
+                    <button
+                      key={preset}
+                      onClick={() => setDescription(active ? '' : preset)}
+                      className={`min-h-[46px] shrink-0 rounded-xl px-3.5 text-[14px] font-semibold ${
+                        active ? 'bg-navy text-white' : 'border border-line bg-card text-ink-2'
+                      }`}
+                    >
+                      {preset}
+                    </button>
+                  );
+                })}
+                <button
+                  onClick={() => setTaxable((t) => !t)}
+                  title={taxable ? 'Tap to remove tax from this item (logged)' : 'Tax removed — tap to add it back'}
+                  className={`flex min-h-[46px] shrink-0 items-center gap-1.5 rounded-xl px-3.5 text-[14px] font-semibold select-none ${
+                    taxable ? 'bg-orange-soft text-orange' : 'border border-line bg-card text-ink-4'
+                  }`}
+                >
+                  <i className="bi bi-percent text-[16px]" />
+                  <span className={taxable ? '' : 'line-through'}>
+                    Tax {(taxRateBp / 100).toFixed(taxRateBp % 100 === 0 ? 0 : 2)}%
+                  </span>
+                </button>
+              </div>
+            ) : description ? (
+              <div className="flex items-center">
+                <span className="flex min-h-[46px] items-center gap-2.5 rounded-xl bg-orange-soft px-4 text-[15.5px] font-semibold text-orange">
+                  {description}
+                  <button onClick={() => setDescription('')} title="Clear description">
+                    <i className="bi bi-x-lg" />
                   </button>
-                );
-              })}
-              <button
-                onClick={() => setTaxable((t) => !t)}
-                title={taxable ? 'Tap to remove tax from this item (logged)' : 'Tax removed — tap to add it back'}
-                className={`flex min-h-[46px] shrink-0 items-center gap-1.5 rounded-xl px-3.5 text-[14px] font-semibold select-none ${
-                  taxable ? 'bg-orange-soft text-orange' : 'border border-line bg-card text-ink-4'
-                }`}
-              >
-                <i className="bi bi-percent text-[16px]" />
-                <span className={taxable ? '' : 'line-through'}>
-                  Tax {(taxRateBp / 100).toFixed(taxRateBp % 100 === 0 ? 0 : 2)}%
                 </span>
-              </button>
-            </div>
+              </div>
+            ) : null}
             <div className="mt-auto flex flex-wrap gap-2.5">
               <button
                 onClick={add}
                 disabled={cents <= 0}
-                className={`flex min-h-[60px] min-w-[220px] flex-[2] items-center justify-center gap-2 rounded-xl text-[17px] font-bold whitespace-nowrap ${
+                className={`flex min-h-[84px] min-w-[220px] flex-[2] items-center justify-center gap-2 rounded-xl text-[21px] font-bold whitespace-nowrap ${
                   cents <= 0 ? disabledBtn : 'bg-orange text-white'
                 }`}
               >
                 <i className="bi bi-plus-lg" /> Add to sale
               </button>
-              <button
-                onClick={startTender}
-                disabled={busy || (totalCents <= 0 && cents <= 0)}
-                className={`flex min-h-[60px] min-w-[84px] flex-1 flex-col items-center justify-center rounded-xl text-[15.5px] font-bold ${
-                  busy || (totalCents <= 0 && cents <= 0) ? disabledBtn : 'bg-green text-white'
-                }`}
-              >
-                <i className="bi bi-cash text-[19px]" /> Cash
-              </button>
-              <button
-                onClick={() => {
-                  onCollectCard(currentItem());
-                  resetEntry();
-                }}
-                disabled={busy || (totalCents <= 0 && cents <= 0) || cardBlocked}
-                title={cardBlocked ? 'Tax was removed — cash only' : undefined}
-                className={`flex min-h-[60px] min-w-[84px] flex-1 flex-col items-center justify-center rounded-xl text-[15.5px] font-bold ${
-                  busy || (totalCents <= 0 && cents <= 0) || cardBlocked ? disabledBtn : 'bg-navy text-white'
-                }`}
-              >
-                <i className="bi bi-credit-card text-[19px]" /> Card
-              </button>
-              <button
-                onClick={startTender}
-                disabled={busy || (totalCents <= 0 && cents <= 0)}
-                className={`flex min-h-[60px] min-w-[84px] flex-1 flex-col items-center justify-center rounded-xl text-[15.5px] font-bold ${
-                  busy || (totalCents <= 0 && cents <= 0) ? disabledBtn : 'border-2 border-navy bg-card text-navy'
-                }`}
-              >
-                <i className="bi bi-layout-split text-[19px]" /> Split
-              </button>
+              <div className="flex flex-1 gap-2.5">
+                <button
+                  onClick={startTender}
+                  disabled={busy || (totalCents <= 0 && cents <= 0)}
+                  className={`flex min-h-[84px] min-w-[92px] flex-1 flex-col items-center justify-center rounded-xl text-[18px] font-bold ${
+                    busy || (totalCents <= 0 && cents <= 0) ? disabledBtn : 'bg-green text-white'
+                  }`}
+                >
+                  <i className="bi bi-cash text-[24px]" /> Cash
+                </button>
+                <button
+                  onClick={() => {
+                    onCollectCard(currentItem());
+                    resetEntry();
+                  }}
+                  disabled={busy || (totalCents <= 0 && cents <= 0) || cardBlocked}
+                  title={cardBlocked ? 'Tax was removed — cash only' : undefined}
+                  className={`flex min-h-[84px] min-w-[92px] flex-1 flex-col items-center justify-center rounded-xl text-[18px] font-bold ${
+                    busy || (totalCents <= 0 && cents <= 0) || cardBlocked ? disabledBtn : 'bg-navy text-white'
+                  }`}
+                >
+                  <i className="bi bi-credit-card text-[24px]" /> Card
+                </button>
+                <button
+                  onClick={startTender}
+                  disabled={busy || (totalCents <= 0 && cents <= 0)}
+                  className={`flex min-h-[84px] min-w-[110px] flex-1 flex-col items-center justify-center rounded-xl text-[18px] font-bold whitespace-nowrap ${
+                    busy || (totalCents <= 0 && cents <= 0) ? disabledBtn : 'border-2 border-navy bg-card text-navy'
+                  }`}
+                >
+                  <i className="bi bi-layout-split text-[24px]" /> Cash split
+                </button>
+              </div>
             </div>
           </>
         ) : (

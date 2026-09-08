@@ -301,7 +301,34 @@ export function RegisterScreen() {
           </div>
         </div>
 
-        <SearchBar onAddItem={addItem} onPickCustomer={(c) => setCustomer(c)} />
+        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <SearchBar
+              onAddItem={addItem}
+              onPickCustomer={(c) => setCustomer(c)}
+              onUseDescription={(text) => ringUpRef.current?.setDescription(text)}
+            />
+          </div>
+          {['Accessory', 'Service fee'].map((preset) => (
+            <button
+              key={preset}
+              onClick={() => ringUpRef.current?.setDescription(preset)}
+              style={{
+                marginTop: 16,
+                minHeight: 45,
+                borderRadius: 12,
+                border: '1px solid var(--line)',
+                background: 'var(--card)',
+                color: 'var(--ink)',
+                padding: '0 18px',
+                font: '600 14.5px Inter, sans-serif',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {preset}
+            </button>
+          ))}
+        </div>
 
         {/* Primary actions live right above the register */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginTop: 16 }}>
@@ -316,7 +343,8 @@ export function RegisterScreen() {
           totalCents={totals.totalCents}
           customer={customer}
           busy={busy}
-          taxRemovedInSale={lines.some((l) => l.kind === 'custom' && !l.taxable)}
+          taxRemovedInSale={lines.some((l) => !l.taxable)}
+          showItemOptions={false}
           onAdd={(item) =>
             setLines((prev) => [...prev, { key: lineKey(), kind: 'custom', qty: 1, discountCents: 0, ...item }])
           }
@@ -458,20 +486,35 @@ export function RegisterScreen() {
                     </button>
                   </span>
                 )}
-                <button
-                  onClick={() => setLines((prev) => prev.filter((x) => x.key !== l.key))}
-                  style={{
-                    marginLeft: 'auto',
-                    border: 'none',
-                    background: 'var(--red-bg)',
-                    color: 'var(--red)',
-                    borderRadius: 8,
-                    padding: '6px 14px',
-                    font: '600 13px Inter, sans-serif',
-                  }}
-                >
-                  Remove
-                </button>
+                <span style={{ marginLeft: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+                  <button
+                    onClick={() => setLines((prev) => prev.filter((x) => x.key !== l.key))}
+                    style={{
+                      border: 'none',
+                      background: 'var(--red-bg)',
+                      color: 'var(--red)',
+                      borderRadius: 8,
+                      padding: '6px 14px',
+                      font: '600 13px Inter, sans-serif',
+                    }}
+                  >
+                    Remove
+                  </button>
+                  <button
+                    onClick={() => setLines((prev) => prev.map((x) => (x.key === l.key ? { ...x, taxable: !x.taxable } : x)))}
+                    title={l.taxable ? 'Tap to remove tax from this item (logged, cash only)' : 'Tax removed — tap to add it back'}
+                    style={{
+                      border: 'none',
+                      background: l.taxable ? 'var(--orange-soft)' : 'var(--line-soft)',
+                      color: l.taxable ? 'var(--orange)' : 'var(--ink-4)',
+                      borderRadius: 8,
+                      padding: '6px 14px',
+                      font: '600 13px Inter, sans-serif',
+                    }}
+                  >
+                    {l.taxable ? `Tax ${(taxRateBp / 100).toFixed(taxRateBp % 100 === 0 ? 0 : 2)}%` : 'No tax'}
+                  </button>
+                </span>
               </div>
             </div>
           ))}
@@ -635,13 +678,16 @@ export function RegisterScreen() {
   );
 }
 
-/** Unified search bar: products add to cart, customers attach to the sale. */
+/** Unified search bar: products add to cart, customers attach to the sale,
+ *  and any typed text can become the description of a custom item on the pad. */
 function SearchBar({
   onAddItem,
   onPickCustomer,
+  onUseDescription,
 }: {
   onAddItem: (item: PickableItem) => void;
   onPickCustomer: (c: CartCustomer) => void;
+  onUseDescription?: (text: string) => void;
 }) {
   const [q, setQ] = useState('');
   const [results, setResults] = useState<{ customers: CartCustomer[]; items: PickableItem[] } | null>(null);
@@ -676,7 +722,7 @@ function SearchBar({
           fontSize: 15,
         }}
       />
-      {results && (results.customers.length > 0 || results.items.length > 0) && (
+      {(q.trim().length >= 2 || (results && (results.customers.length > 0 || results.items.length > 0))) && (
         <div
           style={{
             position: 'absolute',
@@ -692,7 +738,7 @@ function SearchBar({
             overflow: 'auto',
           }}
         >
-          {results.items.map((item) => (
+          {(results?.items ?? []).map((item) => (
             <button
               key={`i${item.id}`}
               onClick={() => {
@@ -709,7 +755,7 @@ function SearchBar({
               <span style={{ font: '600 15px Inter, sans-serif' }}>{formatCents(item.priceCents)}</span>
             </button>
           ))}
-          {results.customers.map((c) => (
+          {(results?.customers ?? []).map((c) => (
             <button
               key={`c${c.id}`}
               onClick={() => {
@@ -725,6 +771,29 @@ function SearchBar({
               <span style={{ fontSize: 12.5, color: 'var(--ink-3)' }}>{c.phone}</span>
             </button>
           ))}
+          {onUseDescription && q.trim().length >= 2 && (
+            <button
+              onClick={() => {
+                onUseDescription(q.trim());
+                setQ('');
+              }}
+              style={{
+                display: 'flex',
+                width: '100%',
+                alignItems: 'center',
+                gap: 8,
+                padding: '12px 14px',
+                border: 'none',
+                borderTop: '1px solid var(--line-soft)',
+                background: 'var(--orange-soft)',
+                textAlign: 'left',
+                font: '600 15px Inter, sans-serif',
+                color: 'var(--orange)',
+              }}
+            >
+              <i className="bi bi-plus-circle" /> Use “{q.trim()}” as custom item — punch the amount on the pad
+            </button>
+          )}
         </div>
       )}
     </div>
