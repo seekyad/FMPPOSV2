@@ -399,6 +399,17 @@ export function RegisterScreen() {
     }
   }
 
+  /** Paid card in the repairs popup: hand the device back and close out the ticket. */
+  async function markPickedUp(t: RepairRow) {
+    try {
+      await api(`/api/repairs/${t.id}`, { method: 'PATCH', body: JSON.stringify({ status: 'picked_up' }) });
+      setRepairTickets((prev) => prev.filter((x) => x.id !== t.id));
+      void refreshSide();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not mark the ticket picked up');
+    }
+  }
+
   /** Label button on a repair line in the cart: fetch the ticket and print its device tag. */
   async function printLineLabel(ticketId: number) {
     try {
@@ -1155,11 +1166,27 @@ export function RegisterScreen() {
                       </>
                     )}
                   </span>
-                  <span style={{ font: '700 14.5px Inter, sans-serif', color: balance > 0 ? 'var(--red)' : 'var(--green)' }}>
-                    {balance > 0 ? `Balance ${formatCents(balance)}` : 'Paid'}
-                  </span>
+                  {balance > 0 ? (
+                    <span style={{ font: '700 14.5px Inter, sans-serif', color: 'var(--red)' }}>
+                      Balance {formatCents(balance)}
+                    </span>
+                  ) : (
+                    <span
+                      style={{ background: 'var(--green-bg)', color: 'var(--green)', borderRadius: 999, padding: '4px 12px', font: '700 13.5px Inter, sans-serif' }}
+                    >
+                      <i className="bi bi-check-circle" /> Paid
+                    </span>
+                  )}
                 </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 9 }}>
+                  {balance <= 0 && (
+                    <button
+                      onClick={() => void markPickedUp(t)}
+                      style={{ flex: 1, minHeight: 38, borderRadius: 9, border: 'none', background: 'var(--green)', color: '#fff', font: '600 13.5px Inter, sans-serif', whiteSpace: 'nowrap', padding: '0 10px' }}
+                    >
+                      <i className="bi bi-bag-check" /> Picked up
+                    </button>
+                  )}
                   {balance > 0 && (
                     <button
                       onClick={() => collectTicketBalance(t)}
