@@ -388,6 +388,8 @@ export const ticketStatusHistory = pgTable('ticket_status_history', {
   id: serial('id').primaryKey(),
   ticketId: integer('ticket_id').notNull().references(() => repairTickets.id),
   status: text('status').notNull(),
+  /** free-text context for the change — e.g. which part we're waiting on */
+  note: text('note'),
   userId: integer('user_id').references(() => users.id),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 });

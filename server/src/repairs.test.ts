@@ -120,6 +120,11 @@ describe('repairs flow (services catalog)', () => {
   it('walks the status flow and consumes the linked part on completion', async () => {
     const before = await partQty(screen.partItemId!);
     await request(app).patch(`/api/repairs/${ticketId}`).set(auth()).send({ status: 'in_progress' });
+    const waiting = await request(app)
+      .patch(`/api/repairs/${ticketId}`)
+      .set(auth())
+      .send({ status: 'waiting_part', statusNote: 'Screen from MobileSentrix, lands Thursday' });
+    expect(waiting.status).toBe(200);
     const done = await request(app).patch(`/api/repairs/${ticketId}`).set(auth()).send({ status: 'completed' });
     expect(done.status).toBe(200);
     expect(await partQty(screen.partItemId!)).toBe(before - 1);
@@ -127,8 +132,11 @@ describe('repairs flow (services catalog)', () => {
     expect(detail.body.history.map((h: { status: string }) => h.status)).toEqual([
       'open',
       'in_progress',
+      'waiting_part',
       'completed',
     ]);
+    const waitingEntry = detail.body.history.find((h: { status: string }) => h.status === 'waiting_part');
+    expect(waitingEntry.note).toBe('Screen from MobileSentrix, lands Thursday');
   });
 
   it('pays the remaining balance at the register, which closes the ticket as picked up', async () => {

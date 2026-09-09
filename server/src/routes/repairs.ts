@@ -299,6 +299,8 @@ repairsRouter.patch('/:id', async (req, res) => {
   const body = z
     .object({
       status: z.enum(['open', 'in_progress', 'waiting_part', 'completed', 'picked_up']).optional(),
+      /** recorded on the status-history entry, e.g. which part we're waiting on */
+      statusNote: z.string().max(300).nullable().optional(),
       technicianId: z.number().int().nullable().optional(),
       callFlag: z.boolean().optional(),
       promisedAt: z.string().datetime().nullable().optional(),
@@ -334,7 +336,12 @@ repairsRouter.patch('/:id', async (req, res) => {
       update.completedAt = new Date();
       await consumeParts(db, req.session!.id, id);
     }
-    await db.insert(schema.ticketStatusHistory).values({ ticketId: id, status: body.data.status, userId: req.session!.id });
+    await db.insert(schema.ticketStatusHistory).values({
+      ticketId: id,
+      status: body.data.status,
+      note: body.data.statusNote?.trim() || null,
+      userId: req.session!.id,
+    });
   }
 
   const [row] = await db.update(schema.repairTickets).set(update).where(eq(schema.repairTickets.id, id)).returning();

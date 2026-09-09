@@ -1,0 +1,1 @@
+ALTER TABLE "ticket_status_history" ADD COLUMN "note" text;

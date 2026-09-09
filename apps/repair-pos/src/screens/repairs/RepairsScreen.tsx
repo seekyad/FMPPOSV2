@@ -29,7 +29,7 @@ interface TicketDetail {
   customer: { id: number; name: string; phone: string | null } | null;
   devices: Array<{ id: number; label: string; imei: string | null; powersOn: boolean; unlockMethod: string | null; unlockValue: string | null; conditionNotes: string | null }>;
   lines: Array<{ id: number; description: string; priceCents: number; warrantyDays: number }>;
-  history: Array<{ id: number; status: string; userName: string | null; createdAt: string }>;
+  history: Array<{ id: number; status: string; note: string | null; userName: string | null; createdAt: string }>;
   paidCents: number;
   balanceCents: number;
 }
@@ -113,7 +113,11 @@ export function RepairsScreen() {
     void load();
   }, [filter]);
 
+  /** null = note box hidden; a string = drafting the waiting-on-part note */
+  const [partNote, setPartNote] = useState<string | null>(null);
+
   useEffect(() => {
+    setPartNote(null);
     if (detailId == null) {
       setDetail(null);
       return;
@@ -335,7 +339,14 @@ export function RepairsScreen() {
               ).map(([s, label]) => (
                 <button
                   key={s}
-                  onClick={() => void patchTicket({ status: s })}
+                  onClick={() => {
+                    if (s === 'waiting_part') {
+                      setPartNote('');
+                    } else {
+                      setPartNote(null);
+                      void patchTicket({ status: s });
+                    }
+                  }}
                   disabled={detail.ticket.status === s || ['picked_up', 'cancelled', 'abandoned'].includes(detail.ticket.status)}
                   style={{
                     padding: '8px 12px',
@@ -354,6 +365,46 @@ export function RepairsScreen() {
                 </button>
               ))}
             </div>
+            {partNote !== null && (
+              <div style={{ marginTop: 10, border: '1px solid var(--amber)', background: 'var(--amber-bg)', borderRadius: 12, padding: '12px 14px' }}>
+                <div style={{ font: '600 14px Inter, sans-serif', color: 'var(--amber)' }}>
+                  <i className="bi bi-box-seam" /> Waiting on which part?
+                </div>
+                <textarea
+                  value={partNote}
+                  onChange={(e) => setPartNote(e.target.value)}
+                  rows={2}
+                  autoFocus
+                  placeholder="Part, supplier, ETA — e.g. iPhone 11 screen from MobileSentrix, lands Thursday"
+                  style={{ width: '100%', marginTop: 8, padding: '10px 12px', borderRadius: 10, border: '1px solid var(--line)', fontSize: 14.5, resize: 'none', background: 'var(--card)' }}
+                />
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
+                  <Button variant="ghost" onClick={() => setPartNote(null)}>Cancel</Button>
+                  <Button
+                    variant="primary"
+                    onClick={() => {
+                      const note = partNote.trim();
+                      setPartNote(null);
+                      void patchTicket({ status: 'waiting_part', statusNote: note || null });
+                    }}
+                  >
+                    Mark waiting on part
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {detail.ticket.status === 'waiting_part' &&
+              partNote === null &&
+              (() => {
+                const last = [...detail.history].reverse().find((h) => h.status === 'waiting_part');
+                return last?.note ? (
+                  <div style={{ marginTop: 10, background: 'var(--amber-bg)', color: 'var(--amber)', borderRadius: 10, padding: '10px 13px', font: '600 13.5px Inter, sans-serif' }}>
+                    <i className="bi bi-box-seam" /> Waiting on: {last.note}
+                  </div>
+                ) : null;
+              })()}
+
             {detail.ticket.status === 'completed' && detail.balanceCents <= 0 && (
               <button
                 onClick={() => void patchTicket({ status: 'picked_up' })}
@@ -477,9 +528,12 @@ export function RepairsScreen() {
 
             <div style={{ font: '600 11.5px Inter, sans-serif', color: 'var(--ink-4)', letterSpacing: '0.06em', margin: '16px 0 6px' }}>HISTORY</div>
             {detail.history.map((h) => (
-              <div key={h.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, color: 'var(--ink-3)', padding: '3px 0' }}>
-                <span>{statusLabel(h.status)} · {h.userName}</span>
-                <span>{new Date(h.createdAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span>
+              <div key={h.id} style={{ padding: '3px 0' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, color: 'var(--ink-3)' }}>
+                  <span>{statusLabel(h.status)} · {h.userName}</span>
+                  <span>{new Date(h.createdAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span>
+                </div>
+                {h.note && <div style={{ fontSize: 12.5, color: 'var(--amber)', fontWeight: 600 }}>— {h.note}</div>}
               </div>
             ))}
           </>

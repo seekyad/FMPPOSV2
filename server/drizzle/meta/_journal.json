@@ -50,6 +50,13 @@
       "when": 1788908244126,
       "tag": "0006_sleepy_stark_industries",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1788912209930,
+      "tag": "0007_loving_wasp",
+      "breakpoints": true
     }
   ]
 }
