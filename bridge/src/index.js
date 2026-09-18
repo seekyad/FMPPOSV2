@@ -4,7 +4,8 @@
  * Connects OUTBOUND to the POS server over Socket.IO (no port-forwarding needed)
  * and executes print jobs:
  *   - kind "receipt": raw ESC/POS bytes to the Rongta
- *       mode "tcp":   sent to the printer's ethernet/wifi interface, port 9100
+ *       mode "tcp":     sent to the printer's ethernet/wifi interface, port 9100
+ *       mode "windows": raw bytes into a Windows printer queue (USB printer installed on this PC)
  *       mode "share": written to a temp file and copied raw to a shared
  *                     Windows printer (Rongta on USB, shared as e.g. "Rongta")
  *   - kind "label": Niimbot label printing (Phase 2)
@@ -16,7 +17,7 @@ import fs from 'node:fs';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { io } from 'socket.io-client';
 
 const configPath = new URL('../config.json', import.meta.url);
@@ -51,8 +52,11 @@ socket.on('print-job', async (job) => {
       await printLabel(job.html);
       console.log(`[bridge] label printed — ${job.name}`);
     }
+    if (job.jobId) socket.emit('print-result', { jobId: job.jobId, ok: true });
   } catch (err) {
     console.error('[bridge] print failed:', err.message);
+    // the server marks the job Failed with this reason so the Print center shows what went wrong
+    if (job.jobId) socket.emit('print-result', { jobId: job.jobId, ok: false, error: String(err.message).slice(0, 200) });
   }
 });
 
@@ -157,5 +161,19 @@ function printRaw(bytes) {
       });
     });
   }
-  return Promise.reject(new Error(`unknown receiptPrinter.mode "${printer.mode}" — use "tcp" or "share"`));
+  if (printer.mode === 'windows') {
+    // USB printer installed in Windows: raw bytes straight into its queue, no driver, no share, no admin
+    const tmp = path.join(os.tmpdir(), `fmp-receipt-${Date.now()}.bin`);
+    fs.writeFileSync(tmp, bytes);
+    const script = path.join(path.dirname(fileURLToPath(import.meta.url)), 'rawprint.ps1');
+    return new Promise((resolve, reject) => {
+      execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', script, '-PrinterName', printer.printerName, '-FilePath', tmp],
+        { timeout: 30000 }, (err, _stdout, stderr) => {
+          fs.unlink(tmp, () => {});
+          if (err) reject(new Error((stderr || err.message).toString().split('\n').find((l) => l.trim()) || 'raw print failed'));
+          else resolve();
+        });
+    });
+  }
+  return Promise.reject(new Error(`unknown receiptPrinter.mode "${printer.mode}" — use "tcp", "windows" or "share"`));
 }

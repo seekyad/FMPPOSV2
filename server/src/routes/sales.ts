@@ -10,8 +10,8 @@ import { computeTotals } from '@fmp/shared';
 import { getDb, schema } from '../db/index';
 import { requireAuth, requireRole } from '../auth';
 import { receiptEscpos, receiptText, type ReceiptData } from '../receipts';
-import { applyReceiptPrefs, logPrintJob, printSettingsOf } from './print';
-import { audit, emitBridge, emitStore, nextTicketNumber } from '../util';
+import { applyReceiptPrefs, dispatchPrint, printSettingsOf } from './print';
+import { audit, emitStore, nextTicketNumber } from '../util';
 import { getOpenDrawer } from './drawer';
 import { requireStoreReferences } from '../store-scope';
 
@@ -294,9 +294,9 @@ salesRouter.post('/complete', async (req, res) => {
   if (body.data.printReceipt && !result.replayed) {
     try {
       const escposBase64 = receiptEscpos(result.receipt, payments.some(p=>p.method === 'cash') && result.receipt.kickDrawer !== false);
-      printed = emitBridge(req, { kind: 'receipt', escposBase64 });
-      await logPrintJob(req, { kind: 'receipt', name: 'Sales receipt — #' + result.sale.ticketNumber,
-        detail: (result.receipt.paperWidth ?? 80) + 'mm · Rongta', printed, payload: { escposBase64: receiptEscpos(result.receipt, false) } });
+      printed = (await dispatchPrint(req, { kind: 'receipt', name: 'Sales receipt — #' + result.sale.ticketNumber,
+        detail: (result.receipt.paperWidth ?? 80) + 'mm · Rongta', payload: { escposBase64: receiptEscpos(result.receipt, false) } },
+        { kind: 'receipt', escposBase64 })).printed;
     } catch { printWarning = 'Sale saved. Receipt dispatch could not be confirmed; use the receipt history to reprint.'; }
   }
   if (!result.replayed) { emitStore(req, 'sales-changed'); emitStore(req, 'repairs-changed'); }
@@ -441,14 +441,11 @@ salesRouter.post('/:id/print', async (req, res) => {
     sale.userId == null ? [] : await db.select().from(schema.users).where(eq(schema.users.id, sale.userId));
   const receipt = await buildReceipt(db, sale.storeId, cashier?.name ?? '', sale, lines, paymentRows);
   const escposBase64 = receiptEscpos(receipt, false);
-  const printed = emitBridge(req, { kind: 'receipt', escposBase64 });
-  await logPrintJob(req, {
-    kind: 'receipt',
-    name: `Reprint — #${sale.ticketNumber}`,
-    detail: `${receipt.paperWidth ?? 80}mm · Rongta`,
-    printed,
-    payload: { escposBase64 },
-  });
+  const { printed } = await dispatchPrint(
+    req,
+    { kind: 'receipt', name: `Reprint — #${sale.ticketNumber}`, detail: `${receipt.paperWidth ?? 80}mm · Rongta`, payload: { escposBase64 } },
+    { kind: 'receipt', escposBase64 },
+  );
   res.json({ printed });
 });
 

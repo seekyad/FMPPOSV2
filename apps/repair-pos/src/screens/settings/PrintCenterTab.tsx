@@ -31,7 +31,7 @@ interface QueueJob {
   kind: 'receipt' | 'label';
   name: string;
   detail: string | null;
-  status: 'sent' | 'failed';
+  status: 'sent' | 'printed' | 'failed';
   createdAt: string;
   userName: string | null;
   canReprint: boolean;
@@ -613,11 +613,12 @@ export function PrintCenterTab() {
                   padding: '4px 11px',
                   borderRadius: 999,
                   font: '700 12px Inter, sans-serif',
-                  background: q.status === 'sent' ? 'var(--green-bg)' : 'var(--red-bg)',
-                  color: q.status === 'sent' ? 'var(--green)' : 'var(--red)',
+                  background: q.status === 'failed' ? 'var(--red-bg)' : q.status === 'printed' || q.detail?.includes('browser') ? 'var(--green-bg)' : 'var(--amber-bg)',
+                  color: q.status === 'failed' ? 'var(--red)' : q.status === 'printed' || q.detail?.includes('browser') ? 'var(--green)' : 'var(--amber)',
                 }}
+                title={q.status === 'sent' && !q.detail?.includes('browser') ? 'Handed to the print bridge; waiting for it to confirm' : undefined}
               >
-                {q.status === 'sent' ? 'Sent' : 'Failed'}
+                {q.status === 'failed' ? 'Failed' : q.status === 'printed' || q.detail?.includes('browser') ? 'Printed' : 'Sent to bridge'}
               </span>
               {q.canReprint && (
                 <Button variant="secondary" onClick={() => void reprint(q)}>

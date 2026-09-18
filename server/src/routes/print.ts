@@ -62,25 +62,48 @@ export function applyReceiptPrefs(r: ReceiptData, prefs: ReceiptPrefs | undefine
   };
 }
 
+type PrintJobLog = { kind: 'receipt' | 'label'; name: string; detail?: string | null; payload?: unknown };
+
 /** Record a job in the Print center queue. Never throws — printing must not fail on logging. */
-export async function logPrintJob(
-  req: Request,
-  job: { kind: 'receipt' | 'label'; name: string; detail?: string | null; printed: boolean; payload?: unknown },
-) {
+export async function logPrintJob(req: Request, job: PrintJobLog & { printed: boolean }): Promise<number | null> {
   try {
     const db = await getDb();
-    await db.insert(schema.printJobs).values({
-      storeId: req.session!.storeId,
-      userId: req.session!.id,
-      kind: job.kind,
-      name: job.name,
-      detail: job.detail ?? null,
-      status: job.printed ? 'sent' : 'failed',
-      payload: (job.payload ?? null) as never,
-    });
+    const [row] = await db
+      .insert(schema.printJobs)
+      .values({
+        storeId: req.session!.storeId,
+        userId: req.session!.id,
+        kind: job.kind,
+        name: job.name,
+        detail: job.detail ?? null,
+        status: job.printed ? 'sent' : 'failed',
+        payload: (job.payload ?? null) as never,
+      })
+      .returning();
+    return row?.id ?? null;
   } catch {
     /* queue logging is best-effort */
+    return null;
   }
+}
+
+/** True when a print bridge is connected for this store. */
+export function bridgeOnline(req: Request): boolean {
+  const io = req.app.get('io') as SocketServer | undefined;
+  const room = io?.sockets.adapter.rooms.get(`bridge:${req.session!.storeId}`);
+  return Boolean(room && room.size > 0);
+}
+
+/**
+ * Log a job, then hand it to the bridge tagged with the job id so the bridge can report how it
+ * went ("print-result", handled in realtime.ts). The queue shows "sent" until the bridge answers,
+ * then "printed" or "failed" with the reason; with no bridge online it is "failed" at once.
+ */
+export async function dispatchPrint(req: Request, job: PrintJobLog, message: Record<string, unknown>): Promise<{ printed: boolean; jobId: number | null }> {
+  const printed = bridgeOnline(req);
+  const jobId = await logPrintJob(req, { ...job, printed });
+  if (printed) emitBridge(req, { ...message, jobId });
+  return { printed, jobId };
 }
 
 /* ------------------------------------------------------------------ */
@@ -135,8 +158,11 @@ printRouter.post('/jobs/:id/reprint', async (req, res) => {
       res.status(400).json({ error: 'Job has no stored receipt data' });
       return;
     }
-    const printed = emitBridge(req, { kind: 'receipt', escposBase64: payload.escposBase64 });
-    await logPrintJob(req, { kind: 'receipt', name: `Reprint — ${row.name}`, detail: row.detail, printed, payload: row.payload });
+    const { printed } = await dispatchPrint(
+      req,
+      { kind: 'receipt', name: `Reprint — ${row.name}`, detail: row.detail, payload: row.payload },
+      { kind: 'receipt', escposBase64: payload.escposBase64 },
+    );
     res.json({ printed });
     return;
   }
@@ -187,16 +213,14 @@ printRouter.post('/label', async (req, res) => {
     res.status(400).json({ error: 'name and html required' });
     return;
   }
-  const printed = emitBridge(req, { kind: 'label', name: body.data.name, html: body.data.html });
-  if (printed) {
-    await logPrintJob(req, {
-      kind: 'label',
-      name: body.data.name,
-      detail: body.data.detail ? `${body.data.detail} · bridge` : 'bridge',
-      printed: true,
-      payload: body.data.payload ?? null,
-    });
-  }
+  // no bridge: the client falls back to its own print dialog and logs that itself
+  const printed = bridgeOnline(req)
+    ? (await dispatchPrint(
+        req,
+        { kind: 'label', name: body.data.name, detail: body.data.detail ? `${body.data.detail} · bridge` : 'bridge', payload: body.data.payload ?? null },
+        { kind: 'label', name: body.data.name, html: body.data.html },
+      )).printed
+    : false;
   res.json({ printed });
 });
 
@@ -217,14 +241,11 @@ printRouter.post('/test', requireRole('manager'), async (req, res) => {
   const saved = printSettingsOf(store).receipt;
   const receipt = applyReceiptPrefs(sampleReceipt(store), prefs ?? saved);
   const escposBase64 = receiptEscpos(receipt, false);
-  const printed = emitBridge(req, { kind: 'receipt', escposBase64 });
-  await logPrintJob(req, {
-    kind: 'receipt',
-    name: 'Test page',
-    detail: `${receipt.paperWidth ?? 80}mm · Rongta`,
-    printed,
-    payload: { escposBase64 },
-  });
+  const { printed } = await dispatchPrint(
+    req,
+    { kind: 'receipt', name: 'Test page', detail: `${receipt.paperWidth ?? 80}mm · Rongta`, payload: { escposBase64 } },
+    { kind: 'receipt', escposBase64 },
+  );
   await audit(db, req, 'print.test', 'store', req.session!.storeId);
   res.json({ printed, receiptText: receiptText(receipt) });
 });

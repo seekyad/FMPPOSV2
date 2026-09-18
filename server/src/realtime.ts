@@ -1,5 +1,7 @@
 import type { Server as SocketServer } from 'socket.io';
+import { and, eq } from 'drizzle-orm';
 import { authenticateSession } from './auth';
+import { getDb, schema } from './db/index';
 import { findDevice } from './pairing';
 
 export function configureRealtime(io: SocketServer) {
@@ -48,6 +50,22 @@ export function configureRealtime(io: SocketServer) {
     });
     socket.on('bridge-online', (storeId: number) => {
       if (identity.kind !== 'bridge' || storeId !== identity.storeId) socket.disconnect(true);
+    });
+    // the bridge tells us how a job went; the Print center queue shows Printed or Failed + reason
+    socket.on('print-result', async (result: { jobId?: unknown; ok?: unknown; error?: unknown }) => {
+      if (identity.kind !== 'bridge' || typeof result?.jobId !== 'number') return;
+      try {
+        const db = await getDb();
+        const [job] = await db.select().from(schema.printJobs)
+          .where(and(eq(schema.printJobs.id, result.jobId), eq(schema.printJobs.storeId, identity.storeId)));
+        if (!job || job.status === 'printed') return;
+        const ok = result.ok === true;
+        const reason = typeof result.error === 'string' ? result.error.slice(0, 160) : 'printer error';
+        await db.update(schema.printJobs)
+          .set({ status: ok ? 'printed' : 'failed', detail: ok ? job.detail : [job.detail, reason].filter(Boolean).join(' · ') })
+          .where(eq(schema.printJobs.id, job.id));
+        io.to('store:' + identity.storeId).emit('print-jobs-changed');
+      } catch { /* best-effort bookkeeping */ }
     });
     const recheck = setInterval(() => {
       void stillAuthorized().then(valid => { if (!valid) socket.disconnect(true); }).catch(() => socket.disconnect(true));

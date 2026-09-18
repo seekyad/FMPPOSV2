@@ -251,7 +251,8 @@ export const printJobs = pgTable(
     kind: text('kind', { enum: ['receipt', 'label'] }).notNull(),
     name: text('name').notNull(),
     detail: text('detail'),
-    status: text('status', { enum: ['sent', 'failed'] }).notNull(),
+    /** sent = handed to the bridge, awaiting its answer; printed / failed = the bridge reported back */
+    status: text('status', { enum: ['sent', 'printed', 'failed'] }).notNull(),
     /** receipt jobs: { escposBase64 } to re-send; label jobs: the label fields to re-render */
     payload: jsonb('payload'),
     createdAt: timestamp('created_at').notNull().defaultNow(),

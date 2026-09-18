@@ -11,7 +11,8 @@
 # Optional environment overrides, set before running:
 #   FMP_SERVER        POS address (default: the site this script came from)
 #   FMP_INSTALL_DIR   folder for the bridge (default: %LOCALAPPDATA%\FMPPOS\bridge)
-#   FMP_RECEIPT_IP    Rongta IP address (skips the network scan and prompt)
+#   FMP_RECEIPT_IP    Rongta IP address for a network printer (skips detection and prompts)
+#   FMP_RECEIPT_PRINTER  Windows printer name for a USB receipt printer (skips detection and prompts)
 #   FMP_PAIRING_CODE  bridge pairing code (skips the prompt)
 #   FMP_SKIP_PRINTER  1 = leave the Windows default printer alone
 #   FMP_SKIP_TASK     1 = do not register or start the logon task
@@ -54,7 +55,7 @@ $NpmCmd = Join-Path (Split-Path $NodeExe) 'npm.cmd'
 # ---------------------------------------------------------------- 2. Bridge files
 Step 'Downloading the bridge'
 New-Item -ItemType Directory -Force -Path (Join-Path $Dir 'src') | Out-Null
-foreach ($f in @('package.json', 'src/index.js', 'src/pair.js')) {
+foreach ($f in @('package.json', 'src/index.js', 'src/pair.js', 'src/rawprint.ps1')) {
   Invoke-WebRequest -UseBasicParsing -Uri "$Server/bridge/files/$f" -OutFile (Join-Path $Dir $f)
 }
 Push-Location $Dir
@@ -67,27 +68,52 @@ Write-Host 'Bridge files ready'
 # ---------------------------------------------------------------- 3. Receipt printer
 Step 'Receipt printer (Rongta)'
 $ReceiptIp = $env:FMP_RECEIPT_IP
-if (-not $ReceiptIp) {
-  Write-Host 'Looking for a printer that answers on port 9100 on this network (about 10 seconds)...'
+$ReceiptPrinter = $env:FMP_RECEIPT_PRINTER
+if (-not $ReceiptIp -and -not $ReceiptPrinter) {
+  # a receipt printer plugged into this PC by USB shows up as a Windows printer; that beats any network scan
+  $localReceipt = @(Get-Printer -ErrorAction SilentlyContinue | Where-Object { ($_.Name + ' ' + $_.DriverName) -match 'Rongta|RP80|RP58|RP3|POS-?80|POS-?58|XP-?80|XP-?58|Thermal|Receipt|TM-T|TSP' })
+  if ($localReceipt.Count -eq 1) {
+    $ReceiptPrinter = $localReceipt[0].Name
+    Write-Host ("Found a receipt printer on this PC: " + $ReceiptPrinter + " (" + $localReceipt[0].PortName + ")")
+  } elseif ($localReceipt.Count -gt 1) {
+    for ($i = 0; $i -lt $localReceipt.Count; $i++) { Write-Host ("  [{0}] {1}  ({2})" -f ($i + 1), $localReceipt[$i].Name, $localReceipt[$i].PortName) }
+    $pick = Read-Host 'Which one is the receipt printer? Enter its number'
+    $ReceiptPrinter = $localReceipt[[int]$pick - 1].Name
+  }
+}
+if (-not $ReceiptIp -and -not $ReceiptPrinter) {
+  Write-Host 'No receipt printer is installed on this PC. Looking for a network printer on port 9100 (about 10 seconds)...'
   $scan = @'
 const net=require('net'),os=require('os');
 const bases=[...new Set(Object.values(os.networkInterfaces()).flat().filter(n=>n&&n.family==='IPv4'&&!n.internal).map(n=>n.address.split('.').slice(0,3).join('.')))];
+const dns=require('dns').promises;
 const probe=h=>new Promise(r=>{const s=net.createConnection({host:h,port:9100});const done=ok=>{s.destroy();r(ok?h:null)};s.setTimeout(700,()=>done(false));s.on('connect',()=>done(true));s.on('error',()=>done(false));});
-(async()=>{const hits=[];for(const b of bases){const batch=[];for(let i=1;i<255;i++)batch.push(probe(b+'.'+i));hits.push(...(await Promise.all(batch)).filter(Boolean));}console.log(hits.join(' '));})();
+(async()=>{const hits=[];for(const b of bases){const batch=[];for(let i=1;i<255;i++)batch.push(probe(b+'.'+i));hits.push(...(await Promise.all(batch)).filter(Boolean));}
+for(const h of hits){const name=(await dns.reverse(h).catch(()=>[]))[0]||'';console.log(h+'|'+name);}})();
 '@
   $scanFile = Join-Path $Dir 'scan9100.js'
   WriteText $scanFile $scan
-  $hits = @((& $NodeExe $scanFile).Trim().Split(' ') | Where-Object { $_ })
+  $lines = @((& $NodeExe $scanFile) | Where-Object { $_ -and $_.Trim() })
   Remove-Item $scanFile -Force -ErrorAction SilentlyContinue
+  # office printers (Canon, HP, Brother...) also answer on 9100; name them so they are not mistaken for the Rongta
+  $hits = @(); $office = @()
+  foreach ($l in $lines) {
+    $parts = $l.Trim().Split('|'); $ip = $parts[0]; $name = if ($parts.Count -gt 1) { $parts[1] } else { '' }
+    $desc = if ($name) { "$ip ($name)" } else { $ip }
+    if ($name -match 'canon|hp|brother|epson|lexmark|kyocera|xerox|ricoh|samsung|dell') { $office += $desc } else { $hits += $ip; Write-Host "  candidate: $desc" }
+  }
+  foreach ($o in $office) { Write-Host "  skipped office printer: $o" }
   $default = ''
   if ($hits.Count -eq 1) { $default = $hits[0]; Write-Host "Found a printer at $default" }
   elseif ($hits.Count -gt 1) { Write-Host ("Found several devices on port 9100: " + ($hits -join ', ')) }
-  else { Write-Host 'No printer answered on port 9100. Make sure the Rongta is on and plugged into the network.' }
+  else { Write-Host 'No receipt printer answered on port 9100. If the Rongta is on USB, plug it into this PC and let Windows install it, then run this again.' }
   $prompt = if ($default) { "Receipt printer IP [$default]" } else { 'Receipt printer IP (leave blank to set up later)' }
   $typed = Read-Host $prompt
   $ReceiptIp = if ($typed) { $typed.Trim() } else { $default }
 }
-if ($ReceiptIp) { Write-Host "Receipts will print to $ReceiptIp on port 9100" } else { Write-Host 'Receipt printer skipped; add it to config.json later.' -ForegroundColor Yellow }
+if ($ReceiptPrinter) { Write-Host "Receipts will print on the Windows printer '$ReceiptPrinter'" }
+elseif ($ReceiptIp) { Write-Host "Receipts will print to $ReceiptIp on port 9100" }
+else { Write-Host 'Receipt printer skipped; add it to config.json later.' -ForegroundColor Yellow }
 
 # ---------------------------------------------------------------- 4. Config
 Step 'Writing config.json'
@@ -99,7 +125,8 @@ $config = [ordered]@{
   labelPrinter = [ordered]@{ settleMs = 6000 }
   deviceToken = ''
 }
-if ($ReceiptIp) { $config.receiptPrinter = [ordered]@{ mode = 'tcp'; host = $ReceiptIp; port = 9100 } }
+if ($ReceiptPrinter) { $config.receiptPrinter = [ordered]@{ mode = 'windows'; printerName = $ReceiptPrinter } }
+elseif ($ReceiptIp) { $config.receiptPrinter = [ordered]@{ mode = 'tcp'; host = $ReceiptIp; port = 9100 } }
 if (Test-Path $configPath) {
   try {
     $old = Get-Content $configPath -Raw | ConvertFrom-Json

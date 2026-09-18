@@ -17,6 +17,7 @@ const FILES: Record<string, string> = {
   'config.example.json': 'application/json',
   'src/index.js': 'text/javascript',
   'src/pair.js': 'text/javascript',
+  'src/rawprint.ps1': 'text/plain',
 };
 
 bridgeInstallRouter.get('/install.ps1', (req, res) => {
