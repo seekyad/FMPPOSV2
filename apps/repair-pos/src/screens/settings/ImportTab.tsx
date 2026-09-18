@@ -10,6 +10,24 @@ interface LegacyPayload {
   tickets: Array<{ number: string; customerKey: string; status: string; paid?: unknown }>;
 }
 
+/** Supplier parts cost sheet: models plus one part per model and type with its cost. */
+interface PartsPayload {
+  version: 1;
+  kind: 'parts';
+  source?: string;
+  models: Array<{ brand: string; name: string }>;
+  parts: Array<{ brand: string; model: string; part: string; costCents: number }>;
+}
+
+interface PartsResult {
+  modelsCreated: number;
+  modelsMatched: number;
+  partsCreated: number;
+  partsUpdated: number;
+  partsUnchanged: number;
+  skipped: string[];
+}
+
 interface ImportResult {
   customersCreated: number;
   customersMatched: number;
@@ -28,6 +46,8 @@ const CHUNK = 150;
 export function ImportTab() {
   const fileRef = useRef<HTMLInputElement>(null);
   const [payload, setPayload] = useState<LegacyPayload | null>(null);
+  const [parts, setParts] = useState<PartsPayload | null>(null);
+  const [partsResult, setPartsResult] = useState<PartsResult | null>(null);
   const [fileName, setFileName] = useState('');
   const [error, setError] = useState('');
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
@@ -36,14 +56,22 @@ export function ImportTab() {
   async function pick(file: File | undefined) {
     setError('');
     setResult(null);
+    setPartsResult(null);
     setPayload(null);
+    setParts(null);
     if (!file) return;
     try {
-      const parsed = JSON.parse(await file.text()) as LegacyPayload;
-      if (parsed.version !== 1 || !Array.isArray(parsed.customers) || !Array.isArray(parsed.tickets)) {
-        throw new Error('This is not a legacy import file. Expected legacy-import.json from the old database dump.');
+      const parsed = JSON.parse(await file.text()) as LegacyPayload | PartsPayload;
+      if ((parsed as PartsPayload).kind === 'parts' && Array.isArray((parsed as PartsPayload).parts)) {
+        setParts(parsed as PartsPayload);
+        setFileName(file.name);
+        return;
       }
-      setPayload(parsed);
+      const legacy = parsed as LegacyPayload;
+      if (legacy.version !== 1 || !Array.isArray(legacy.customers) || !Array.isArray(legacy.tickets)) {
+        throw new Error('Not an import file. Expected legacy-import.json (customers and tickets) or parts-import.json (parts cost sheet).');
+      }
+      setPayload(legacy);
       setFileName(file.name);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not read the file');
@@ -86,6 +114,21 @@ export function ImportTab() {
     }
   }
 
+  async function runParts() {
+    if (!parts) return;
+    setError('');
+    setPartsResult(null);
+    setProgress({ done: 0, total: 1 });
+    try {
+      setPartsResult(await api<PartsResult>('/api/imports/parts', { method: 'POST', body: JSON.stringify(parts) }));
+      setProgress({ done: 1, total: 1 });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Import failed');
+    } finally {
+      setProgress(null);
+    }
+  }
+
   const paid = payload?.tickets.filter((t) => t.paid).length ?? 0;
   const byStatus = payload
     ? payload.tickets.reduce<Record<string, number>>((acc, t) => ({ ...acc, [t.status]: (acc[t.status] ?? 0) + 1 }), {})
@@ -95,9 +138,10 @@ export function ImportTab() {
     <div style={{ maxWidth: 720 }}>
       <h2 style={{ margin: 0, font: '700 22px Inter, sans-serif' }}>Import from the old app</h2>
       <p style={{ color: 'var(--ink-3)', fontSize: 14.5, marginTop: 6 }}>
-        Brings customers and repair tickets over from RepairStorePOS. Choose the <code>legacy-import.json</code> file made from the old
-        database. Customers are matched by phone number, tickets keep their original numbers, and anything already imported is skipped,
-        so it is safe to run again.
+        Two kinds of file work here. <code>legacy-import.json</code> brings customers and repair tickets over from RepairStorePOS:
+        customers are matched by phone number, tickets keep their original numbers, and anything already imported is skipped.{' '}
+        <code>parts-import.json</code> loads a supplier parts cost sheet: one part per device model with its cost, missing models are
+        added, and re-importing only refreshes costs. Both are safe to run again.
       </p>
 
       <div style={{ marginTop: 18, padding: 18, border: '1px solid var(--line)', borderRadius: 14, background: 'var(--card)' }}>
@@ -131,6 +175,49 @@ export function ImportTab() {
                 <div style={{ color: 'var(--ink-3)', fontSize: 12.5 }}>{label}</div>
               </div>
             ))}
+          </div>
+        )}
+
+        {parts && (
+          <>
+            <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
+              {[
+                ['Device models', parts.models.length],
+                ['Parts', parts.parts.length],
+                ['Brands', new Set(parts.models.map((m) => m.brand)).size],
+              ].map(([label, n]) => (
+                <div key={String(label)} style={{ padding: '10px 12px', borderRadius: 10, background: 'var(--line-soft)' }}>
+                  <div style={{ font: '700 20px Inter, sans-serif' }}>{n}</div>
+                  <div style={{ color: 'var(--ink-3)', fontSize: 12.5 }}>{label}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
+              <Button variant="primary" onClick={() => void runParts()} disabled={progress !== null}>
+                {progress ? 'Importing…' : 'Import parts and costs'}
+              </Button>
+              {parts.source && <span style={{ color: 'var(--ink-4)', fontSize: 12.5 }}>{parts.source}</span>}
+            </div>
+          </>
+        )}
+
+        {partsResult && (
+          <div style={{ marginTop: 16, padding: '12px 14px', borderRadius: 12, background: 'var(--green-bg)', color: 'var(--green)', fontSize: 14.5 }}>
+            <div style={{ fontWeight: 700 }}>
+              <i className="bi bi-check2-circle" /> Parts import finished
+            </div>
+            <div style={{ color: 'var(--ink)', marginTop: 4 }}>
+              {partsResult.modelsCreated} device models added, {partsResult.modelsMatched} already existed · {partsResult.partsCreated} parts added,{' '}
+              {partsResult.partsUpdated} costs updated, {partsResult.partsUnchanged} unchanged
+            </div>
+            {partsResult.skipped.length > 0 && (
+              <details style={{ marginTop: 6, color: 'var(--ink-2)', fontSize: 13 }}>
+                <summary>{partsResult.skipped.length} skipped</summary>
+                {partsResult.skipped.map((s, i) => (
+                  <div key={i}>{s}</div>
+                ))}
+              </details>
+            )}
           </div>
         )}
 

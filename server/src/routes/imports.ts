@@ -1,5 +1,5 @@
 import express from 'express';
-import { inArray, isNull } from 'drizzle-orm';
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { createRouter as Router } from '../http';
 import { requireAuth, requireRole } from '../auth';
@@ -180,3 +180,96 @@ importsRouter.post('/legacy', async (req, res) => {
   res.json(result);
 });
 
+
+/**
+ * Supplier parts cost sheet: one stock item per device model and part type, with the supplier
+ * price as cost. Models missing from the catalog are created (brand + name, case-insensitive
+ * match); a part that already exists for that model and name only gets its cost refreshed, so
+ * the sheet can be re-imported whenever prices change without duplicating stock rows.
+ */
+const partsSchema = z.object({
+  version: z.literal(1),
+  kind: z.literal('parts'),
+  source: z.string().max(200).optional(),
+  models: z.array(z.object({
+    brand: z.string().min(1).max(60),
+    family: z.string().max(60).nullable().optional(),
+    name: z.string().min(1).max(120),
+    kind: z.enum(['phone', 'tablet', 'watch', 'laptop', 'other']).default('phone'),
+  })).max(2000),
+  parts: z.array(z.object({
+    brand: z.string().min(1).max(60),
+    model: z.string().min(1).max(120),
+    part: z.string().min(1).max(120),
+    note: z.string().max(60).nullable().optional(),
+    costCents: z.number().int().min(0),
+  })).max(20000),
+});
+
+/** Short SKU from brand, model and part, e.g. PRT-IPHONE15PRO-SOFTOLEDSC. Uniqueness comes from model + name, not the SKU. */
+function partSku(model: string, part: string, note: string | null | undefined): string {
+  const squash = (s: string, n: number) => s.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, n);
+  return ['PRT', squash(model, 14), squash(part, 10) + (note ? squash(note, 4) : '')].join('-');
+}
+
+importsRouter.post('/parts', async (req, res) => {
+  const body = partsSchema.safeParse(req.body);
+  if (!body.success) {
+    res.status(400).json({ error: 'Parts file is not in the expected format', detail: body.error.issues.slice(0, 5) });
+    return;
+  }
+  const storeId = req.session!.storeId;
+  const db = await getDb();
+  const result = await db.transaction(async (tx) => {
+    const counts = { modelsCreated: 0, modelsMatched: 0, partsCreated: 0, partsUpdated: 0, partsUnchanged: 0 };
+    const skipped: string[] = [];
+    const modelKey = (brand: string, name: string) => `${brand.trim().toLowerCase()}|${name.trim().toLowerCase()}`;
+
+    const existingModels = await tx.select().from(schema.deviceModels);
+    const modelIds = new Map<string, number>(existingModels.map((m) => [modelKey(m.brand, m.name), m.id]));
+    for (const m of body.data.models) {
+      const key = modelKey(m.brand, m.name);
+      if (modelIds.has(key)) {
+        counts.modelsMatched++;
+        continue;
+      }
+      const [row] = await tx.insert(schema.deviceModels).values({ brand: m.brand.trim(), family: m.family?.trim() || null, name: m.name.trim(), kind: m.kind }).returning();
+      modelIds.set(key, row!.id);
+      counts.modelsCreated++;
+    }
+
+    const existingParts = await tx
+      .select({ id: schema.inventoryItems.id, modelId: schema.inventoryItems.modelId, name: schema.inventoryItems.name, costCents: schema.inventoryItems.costCents })
+      .from(schema.inventoryItems)
+      .where(and(eq(schema.inventoryItems.storeId, storeId), eq(schema.inventoryItems.kind, 'part'), sql`${schema.inventoryItems.status} <> 'removed'`));
+    const partByKey = new Map(existingParts.map((p) => [`${p.modelId}|${p.name.toLowerCase()}`, p]));
+
+    for (const p of body.data.parts) {
+      const modelId = modelIds.get(modelKey(p.brand, p.model));
+      if (!modelId) {
+        skipped.push(`${p.brand} ${p.model} · ${p.part}: model not in file or catalog`);
+        continue;
+      }
+      const name = `${p.model.trim()} ${p.part.trim()}${p.note ? ` (${p.note.trim()})` : ''}`;
+      const found = partByKey.get(`${modelId}|${name.toLowerCase()}`);
+      if (found) {
+        if (found.costCents === p.costCents) {
+          counts.partsUnchanged++;
+        } else {
+          await tx.update(schema.inventoryItems).set({ costCents: p.costCents }).where(eq(schema.inventoryItems.id, found.id));
+          counts.partsUpdated++;
+        }
+        continue;
+      }
+      const [row] = await tx
+        .insert(schema.inventoryItems)
+        .values({ storeId, kind: 'part', name, sku: partSku(p.model, p.part, p.note), modelId, qty: 0, costCents: p.costCents, priceCents: 0, taxable: false })
+        .returning();
+      partByKey.set(`${modelId}|${name.toLowerCase()}`, { id: row!.id, modelId, name, costCents: p.costCents });
+      counts.partsCreated++;
+    }
+    return { ...counts, skipped: skipped.slice(0, 50) };
+  });
+  await audit(db, req, 'import.parts', 'store', storeId, { ...result, skipped: result.skipped.length, source: body.data.source ?? null });
+  res.json(result);
+});
