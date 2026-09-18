@@ -332,6 +332,8 @@ export const payments = pgTable('payments', {
   changeCents: integer('change_cents'),
   dejavooRef: text('dejavoo_ref'),
   isDeposit: boolean('is_deposit').notNull().default(false),
+  /** brought over from the previous system: history only, never cash that entered this drawer */
+  legacy: boolean('legacy').notNull().default(false),
   userId: integer('user_id').references(() => users.id),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 });

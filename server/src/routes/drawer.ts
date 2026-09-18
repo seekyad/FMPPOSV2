@@ -43,7 +43,7 @@ export async function drawerExpectation(db: Db, storeId: number, session: typeof
     })
     .from(sql`payments p`)
     .where(
-      sql`p.method = 'cash' and p.created_at >= ${since} and (
+      sql`p.method = 'cash' and p.legacy = false and p.created_at >= ${since} and (
         (p.sale_id is not null and exists (select 1 from sales s where s.id = p.sale_id and s.store_id = ${storeId}))
         or (p.ticket_id is not null and exists (select 1 from repair_tickets t where t.id = p.ticket_id and t.store_id = ${storeId}))
       )`,

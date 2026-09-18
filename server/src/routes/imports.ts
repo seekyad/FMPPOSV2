@@ -168,6 +168,7 @@ importsRouter.post('/legacy', async (req, res) => {
           method: t.paid.method,
           amountCents: t.paid.amountCents,
           isDeposit: true,
+          legacy: true,
           createdAt: when(t.paid.at),
         });
       }

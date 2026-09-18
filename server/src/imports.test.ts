@@ -141,4 +141,25 @@ describe('legacy import', () => {
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ customersCreated: 0, customersMatched: 1, ticketsCreated: 1 });
   });
+  it('imported payments never count as cash in the open drawer', async () => {
+    const before = (await request(app).get('/api/drawer/').set(auth(managerToken))).body;
+    const res = await request(app).post('/api/imports/legacy').set(auth(managerToken)).send({
+      version: 1,
+      customers: [{ key: 'c-cash', name: 'Cash Customer', phone: '313-000-1111' }],
+      tickets: [{
+        number: '#55555555', customerKey: 'c-cash', status: 'picked_up', createdAt: new Date().toISOString(),
+        paid: { amountCents: 12000, method: 'cash', at: new Date().toISOString() },
+        devices: [{ label: 'iPhone 12', lines: [{ description: 'Battery', priceCents: 12000 }] }], history: [],
+      }],
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.ticketsCreated).toBe(1);
+    const after = (await request(app).get('/api/drawer/').set(auth(managerToken))).body;
+    expect(after.cashSalesCents).toBe(before.cashSalesCents);
+    expect(after.expectedCents).toBe(before.expectedCents);
+    // the ticket itself still reads as paid
+    const board = await request(app).get('/api/repairs?status=all').set(auth(managerToken));
+    const row = board.body.rows.find((r: { number: string }) => r.number === '#55555555');
+    expect(row.paidCents).toBe(12000);
+  });
 });
