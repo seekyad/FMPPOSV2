@@ -12,4 +12,4 @@ http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': types[path.extname(file)] || 'application/octet-stream' });
     res.end(data);
   });
-}).listen(4173, () => console.log('serving on http://localhost:4173'));
+}).listen(process.env.PORT ? Number(process.env.PORT) : 4173, function () { console.log('serving on http://localhost:' + this.address().port); });

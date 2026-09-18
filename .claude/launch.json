@@ -4,13 +4,19 @@
     {
       "name": "design-preview",
       "runtimeExecutable": "node",
-      "runtimeArgs": ["design/serve.js"],
-      "port": 4173
+      "runtimeArgs": [
+        "design/serve.js"
+      ],
+      "port": 4173,
+      "autoPort": true
     },
     {
       "name": "pos-dev",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
       "port": 5173
     }
   ]
