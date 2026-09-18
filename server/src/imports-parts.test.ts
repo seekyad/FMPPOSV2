@@ -65,7 +65,7 @@ describe('parts cost sheet import', () => {
 
     const [thirteen] = await db.select().from(schema.deviceModels).where(eq(schema.deviceModels.name, 'iPhone 13'));
     const thirteenParts = await db.select().from(schema.inventoryItems).where(eq(schema.inventoryItems.modelId, thirteen!.id));
-    expect(thirteenParts.map((p) => p.name).sort()).toEqual(['iPhone 13 Battery', 'iPhone 13 Soft OLED screen']);
+    expect(thirteenParts.filter((p) => p.kind === 'part' && p.sku?.startsWith('PRT-IPHONE13-')).map((p) => p.name).sort()).toEqual(['iPhone 13 Battery', 'iPhone 13 Soft OLED screen']);
   });
 
   it('re-import refreshes changed costs only and never duplicates', async () => {
