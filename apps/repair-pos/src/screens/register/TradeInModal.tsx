@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { formatCents, parseDollars, tradeInOffer, type TradeInCondition, type TradeInConfig } from '@fmp/shared';
 import { Button, Modal } from '@fmp/ui';
-import { api } from '@fmp/pos-client';
+import { api, CodeField } from '@fmp/pos-client';
 import type { CartCustomer } from '@fmp/pos-client';
 
 interface PricebookRow {
@@ -127,12 +127,7 @@ export function TradeInModal({
             </option>
           ))}
         </select>
-        <input
-          value={imei}
-          onChange={(e) => setImei(e.target.value.replace(/[^0-9]/g, ''))}
-          placeholder="Scan IMEI"
-          style={{ width: 130, padding: '10px 12px', borderRadius: 10, border: '1px solid var(--line)', fontSize: 15 }}
-        />
+        <CodeField kind="imei" value={imei} onChange={setImei} placeholder="Scan IMEI" style={{ width: 230, flexShrink: 0 }} />
       </div>
 
       <div style={{ font: '600 11.5px Inter, sans-serif', color: 'var(--ink-4)', letterSpacing: '0.06em', margin: '14px 0 6px' }}>CONDITION</div>

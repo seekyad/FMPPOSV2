@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { formatCents, parseDollars } from '@fmp/shared';
 import { Button, DataTable, Modal, StatusChip, type Column } from '@fmp/ui';
 import { api, session } from './api';
+import { CodeField, ScanButton } from './CodeField';
 import { printDeviceLabel, printInventoryLabel, setLabelPrefs, type LabelPrefs } from './labels';
 
 interface Item {
@@ -250,6 +251,7 @@ export function InventoryScreen() {
         searchText={(r) => `${r.name} ${r.imei ?? ''} ${r.sku ?? ''} ${r.storage ?? ''} ${r.carrier ?? ''}`}
         searchPlaceholder="Search model, IMEI, SKU, or serial"
         searchInputRef={searchRef}
+        searchAccessory={(setQuery) => <ScanButton title="Scan IMEI, SKU or serial" onScan={(text) => setQuery(text.trim())} />}
         filters={TABS.map((t) => ({ id: t.id, label: t.label, count: counts[t.id] ?? 0 }))}
         activeFilter={tab}
         onFilterChange={(id) => setTab(id as TabId)}
@@ -359,7 +361,7 @@ function AddItemModal({
         {kind === 'device' ? (
           <>
             <div style={{ display: 'flex', gap: 8 }}>
-              {input('imei', 'IMEI')}
+              <CodeField kind="imei" value={form.imei} onChange={(imei) => setForm((prev) => ({ ...prev, imei }))} placeholder="IMEI" />
               {input('storage', 'Storage — 128 GB')}
             </div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -387,7 +389,7 @@ function AddItemModal({
           </>
         ) : (
           <div style={{ display: 'flex', gap: 8 }}>
-            {input('sku', 'SKU')}
+            <CodeField kind="sku" value={form.sku} onChange={(sku) => setForm((prev) => ({ ...prev, sku }))} placeholder="SKU" />
             {input('qty', 'Qty', 90)}
           </div>
         )}

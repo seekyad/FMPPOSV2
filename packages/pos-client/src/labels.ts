@@ -147,17 +147,22 @@ function barcodeHtml(data: string, heightMm: number): string {
   return `<div style="display:flex;height:${heightMm}mm;margin:1.2mm 0.5mm 0.4mm">${spans}</div>`;
 }
 
-function openLabelWindow(title: string, sizeH: '30mm' | '80mm', style: string, bodyHtml: string): boolean {
-  const w = window.open('', '_blank', 'width=420,height=320');
-  if (!w) return false;
-  w.document.write(`<!doctype html><html><head><title>${esc(title)}</title><style>
+/** The self-contained page a label prints from: @page sizes it, the script prints it on load. */
+function labelDocument(title: string, sizeH: '30mm' | '80mm', style: string, bodyHtml: string): string {
+  return `<!doctype html><html><head><title>${esc(title)}</title><style>
     @page { size: 50mm ${sizeH}; margin: 2mm; }
     body { font-family: -apple-system, 'Segoe UI', sans-serif; margin: 0; width: 46mm; color: #000; }
     ${style}
   </style></head><body>
     ${bodyHtml}
     <script>window.onload = () => { window.print(); setTimeout(() => window.close(), 300); };</script>
-  </body></html>`);
+  </body></html>`;
+}
+
+function openLabelWindow(title: string, sizeH: '30mm' | '80mm', style: string, bodyHtml: string): boolean {
+  const w = window.open('', '_blank', 'width=420,height=320');
+  if (!w) return false;
+  w.document.write(labelDocument(title, sizeH, style, bodyHtml));
   w.document.close();
   return true;
 }
@@ -165,8 +170,61 @@ function openLabelWindow(title: string, sizeH: '30mm' | '80mm', style: string, b
 function logLabel(name: string, detail: string, payload: Record<string, unknown>) {
   void api('/api/print/log', {
     method: 'POST',
-    body: JSON.stringify({ kind: 'label', name, detail, payload }),
+    body: JSON.stringify({ kind: 'label', name, detail: `${detail} · browser`, payload }),
   }).catch(() => {});
+}
+
+/**
+ * Whether the store PC's print bridge is online, cached so a tap can decide synchronously:
+ * the browser print dialog only opens inside the tap that asked for it, so the choice
+ * between "send to the bridge" and "open the dialog" cannot wait for a network round trip.
+ */
+let bridgeOnline = false;
+let bridgeCheckedAt = 0;
+export async function refreshBridgeStatus(): Promise<boolean> {
+  bridgeCheckedAt = Date.now();
+  try {
+    bridgeOnline = (await api<{ bridgeOnline: boolean }>('/api/print/status')).bridgeOnline;
+  } catch {
+    bridgeOnline = false;
+  }
+  return bridgeOnline;
+}
+
+interface LabelLog {
+  name: string;
+  detail: string;
+  payload: Record<string, unknown>;
+}
+
+/**
+ * Print a label: through the bridge when it is online (works from an iPad, the label
+ * printer sits on the store PC), otherwise through this browser's print dialog.
+ * Returns false only when the dialog could not open.
+ */
+function printLabelDoc(title: string, sizeH: '30mm' | '80mm', style: string, bodyHtml: string, log: LabelLog | null): boolean {
+  if (Date.now() - bridgeCheckedAt > 30_000) void refreshBridgeStatus();
+  if (bridgeOnline) {
+    const html = labelDocument(title, sizeH, style, bodyHtml);
+    void api<{ printed: boolean }>('/api/print/label', {
+      method: 'POST',
+      body: JSON.stringify({ name: log?.name ?? title, detail: log?.detail ?? null, html, payload: log?.payload ?? null }),
+    })
+      .then((r) => {
+        if (r.printed) return;
+        // the bridge dropped between checks: fall back to the dialog (may be blocked outside a tap)
+        bridgeOnline = false;
+        if (openLabelWindow(title, sizeH, style, bodyHtml) && log) logLabel(log.name, log.detail, log.payload);
+      })
+      .catch(() => {
+        bridgeOnline = false;
+        if (openLabelWindow(title, sizeH, style, bodyHtml) && log) logLabel(log.name, log.detail, log.payload);
+      });
+    return true;
+  }
+  const opened = openLabelWindow(title, sizeH, style, bodyHtml);
+  if (opened && log) logLabel(log.name, log.detail, log.payload);
+  return opened;
 }
 
 /* ------------------------------------------------------------------ */
@@ -225,7 +283,7 @@ export function printTicketLabel(fields: TicketLabelFields, opts?: { skipLog?: b
     );
   }
 
-  const opened = openLabelWindow(
+  printLabelDoc(
     fields.number,
     '80mm',
     `
@@ -244,10 +302,8 @@ export function printTicketLabel(fields: TicketLabelFields, opts?: { skipLog?: b
     .status { font-size: 8pt; font-weight: 800; letter-spacing: 0.08em; }
     `,
     rows.join('\n'),
+    opts?.skipLog ? null : { name: `Claim tag — ${fields.number}`, detail: '50 × 80 mm', payload: { type: 'tag', ...fields } },
   );
-  if (opened && !opts?.skipLog) {
-    logLabel(`Claim tag — ${fields.number}`, '50 × 80 mm · browser', { type: 'tag', ...fields });
-  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -279,7 +335,7 @@ export function printDeviceLabel(fields: DeviceLabelFields, opts?: { skipLog?: b
   if (on('barcode') && fields.imei) rows.push(barcodeHtml(fields.imei, 5));
   if (on('imei') && fields.imei) rows.push(`<div class="imei">${esc(fields.imei)}</div>`);
 
-  const opened = openLabelWindow(
+  printLabelDoc(
     fields.name,
     '30mm',
     `
@@ -290,10 +346,8 @@ export function printDeviceLabel(fields: DeviceLabelFields, opts?: { skipLog?: b
     .imei { font-size: 7.5pt; font-weight: 700; letter-spacing: 0.06em; text-align: center; margin-top: 0.6mm; }
     `,
     rows.join('\n'),
+    opts?.skipLog ? null : { name: `Device label — ${fields.name}`, detail: '50 × 30 mm', payload: { type: 'device', ...fields } },
   );
-  if (opened && !opts?.skipLog) {
-    logLabel(`Device label — ${fields.name}`, '50 × 30 mm · browser', { type: 'device', ...fields });
-  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -317,7 +371,7 @@ export function printInventoryLabel(fields: InventoryLabelFields, opts?: { skipL
   if (on('price')) bottom.push(`<span class="price">${formatCents(fields.priceCents)}</span>`);
   if (bottom.length > 0) rows.push(`<div class="bottom">${bottom.join('')}</div>`);
 
-  const opened = openLabelWindow(
+  printLabelDoc(
     fields.name,
     '30mm',
     `
@@ -327,10 +381,8 @@ export function printInventoryLabel(fields: InventoryLabelFields, opts?: { skipL
     .price { font-size: 12pt; font-weight: 800; margin-left: auto; }
     `,
     rows.join('\n'),
+    opts?.skipLog ? null : { name: `Price label — ${fields.name}`, detail: '50 × 30 mm', payload: { type: 'inventory', ...fields } },
   );
-  if (opened && !opts?.skipLog) {
-    logLabel(`Price label — ${fields.name}`, '50 × 30 mm · browser', { type: 'inventory', ...fields });
-  }
 }
 
 /** Reprint a queued label from its stored payload, whatever its type. */

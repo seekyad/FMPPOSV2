@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { formatCents } from '@fmp/shared';
 import { Modal, StatusChip } from '@fmp/ui';
 import { api } from './api';
+import { ScanButton } from './CodeField';
 
 export interface PickableItem {
   id: number;
@@ -48,13 +49,20 @@ export function InventoryPickerModal({
   return (
     <Modal open={open} onClose={onClose} width={520}>
       <h2 style={{ margin: 0, font: '700 20.5px Inter, sans-serif' }}>{title}</h2>
-      <input
-        autoFocus
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        placeholder="Search name, SKU, or IMEI"
-        style={{ width: '100%', marginTop: 12, padding: '11px 13px', borderRadius: 10, border: '1px solid var(--line)', fontSize: 15 }}
-      />
+      <div style={{ position: 'relative', marginTop: 12 }}>
+        <input
+          autoFocus
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search name, SKU, or IMEI"
+          style={{ width: '100%', padding: '11px 48px 11px 13px', borderRadius: 10, border: '1px solid var(--line)', fontSize: 15 }}
+        />
+        <ScanButton
+          title="Scan SKU or IMEI"
+          onScan={(text) => setQuery(text.trim())}
+          style={{ position: 'absolute', right: 5, top: '50%', transform: 'translateY(-50%)' }}
+        />
+      </div>
       <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 340, overflow: 'auto' }}>
         {rows.map((item) => (
           <button

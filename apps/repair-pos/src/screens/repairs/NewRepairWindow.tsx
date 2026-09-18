@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { computeTotals, formatCents } from '@fmp/shared';
-import { api, formatPhoneInput, session } from '@fmp/pos-client';
+import { Keypad } from '@fmp/ui';
+import { api, CodeField, formatPhoneInput, MoneyKeypadSheet, SecretField, session } from '@fmp/pos-client';
 import type { CartCustomer } from '@fmp/pos-client';
 import { printTicketLabel } from './labels';
 
@@ -56,6 +57,41 @@ export interface CreatedTicket {
 const TAX_RATE_BP = 600;
 const DRAFT_KEY = 'fmp.repairDraft';
 
+/** An existing ticket loaded into the window for editing (from the board's detail panel). */
+export interface EditTicketSeed {
+  id: number;
+  number: string;
+  status: string;
+  paidCents: number;
+  callFlag: boolean;
+  partsFlag: boolean;
+  alertFlag: boolean;
+  notesForTech: string | null;
+  customer: CartCustomer | null;
+  devices: Array<{
+    id: number;
+    modelId: number | null;
+    label: string;
+    imei: string | null;
+    powersOn: boolean;
+    unlockMethod: string | null;
+    unlockValue: string | null;
+    conditionNotes: string | null;
+  }>;
+  lines: Array<{
+    ticketDeviceId: number | null;
+    serviceId: number | null;
+    tierLabel: string | null;
+    description: string;
+    priceCents: number;
+    warrantyDays: number;
+  }>;
+}
+
+/** Completed, picked-up, or paid tickets need a manager code before edits save. */
+export const ticketIsLocked = (t: { status: string; paidCents: number }) =>
+  t.status === 'completed' || t.status === 'picked_up' || t.paidCents > 0;
+
 const emptyDevice = (): DraftDevice => ({
   modelId: null,
   label: '',
@@ -77,10 +113,15 @@ export function NewRepairWindow({
   open,
   onClose,
   onCreated,
+  edit = null,
+  onSaved,
 }: {
   open: boolean;
   onClose: () => void;
   onCreated: (ticket: CreatedTicket, exit: 'board' | 'deposit' | 'sale') => void;
+  /** when set, the window edits this ticket instead of creating one */
+  edit?: EditTicketSeed | null;
+  onSaved?: () => void;
 }) {
   const [meta, setMeta] = useState<RepairMeta | null>(null);
   const [devices, setDevices] = useState<DraftDevice[]>([emptyDevice()]);
@@ -91,6 +132,8 @@ export function NewRepairWindow({
   const [custPhone, setCustPhone] = useState('');
   const [matches, setMatches] = useState<CartCustomer[]>([]);
   const [callFlag, setCallFlag] = useState(false);
+  const [partsFlag, setPartsFlag] = useState(false);
+  const [alertFlag, setAlertFlag] = useState(false);
   const [notesForTech, setNotesForTech] = useState('');
   const [typeQuery, setTypeQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
@@ -103,6 +146,12 @@ export function NewRepairWindow({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const restoredRef = useRef(false);
+  const seededRef = useRef<number | null>(null);
+  const [codePrompt, setCodePrompt] = useState(false);
+  /** the repair line whose price is being punched in on the numpad */
+  const [pricingLine, setPricingLine] = useState<DraftLine | null>(null);
+  const [codeError, setCodeError] = useState('');
+  const locked = edit != null && ticketIsLocked(edit);
 
   useEffect(() => {
     if (open && !meta) void api<RepairMeta>('/api/repairs/meta').then(setMeta).catch(() => {});
@@ -110,7 +159,7 @@ export function NewRepairWindow({
 
   // restore + autosave draft
   useEffect(() => {
-    if (!open || restoredRef.current) return;
+    if (!open || edit || restoredRef.current) return;
     restoredRef.current = true;
     try {
       const raw = sessionStorage.getItem(DRAFT_KEY);
@@ -122,6 +171,8 @@ export function NewRepairWindow({
       if (d.custName) setCustName(d.custName);
       if (d.custPhone) setCustPhone(d.custPhone);
       if (d.callFlag) setCallFlag(d.callFlag);
+      if (d.partsFlag) setPartsFlag(d.partsFlag);
+      if (d.alertFlag) setAlertFlag(d.alertFlag);
       if (d.notesForTech) setNotesForTech(d.notesForTech);
     } catch {
       /* corrupt draft — start fresh */
@@ -129,7 +180,7 @@ export function NewRepairWindow({
   }, [open]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || edit) return;
     const t = setTimeout(() => {
       const isEmpty = lines.length === 0 && !custName && !custPhone && !customer && devices.every((d) => !d.label && !d.imei);
       if (isEmpty) {
@@ -137,11 +188,11 @@ export function NewRepairWindow({
         setDraftSaved(false);
         return;
       }
-      sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ devices, lines, customer, custName, custPhone, callFlag, notesForTech }));
+      sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ devices, lines, customer, custName, custPhone, callFlag, partsFlag, alertFlag, notesForTech }));
       setDraftSaved(true);
     }, 700);
     return () => clearTimeout(t);
-  }, [open, devices, lines, customer, custName, custPhone, callFlag, notesForTech]);
+  }, [open, devices, lines, customer, custName, custPhone, callFlag, partsFlag, alertFlag, notesForTech]);
 
   // live match on typed name/phone
   useEffect(() => {
@@ -298,7 +349,67 @@ export function NewRepairWindow({
     ]);
   }
 
+  /** Load an existing ticket's devices, lines and customer into the draft state. */
+  function seedFromTicket(t: EditTicketSeed, m: RepairMeta) {
+    setDevices(
+      t.devices.length > 0
+        ? t.devices.map((d) => ({
+            modelId: d.modelId,
+            label: d.label,
+            imei: d.imei ?? '',
+            powersOn: d.powersOn,
+            unlockMethod: (d.unlockMethod as DraftDevice['unlockMethod'] | null) ?? 'none',
+            unlockValue: d.unlockValue ?? '',
+            conditionNotes: d.conditionNotes ?? '',
+          }))
+        : [emptyDevice()],
+    );
+    setActiveDevice(0);
+    setLines(
+      t.lines.map((l) => {
+        const service = m.services.find((sv) => sv.id === l.serviceId);
+        const suffix = l.tierLabel ? ` (${l.tierLabel})` : '';
+        const deviceIndex = t.devices.findIndex((d) => d.id === l.ticketDeviceId);
+        return {
+          deviceIndex: deviceIndex < 0 ? 0 : deviceIndex,
+          serviceId: l.serviceId,
+          tierLabel: l.tierLabel,
+          description: suffix && l.description.endsWith(suffix) ? l.description.slice(0, -suffix.length) : l.description,
+          priceCents: l.priceCents,
+          warrantyDays: l.warrantyDays,
+          tiers: service?.tiers.map((x) => ({ label: x.label, priceCents: x.priceCents })) ?? [],
+        };
+      }),
+    );
+    setCustomer(t.customer);
+    setCustName('');
+    setCustPhone('');
+    setCallFlag(t.callFlag);
+    setPartsFlag(t.partsFlag);
+    setAlertFlag(t.alertFlag);
+    setNotesForTech(t.notesForTech ?? '');
+    setError('');
+    setPrintLabel(false);
+    setCodePrompt(false);
+    setCodeError('');
+  }
+
+  useEffect(() => {
+    if (!open) {
+      seededRef.current = null;
+      return;
+    }
+    if (!edit || !meta || seededRef.current === edit.id) return;
+    seededRef.current = edit.id;
+    seedFromTicket(edit, meta);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, edit?.id, meta]);
+
   function reset() {
+    if (edit && meta) {
+      seedFromTicket(edit, meta);
+      return;
+    }
     setDevices([emptyDevice()]);
     setActiveDevice(0);
     setLines([]);
@@ -306,57 +417,111 @@ export function NewRepairWindow({
     setCustName('');
     setCustPhone('');
     setCallFlag(false);
+    setPartsFlag(false);
+    setAlertFlag(false);
     setNotesForTech('');
     setError('');
     setDraftSaved(false);
     sessionStorage.removeItem(DRAFT_KEY);
   }
 
-  async function submit(exit: 'board' | 'deposit' | 'sale') {
-    setError('');
+  function validateDraft(): boolean {
     if (!customer && custName.trim().length < 2) {
       setError('Enter or pick a customer first.');
-      return;
+      return false;
     }
     if (lines.length === 0) {
       setError('Pick at least one repair.');
-      return;
+      return false;
     }
     if (devices.some((d) => !d.label.trim())) {
       setError('Every device needs a model.');
-      return;
+      return false;
     }
     if (devices.some((d) => d.powersOn === null)) {
       setError('Tap Powers on or Dead on arrival for every device.');
+      return false;
+    }
+    return true;
+  }
+
+  function ticketPayload() {
+    return {
+      customerId: customer?.id ?? null,
+      newCustomer: customer ? null : { name: custName.trim(), phone: custPhone.trim() || null },
+      callFlag,
+      partsFlag,
+      alertFlag,
+      notesForTech: notesForTech || null,
+      devices: devices.map((d) => ({
+        modelId: d.modelId,
+        label: d.label,
+        imei: d.imei || null,
+        powersOn: d.powersOn === null ? true : d.powersOn,
+        unlockMethod: d.unlockMethod,
+        unlockValue: d.unlockValue || null,
+        conditionNotes: d.conditionNotes || null,
+      })),
+      lines: lines.map((l) => ({
+        deviceIndex: l.deviceIndex,
+        serviceId: l.serviceId,
+        tierLabel: l.tierLabel,
+        description: l.tierLabel ? `${l.description} (${l.tierLabel})` : l.description,
+        priceCents: l.priceCents,
+        warrantyDays: l.warrantyDays,
+      })),
+    };
+  }
+
+  /** Edit mode: save the whole ticket; locked tickets first collect a manager code. */
+  async function saveEdit(managerPin?: string) {
+    if (!edit) return;
+    setError('');
+    if (!validateDraft()) return;
+    if (locked && !managerPin) {
+      setCodeError('');
+      setCodePrompt(true);
       return;
     }
     setBusy(true);
     try {
+      const res = await api<{ ticket: { totalCents: number } }>(`/api/repairs/${edit.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ ...ticketPayload(), managerPin: managerPin ?? null }),
+      });
+      setCodePrompt(false);
+      if (printLabel) {
+        printTicketLabel({
+          number: edit.number,
+          customer: customer?.name ?? custName.trim(),
+          phone: customer?.phone ?? (custPhone.trim() || null),
+          device: devices.map((d) => d.label).join(' + '),
+          issue: lines.map((l) => (l.tierLabel ? `${l.description} (${l.tierLabel})` : l.description)).join(', '),
+          passcode: devices[0]?.unlockValue || null,
+          notes: devices[0]?.conditionNotes || null,
+          priceText: formatCents(Math.max(0, res.ticket.totalCents - edit.paidCents)),
+          paid: res.ticket.totalCents - edit.paidCents <= 0,
+        });
+      }
+      seededRef.current = null;
+      onSaved?.();
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Could not save ticket';
+      if (managerPin) setCodeError(message);
+      else setError(message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function submit(exit: 'board' | 'deposit' | 'sale') {
+    setError('');
+    if (!validateDraft()) return;
+    setBusy(true);
+    try {
       const res = await api<{ ticket: { id: number; number: string; totalCents: number; customerId: number } }>('/api/repairs', {
         method: 'POST',
-        body: JSON.stringify({
-          customerId: customer?.id ?? null,
-          newCustomer: customer ? null : { name: custName.trim(), phone: custPhone.trim() || null },
-          callFlag,
-          notesForTech: notesForTech || null,
-          devices: devices.map((d) => ({
-            modelId: d.modelId,
-            label: d.label,
-            imei: d.imei || null,
-            powersOn: d.powersOn === null ? true : d.powersOn,
-            unlockMethod: d.unlockMethod,
-            unlockValue: d.unlockValue || null,
-            conditionNotes: d.conditionNotes || null,
-          })),
-          lines: lines.map((l) => ({
-            deviceIndex: l.deviceIndex,
-            serviceId: l.serviceId,
-            tierLabel: l.tierLabel,
-            description: l.tierLabel ? `${l.description} (${l.tierLabel})` : l.description,
-            priceCents: l.priceCents,
-            warrantyDays: l.warrantyDays,
-          })),
-        }),
+        body: JSON.stringify(ticketPayload()),
       });
       const cust: CartCustomer =
         customer ?? { id: res.ticket.customerId, name: custName.trim(), phone: custPhone.trim() || null };
@@ -407,14 +572,14 @@ export function NewRepairWindow({
     setDevices((prev) => prev.map((d, i) => (i === activeDevice ? { ...d, ...patch } : d)));
 
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-navy/60 p-3">
+    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-navy/60 p-3">
       <div className="flex h-full w-full max-w-[1680px] flex-col overflow-hidden rounded-2xl bg-card shadow-2xl">
         {/* Header */}
         <div className="border-b border-line-soft px-6 pt-5 pb-4">
           <div className="flex items-center gap-4">
-            <h2 className="text-[22px] font-bold text-ink">New repair</h2>
+            <h2 className="text-[22px] font-bold text-ink">{edit ? 'Edit ticket' : 'New repair'}</h2>
             <div className="hidden border-l border-line pl-4 text-[14px] text-ink-3 sm:block">
-              Ticket will be #{meta?.nextNumber ?? '…'} · {user?.name}
+              {edit ? `#${edit.number}` : `Ticket will be #${meta?.nextNumber ?? '…'}`} · {user?.name}
             </div>
             <div className="ml-auto flex items-center gap-2.5">
               {draftSaved && (
@@ -428,7 +593,7 @@ export function NewRepairWindow({
                 }}
                 className="flex items-center gap-1.5 rounded-full border border-line bg-card px-3.5 py-2 text-[13px] font-semibold text-ink-2"
               >
-                <i className="bi bi-arrow-counterclockwise" /> Clear
+                <i className="bi bi-arrow-counterclockwise" /> {edit ? 'Reset' : 'Clear'}
               </button>
               <button
                 onClick={() => {
@@ -532,15 +697,39 @@ export function NewRepairWindow({
                 ))}
               </>
             )}
-            <button
-              onClick={() => setCallFlag((v) => !v)}
-              className={`mt-3 flex w-full items-center gap-2.5 rounded-[10px] border px-3.5 py-3 text-[13.5px] font-semibold ${
-                callFlag ? 'border-purple bg-purple text-white' : 'border-line bg-card text-ink-2'
-              }`}
-            >
-              <i className={`bi ${callFlag ? 'bi-telephone-fill' : 'bi-telephone'}`} />
-              {callFlag ? 'Call priority on — customer gets a call first' : 'Flag as call priority'}
-            </button>
+            <div className="mt-3 flex gap-2">
+              <button
+                onClick={() => setCallFlag((v) => !v)}
+                aria-pressed={callFlag}
+                className={`flex flex-1 items-center justify-center gap-2 rounded-[10px] border px-3 py-3 text-[13.5px] font-semibold ${
+                  callFlag ? 'border-purple bg-purple text-white' : 'border-line bg-card text-ink-2'
+                }`}
+              >
+                <i className={`bi ${callFlag ? 'bi-telephone-fill' : 'bi-telephone'}`} />
+                {callFlag ? 'Call · on' : 'Call'}
+              </button>
+              <button
+                onClick={() => setPartsFlag((v) => !v)}
+                aria-pressed={partsFlag}
+                className={`flex flex-1 items-center justify-center gap-2 rounded-[10px] border px-3 py-3 text-[13.5px] font-semibold ${
+                  partsFlag ? 'border-amber bg-amber text-white' : 'border-line bg-card text-ink-2'
+                }`}
+              >
+                <i className={`bi ${partsFlag ? 'bi-box-seam-fill' : 'bi-box-seam'}`} />
+                {partsFlag ? 'Order parts · on' : 'Order parts'}
+              </button>
+              <button
+                onClick={() => setAlertFlag((v) => !v)}
+                aria-pressed={alertFlag}
+                title="Alert: check the notes on this repair or customer first"
+                className={`flex flex-1 items-center justify-center gap-2 rounded-[10px] border px-3 py-3 text-[13.5px] font-semibold ${
+                  alertFlag ? 'border-red bg-red text-white' : 'border-line bg-card text-ink-2'
+                }`}
+              >
+                <i className={`bi ${alertFlag ? 'bi-exclamation-triangle-fill' : 'bi-exclamation-triangle'}`} />
+                {alertFlag ? 'Alert · on' : 'Alert'}
+              </button>
+            </div>
 
             <div className={`${sectionCls} mt-5`}>2 · CONDITION *</div>
             <div className="mt-3 flex overflow-hidden rounded-[10px] border border-line">
@@ -729,11 +918,15 @@ export function NewRepairWindow({
                       className={`${inputCls} bg-line-soft pl-10`}
                     />
                   </div>
-                  <input
+                  <CodeField
+                    kind="serial"
+                    label="IMEI / serial"
                     value={device.imei}
-                    onChange={(e) => patchDevice({ imei: e.target.value })}
+                    onChange={(imei) => patchDevice({ imei })}
                     placeholder="IMEI / serial"
-                    className={`${inputBase} w-40`}
+                    style={{ width: 236, flexShrink: 0 }}
+                    inputClassName={inputBase}
+                    inputStyle={{ padding: undefined, borderRadius: undefined, border: undefined, fontSize: undefined, background: undefined }}
                   />
                 </div>
                 <div className="mt-3 flex min-h-0 flex-1">
@@ -832,18 +1025,16 @@ export function NewRepairWindow({
                       <div key={li} className="border-b border-line-soft py-3">
                         <div className="flex items-baseline justify-between gap-3">
                           <span className="text-[16px] font-bold text-ink">{l.description}</span>
-                          <input
-                            value={(l.priceCents / 100).toFixed(2)}
-                            onChange={(e) => {
-                              const v = Math.round(parseFloat(e.target.value || '0') * 100);
-                              setLines((prev) =>
-                                prev.map((x) =>
-                                  x === l ? { ...x, priceCents: Number.isFinite(v) ? Math.max(0, v) : 0, tierLabel: null } : x,
-                                ),
-                              );
-                            }}
-                            className="w-[86px] rounded-lg border border-transparent text-right text-[16px] font-bold text-ink hover:border-line focus:border-orange focus:outline-none"
-                          />
+                          <button
+                            type="button"
+                            onClick={() => setPricingLine(l)}
+                            title="Tap to punch a price on the numpad"
+                            className={`min-w-[86px] rounded-lg border px-2 py-0.5 text-right text-[16px] font-bold text-ink hover:border-line focus:border-orange focus:outline-none ${
+                              pricingLine === l ? 'border-orange bg-orange-soft' : 'border-transparent'
+                            }`}
+                          >
+                            {formatCents(l.priceCents)}
+                          </button>
                         </div>
                         {l.tiers.length > 0 ? (
                           <select
@@ -904,7 +1095,60 @@ export function NewRepairWindow({
           </div>
         </div>
 
-        {/* Footer */}
+        {/* Footer: edit mode saves in place; create mode picks how the customer pays */}
+        {edit ? (
+          <div className="flex items-center gap-3 border-t border-line-soft px-6 py-4">
+            <div className="min-w-0 flex-1">
+              <div className="text-[14px] font-bold text-ink">
+                {locked ? (
+                  <>
+                    <i className="bi bi-shield-lock text-orange" /> Admin code required
+                  </>
+                ) : (
+                  'Editing ticket'
+                )}
+              </div>
+              <div className="text-[12.5px] leading-snug text-ink-3">
+                {locked
+                  ? 'This ticket is completed or already paid, so a manager must approve the change.'
+                  : 'Saving updates the ticket total and adds a note to its history.'}
+              </div>
+              {error && <div className="mt-1 text-[13px] font-semibold text-red">{error}</div>}
+            </div>
+            <button
+              onClick={() => setPrintLabel((v) => !v)}
+              className="flex items-center gap-2.5 rounded-xl border border-line bg-card px-4 py-3 text-left"
+            >
+              <i className={`bi ${printLabel ? 'bi-check-square-fill text-orange' : 'bi-square text-ink-4'} text-[17px]`} />
+              <span>
+                <span className="block text-[14.5px] font-bold text-ink">
+                  <i className="bi bi-tag" /> Reprint label
+                </span>
+                <span className="block text-[12px] text-ink-4">New device tag when saved</span>
+              </span>
+            </button>
+            <button
+              onClick={() => onClose()}
+              disabled={busy}
+              className="rounded-xl border border-line bg-card px-5 py-3 text-[14.5px] font-bold text-ink-2 disabled:opacity-50"
+            >
+              Discard
+            </button>
+            <button
+              onClick={() => void saveEdit()}
+              disabled={busy}
+              className="flex items-center gap-3 rounded-xl bg-orange px-5 py-3 text-left text-white disabled:opacity-50"
+            >
+              <i className={`bi ${locked ? 'bi-shield-lock' : 'bi-check2-circle'} text-[18px]`} />
+              <span>
+                <span className="block text-[14.5px] font-bold">Save changes · {formatCents(totals.totalCents)}</span>
+                <span className="block text-[12px] text-white/80">
+                  {edit.paidCents > 0 ? `${formatCents(edit.paidCents)} already paid` : 'Ticket stays ' + edit.status.replace('_', ' ')}
+                </span>
+              </span>
+            </button>
+          </div>
+        ) : (
         <div className="flex items-center gap-3 border-t border-line-soft px-6 py-4">
           <div className="min-w-0 flex-1">
             <div className="text-[14px] font-bold text-ink">How is the customer paying?</div>
@@ -957,6 +1201,102 @@ export function NewRepairWindow({
               <span className="block text-[14.5px] font-bold">Add to current sale · {formatCents(totals.totalCents)}</span>
               <span className="block text-[12px] text-white/80">Paid up front · ticket opens as paid</span>
             </span>
+          </button>
+        </div>
+        )}
+        <MoneyKeypadSheet
+          open={pricingLine !== null}
+          label={pricingLine?.description ?? ''}
+          cents={pricingLine?.priceCents ?? 0}
+          onCommit={(cents) => {
+            const target = pricingLine;
+            setLines((prev) => prev.map((x) => (x === target ? { ...x, priceCents: cents, tierLabel: null } : x)));
+          }}
+          onClose={() => setPricingLine(null)}
+        />
+        {edit && (
+          <ManagerCodePrompt
+            open={codePrompt}
+            busy={busy}
+            error={codeError}
+            ticketNumber={edit.number}
+            onCancel={() => setCodePrompt(false)}
+            onSubmit={(pin) => void saveEdit(pin)}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Four-digit manager code sheet shown before a locked ticket (or a completed sale) is saved. */
+export function ManagerCodePrompt({
+  open,
+  busy,
+  error,
+  ticketNumber,
+  message = "This ticket is completed or already paid. Enter the store admin code or a manager's PIN to save the edit; the approval is recorded on the ticket.",
+  onCancel,
+  onSubmit,
+}: {
+  open: boolean;
+  busy: boolean;
+  error: string;
+  ticketNumber: string;
+  message?: string;
+  onCancel: () => void;
+  onSubmit: (pin: string) => void;
+}) {
+  const [pin, setPin] = useState('');
+  useEffect(() => {
+    if (open) setPin('');
+  }, [open]);
+  if (!open) return null;
+  const submit = () => {
+    if (pin.length >= 4 && !busy) onSubmit(pin);
+  };
+  return (
+    <div className="fixed inset-0 z-[115] flex items-center justify-center bg-navy/60 p-4" onClick={onCancel}>
+      <div className="w-[380px] max-w-full rounded-[20px] bg-card p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-3">
+          <span className="flex size-10 items-center justify-center rounded-full bg-orange-soft text-orange">
+            <i className="bi bi-shield-lock text-[18px]" />
+          </span>
+          <div>
+            <h3 className="text-[18px] font-bold text-ink">Admin code</h3>
+            <div className="text-[13px] text-ink-3">Approve changes to {ticketNumber}</div>
+          </div>
+        </div>
+        <p className="mt-3 text-[13.5px] leading-snug text-ink-3">{message}</p>
+        <div className="mt-4">
+          <SecretField
+            label="Admin code"
+            value={pin}
+            onChange={(v) => setPin(v.replace(/\D/g, '').slice(0, 6))}
+            inputMode="numeric"
+            maxLength={6}
+            error={error}
+            disabled={busy}
+          />
+        </div>
+        <div className="mt-4">
+          <Keypad
+            onDigit={(d) => setPin((p) => (p + d).slice(0, 6))}
+            onDoubleZero={() => setPin((p) => (p + '00').slice(0, 6))}
+            onBackspace={() => setPin((p) => p.slice(0, -1))}
+            onClear={() => setPin('')}
+          />
+        </div>
+        <div className="mt-4 flex justify-end gap-2">
+          <button onClick={onCancel} className="rounded-xl border border-line bg-card px-4 py-2.5 text-[14px] font-semibold text-ink-2">
+            Cancel
+          </button>
+          <button
+            onClick={submit}
+            disabled={pin.length < 4 || busy}
+            className="rounded-xl bg-orange px-4 py-2.5 text-[14px] font-semibold text-white disabled:opacity-50"
+          >
+            Approve and save
           </button>
         </div>
       </div>

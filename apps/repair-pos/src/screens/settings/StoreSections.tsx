@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '@fmp/ui';
-import { api, session } from '@fmp/pos-client';
+import { api, session, SecretField } from '@fmp/pos-client';
 
 interface StoreData {
   name: string;
@@ -11,7 +11,7 @@ interface StoreData {
   receiptFooter: string | null;
   settings: {
     drawerFloatCents?: number;
-    dejavoo?: { tpn?: string; authKey?: string; registerId?: string };
+    dejavoo?: { tpn?: string; authKey?: string; registerId?: string; hasAuthKey?: boolean; configured?: boolean };
     printing?: { autoPrintReceipt?: boolean; labelNote?: string };
   };
 }
@@ -20,14 +20,21 @@ interface StoreData {
 function useStore() {
   const [store, setStore] = useState<StoreData | null>(null);
   const [saved, setSaved] = useState('');
+  const [busy, setBusy] = useState(false);
+  const saving = useRef(false);
   const [error, setError] = useState('');
   const isManager = session.user?.role === 'manager';
 
-  useEffect(() => {
-    void api<StoreData>('/api/settings/store').then(setStore).catch(() => {});
+  const reload = useCallback(async () => {
+    setError('');
+    try { setStore(await api<StoreData>('/api/settings/store')); }
+    catch (e) { setError(e instanceof Error ? e.message : 'Store settings could not be loaded'); }
   }, []);
+  useEffect(() => { void reload(); }, [reload]);
 
   async function save(patch: Record<string, unknown>) {
+    if (saving.current) return;
+    saving.current = true; setBusy(true);
     setError('');
     setSaved('');
     try {
@@ -37,10 +44,10 @@ function useStore() {
       setTimeout(() => setSaved(''), 2500);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Save failed');
-    }
+    } finally { saving.current = false; setBusy(false); }
   }
 
-  return { store, save, saved, error, isManager };
+  return { store, save, saved, error, isManager, busy, reload };
 }
 
 const fieldLabel = { font: '600 12px Inter, sans-serif', color: 'var(--ink-3)', marginBottom: 5 } as const;
@@ -52,10 +59,10 @@ const inputStyle = {
   fontSize: 15,
 } as const;
 
-function SaveRow({ saved, error, isManager, onSave }: { saved: string; error: string; isManager: boolean; onSave: () => void }) {
+function SaveRow({ saved, error, isManager, onSave, busy = false }: { saved: string; error: string; isManager: boolean; onSave: () => void; busy?: boolean }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 18 }}>
-      <Button variant="primary" disabled={!isManager} onClick={onSave}>
+      <Button variant="primary" disabled={!isManager || busy} onClick={onSave}>
         Save changes
       </Button>
       {saved && <span style={{ color: 'var(--green)', fontSize: 14 }}>{saved}</span>}
@@ -66,12 +73,12 @@ function SaveRow({ saved, error, isManager, onSave }: { saved: string; error: st
 }
 
 export function StoreProfileSection() {
-  const { store, save, saved, error, isManager } = useStore();
+  const { store, save, saved, error, isManager, reload } = useStore();
   const [form, setForm] = useState({ name: '', address: '', phone: '' });
   useEffect(() => {
     if (store) setForm({ name: store.name, address: store.address ?? '', phone: store.phone ?? '' });
   }, [store]);
-  if (!store) return null;
+  if (!store) return <div role={error ? "alert" : "status"}>{error || "Loading store settings…"}{error && <Button onClick={() => void reload()}>Retry</Button>}</div>;
   return (
     <div style={{ maxWidth: 560 }}>
       <p style={{ margin: '0 0 16px', color: 'var(--ink-3)', fontSize: 14 }}>
@@ -100,12 +107,12 @@ export function StoreProfileSection() {
 }
 
 export function TaxesSection() {
-  const { store, save, saved, error, isManager } = useStore();
+  const { store, save, saved, error, isManager, reload } = useStore();
   const [taxPct, setTaxPct] = useState('');
   useEffect(() => {
     if (store) setTaxPct((store.taxRateBp / 100).toString());
   }, [store]);
-  if (!store) return null;
+  if (!store) return <div role={error ? "alert" : "status"}>{error || "Loading store settings…"}{error && <Button onClick={() => void reload()}>Retry</Button>}</div>;
   return (
     <div style={{ maxWidth: 560 }}>
       <p style={{ margin: '0 0 16px', color: 'var(--ink-3)', fontSize: 14 }}>
@@ -130,7 +137,7 @@ export function TaxesSection() {
 }
 
 export function ReceiptsPrintingSection() {
-  const { store, save, saved, error, isManager } = useStore();
+  const { store, save, saved, error, isManager, reload } = useStore();
   const [form, setForm] = useState({ header: '', footer: '', float: '' });
   useEffect(() => {
     if (store)
@@ -140,7 +147,7 @@ export function ReceiptsPrintingSection() {
         float: store.settings.drawerFloatCents != null ? (store.settings.drawerFloatCents / 100).toFixed(2) : '200.00',
       });
   }, [store]);
-  if (!store) return null;
+  if (!store) return <div role={error ? "alert" : "status"}>{error || "Loading store settings…"}{error && <Button onClick={() => void reload()}>Retry</Button>}</div>;
   return (
     <div style={{ maxWidth: 640 }}>
       <h3 style={{ margin: '0 0 4px', font: '700 17px Inter, sans-serif' }}>Receipts</h3>
@@ -189,28 +196,28 @@ export function ReceiptsPrintingSection() {
 }
 
 export function PaymentsSection() {
-  const { store, save, saved, error, isManager } = useStore();
+  const { store, save, saved, error, isManager, busy, reload } = useStore();
+  const [disconnecting, setDisconnecting] = useState(false);
   const [form, setForm] = useState({ tpn: '', authKey: '', registerId: '' });
   useEffect(() => {
     if (store)
       setForm({
         tpn: store.settings.dejavoo?.tpn ?? '',
-        authKey: store.settings.dejavoo?.authKey ?? '',
+        authKey: '',
         registerId: store.settings.dejavoo?.registerId ?? '',
       });
   }, [store]);
-  if (!store) return null;
-  const configured = Boolean(form.tpn && form.authKey);
+  if (!store) return <div role={error ? "alert" : "status"}>{error || "Loading store settings…"}{error && <Button onClick={() => void reload()}>Retry</Button>}</div>;
+  const configured = Boolean(store.settings.dejavoo?.configured);
   return (
     <div style={{ maxWidth: 560 }}>
       <p style={{ margin: '0 0 16px', color: 'var(--ink-3)', fontSize: 14 }}>
         Dejavoo terminal credentials. When set, the payment screen sends the amount straight to the terminal;
-        leave empty to confirm card payments manually. Currently: <b>{configured ? 'connected' : 'manual entry'}</b>.
+        leave the auth key blank to keep the saved key. Currently: <b>{configured ? 'configured' : 'manual entry'}</b>.
       </p>
       {(
         [
           ['tpn', 'TPN'],
-          ['authKey', 'AUTH KEY'],
           ['registerId', 'REGISTER ID'],
         ] as const
       ).map(([key, labelText]) => (
@@ -219,10 +226,23 @@ export function PaymentsSection() {
           <input value={form[key]} disabled={!isManager} onChange={(e) => setForm((p) => ({ ...p, [key]: e.target.value }))} style={inputStyle} />
         </label>
       ))}
+      <SecretField label="Auth key" value={form.authKey} disabled={!isManager || busy} onChange={authKey => setForm(p => ({ ...p, authKey }))}
+        hint={store.settings.dejavoo?.hasAuthKey ? 'A key is saved. Leave blank to keep it, or enter a replacement.' : 'Enter the key supplied for this terminal.'} />
+      {configured && isManager && <div style={{ marginTop: 16 }}>
+        {!disconnecting ? <Button variant="danger" disabled={busy} onClick={() => setDisconnecting(true)}>Disconnect terminal</Button> :
+          <div><p>Remove the saved terminal key? Card payments will require manual recording until a key is saved again.</p>
+            <Button disabled={busy} onClick={() => setDisconnecting(false)}>Keep terminal</Button>{' '}
+            <Button variant="danger" disabled={busy} onClick={() => {
+              void save({ settings: { dejavoo: { clearAuthKey: true } } });
+              setDisconnecting(false);
+            }}>Confirm disconnect</Button>
+          </div>}
+      </div>}
       <SaveRow
         saved={saved}
         error={error}
         isManager={isManager}
+        busy={busy}
         onSave={() => void save({ settings: { dejavoo: { tpn: form.tpn, authKey: form.authKey, registerId: form.registerId } } })}
       />
     </div>

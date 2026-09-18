@@ -1,14 +1,15 @@
+import { CheckoutRecoveryBoundary } from '@fmp/pos-client';
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { computeTotals, formatCents } from '@fmp/shared';
+import { computeTotals, formatCents, netFromGrossCents } from '@fmp/shared';
 import { Button, Modal } from '@fmp/ui';
-import { api, useNarrow, RingUpPad, type RingUpPadHandle } from '@fmp/pos-client';
+import { api, session, useNarrow, ReceiptView, RingUpPad, ScanButton, type RingUpPadHandle } from '@fmp/pos-client';
 import { useRef } from 'react';
 import { lineKey, type CartCustomer, type CartLine } from '@fmp/pos-client';
 import { CustomerModal } from '@fmp/pos-client';
 import { InventoryPickerModal, type PickableItem } from '@fmp/pos-client';
 import { type PaymentDraft } from '@fmp/pos-client';
-import { NewRepairWindow, type CreatedTicket } from '../repairs/NewRepairWindow';
+import { ManagerCodePrompt, NewRepairWindow, ticketIsLocked, type CreatedTicket, type EditTicketSeed } from '../repairs/NewRepairWindow';
 import { printTicketLabel, setLabelPrefs, TicketLabelPreview, type LabelPrefs, type TicketLabelFields } from '../repairs/labels';
 import { DepositModal } from '../repairs/DepositModal';
 import { TradeInModal } from './TradeInModal';
@@ -34,6 +35,8 @@ interface RepairRow {
   status: string;
   customerId: number | null;
   callFlag: boolean;
+  partsFlag: boolean;
+  alertFlag: boolean;
   promisedAt: string | null;
   totalCents: number;
   paidCents: number;
@@ -80,6 +83,7 @@ export function RegisterScreen() {
   const [parkedCount, setParkedCount] = useState(0);
   const [takenIn, setTakenIn] = useState<TakenInToday[]>([]);
   const [repairOpen, setRepairOpen] = useState(false);
+  const [editSeed, setEditSeed] = useState<EditTicketSeed | null>(null);
   const [toast, setToast] = useState('');
   const [taxRateBp, setTaxRateBp] = useState(cachedTaxRateBp);
   const ringUpRef = useRef<RingUpPadHandle>(null);
@@ -106,6 +110,65 @@ export function RegisterScreen() {
       .catch(() => setRepairTickets([]));
   }
 
+  /** Popup card action: flip a ticket tag (Call / Order parts) and refresh the cards. */
+  async function toggleTicketFlag(t: RepairRow, flag: 'callFlag' | 'partsFlag' | 'alertFlag') {
+    try {
+      await api(`/api/repairs/${t.id}`, { method: 'PATCH', body: JSON.stringify({ [flag]: !t[flag] }) });
+      setRepairTickets((prev) => prev.map((x) => (x.id === t.id ? { ...x, [flag]: !t[flag] } : x)));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Update failed');
+    }
+  }
+
+  /** Small tappable tag chip on a ticket card: filled when the flag is on, outlined when off. */
+  const ticketTag = (t: RepairRow, flag: 'callFlag' | 'partsFlag' | 'alertFlag', icon: string, label: string, color: string, bg: string) => {
+    const on = t[flag];
+    return (
+      <button
+        key={flag}
+        onClick={() => void toggleTicketFlag(t, flag)}
+        aria-pressed={on}
+        title={on ? `${label} tag on — tap to clear` : `Tag: ${label}`}
+        style={{
+          display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 10px', borderRadius: 999,
+          border: `1px solid ${on ? color : 'var(--line)'}`, background: on ? bg : 'var(--card)',
+          color: on ? color : 'var(--ink-4)', font: '600 12.5px Inter, sans-serif', whiteSpace: 'nowrap',
+        }}
+      >
+        <i className={`bi ${icon}`} style={{ fontSize: 11 }} /> {label}
+      </button>
+    );
+  };
+
+  /** Popup card action: open the full edit window on this ticket (the popup closes so the window sits on top). */
+  async function editTicket(t: RepairRow) {
+    try {
+      const d = await api<{
+        ticket: { id: number; number: string; status: string; callFlag: boolean; partsFlag: boolean; alertFlag: boolean; notesForTech: string | null };
+        customer: { id: number; name: string; phone: string | null } | null;
+        devices: EditTicketSeed['devices'];
+        lines: EditTicketSeed['lines'];
+        paidCents: number;
+      }>(`/api/repairs/${t.id}`);
+      setModal(null);
+      setEditSeed({
+        id: d.ticket.id,
+        number: d.ticket.number,
+        status: d.ticket.status,
+        paidCents: d.paidCents,
+        callFlag: d.ticket.callFlag,
+        partsFlag: d.ticket.partsFlag,
+        alertFlag: d.ticket.alertFlag,
+        notesForTech: d.ticket.notesForTech,
+        customer: d.customer ? { id: d.customer.id, name: d.customer.name, phone: d.customer.phone } : null,
+        devices: d.devices,
+        lines: d.lines,
+      });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Ticket could not be loaded');
+    }
+  }
+
   /** Popup card action: pull the ticket's balance into the current sale. */
   function collectTicketBalance(t: RepairRow) {
     const balance = t.totalCents - t.paidCents;
@@ -117,7 +180,7 @@ export function RegisterScreen() {
         kind: 'repair',
         description: `${t.number} · balance`,
         qty: 1,
-        unitCents: Math.round(balance / (1 + taxRateBp / 10000)),
+        unitCents: netFromGrossCents(balance, taxRateBp),
         discountCents: 0,
         taxable: true,
         ticketId: t.id,
@@ -132,7 +195,27 @@ export function RegisterScreen() {
   const [recent, setRecent] = useState<RecentSale[]>([]);
   const [receiptView, setReceiptView] = useState<null | { id: number; number: string; text: string; completedAt: string | null }>(null);
   /** completed sale reopened in the cart; Save writes back to the same ticket */
-  const [editingSale, setEditingSale] = useState<{ id: number; number: string } | null>(null);
+  const [editingSale, setEditingSale] = useState<{ id: number; number: string; paidCents: number } | null>(null);
+  const [amendPending, setAmendPending] = useState<null | { lines: CartLine[]; payments?: PaymentDraft[] }>(null);
+  const [amendCodeError, setAmendCodeError] = useState('');
+  /** a deposit was requested but the sale had no reachable customer yet */
+  const [depositPending, setDepositPending] = useState(false);
+  /** the Current sale panel can be tucked away to give the pad the full width; remembered per register */
+  const [cartHidden, setCartHidden] = useState(() => {
+    try {
+      return localStorage.getItem('fmp.cartHidden') === '1';
+    } catch {
+      return false;
+    }
+  });
+  function toggleCart(hidden: boolean) {
+    setCartHidden(hidden);
+    try {
+      localStorage.setItem('fmp.cartHidden', hidden ? '1' : '0');
+    } catch {
+      /* storage unavailable — the choice just won't persist */
+    }
+  }
   const [receiptMsg, setReceiptMsg] = useState('');
   const [refunding, setRefunding] = useState(false);
   const [refundMethod, setRefundMethod] = useState<'cash' | 'store_credit'>('cash');
@@ -214,25 +297,55 @@ export function RegisterScreen() {
 
   useEffect(() => {
     void refreshSide();
+    // resume support: PendingSales stashes a sale here before navigating over. The Repairs
+    // board uses the same stash to hand over a ticket balance (`collectTicket`); that line is
+    // priced once the store's tax rate is known so the taxed total lands on the balance.
+    const stash = sessionStorage.getItem('fmp.resumeSale');
+    let collect: { id: number; number: string; balanceCents: number } | undefined;
+    if (stash) {
+      sessionStorage.removeItem('fmp.resumeSale');
+      const parsed = JSON.parse(stash) as {
+        id: number | null;
+        customer: CartCustomer | null;
+        lines: Array<Omit<CartLine, 'key'>>;
+        collectTicket?: { id: number; number: string; balanceCents: number };
+      };
+      setLines(parsed.lines.map((l) => ({ ...l, key: lineKey() })));
+      setCustomer(parsed.customer);
+      setResumedSaleId(parsed.id);
+      collect = parsed.collectTicket;
+    }
+    const addCollectLine = (rateBp: number) => {
+      if (!collect || collect.balanceCents <= 0) return;
+      const t = collect;
+      setLines((prev) => [
+        ...prev,
+        {
+          key: lineKey(),
+          kind: 'repair',
+          description: `${t.number} · balance`,
+          qty: 1,
+          unitCents: netFromGrossCents(t.balanceCents, rateBp),
+          discountCents: 0,
+          taxable: true,
+          ticketId: t.id,
+        },
+      ]);
+    };
     void api<{ taxRateBp: number; settings?: { print?: LabelPrefs } }>('/api/settings/store')
       .then((s) => {
         cachedTaxRateBp = s.taxRateBp;
         setTaxRateBp(s.taxRateBp);
         setLabelPrefs(s.settings?.print);
+        addCollectLine(s.taxRateBp);
       })
-      .catch(() => {});
-    // resume support: PendingSales stashes a sale here before navigating over
-    const stash = sessionStorage.getItem('fmp.resumeSale');
-    if (stash) {
-      sessionStorage.removeItem('fmp.resumeSale');
-      const parsed = JSON.parse(stash) as {
-        id: number;
-        customer: CartCustomer | null;
-        lines: Array<Omit<CartLine, 'key'>>;
-      };
-      setLines(parsed.lines.map((l) => ({ ...l, key: lineKey() })));
-      setCustomer(parsed.customer);
-      setResumedSaleId(parsed.id);
+      .catch(() => addCollectLine(cachedTaxRateBp));
+    // the Transactions log hands a sale over here for correction
+    const editStash = sessionStorage.getItem('fmp.editSale');
+    if (editStash) {
+      sessionStorage.removeItem('fmp.editSale');
+      const parsed = JSON.parse(editStash) as { id: number; number: string };
+      void startEditSale(parsed.id, parsed.number);
     }
   }, []);
 
@@ -282,22 +395,31 @@ export function RegisterScreen() {
     setSelectedKey(null);
   }
 
-  /** Receipt popup "Edit": reopen a same-day sale in the cart for repricing. */
-  async function startEditSale() {
-    if (!receiptView) return;
-    if (lines.length > 0 || editingSale) {
-      setReceiptMsg('Finish or clear the current sale first, then edit.');
-      return;
-    }
+  const lineTotals = (ls: CartLine[]) =>
+    computeTotals(ls.map((l) => ({ qty: l.qty, unitCents: l.unitCents, taxable: l.taxable, discountCents: l.discountCents })), taxRateBp);
+
+  /** Edit sale (receipt sheet): load a completed sale's lines into the cart for correction. */
+  async function startEditSale(id: number, number: string) {
+    setReceiptMsg('');
     try {
       const s = await api<{
+        status: string;
         customerId: number | null;
-        lines: Array<Pick<CartLine, 'kind' | 'description' | 'qty' | 'unitCents' | 'discountCents' | 'taxable'> & {
-          inventoryItemId: number | null;
-          ticketId: number | null;
-        }>;
-      }>(`/api/sales/${receiptView.id}`);
-      const src = recent.find((r) => r.id === receiptView.id);
+        lines: Array<{ kind: CartLine['kind']; description: string; qty: number; unitCents: number; discountCents: number; taxable: boolean; inventoryItemId: number | null }>;
+        payments: Array<{ amountCents: number }>;
+      }>(`/api/sales/${id}`);
+      if (s.status !== 'completed') {
+        setReceiptMsg('Only completed sales can be edited.');
+        return;
+      }
+      if (s.lines.some((l) => l.kind !== 'product' && l.kind !== 'custom')) {
+        setReceiptMsg('This sale paid a repair, trade-in, payout or deposit. Refund it and ring a new sale instead.');
+        return;
+      }
+      const cust = s.customerId
+        ? await api<{ customer: CartCustomer }>(`/api/customers/${s.customerId}`).then((r) => r.customer).catch(() => null)
+        : null;
+      clearSale();
       setLines(
         s.lines.map((l) => ({
           key: lineKey(),
@@ -307,38 +429,88 @@ export function RegisterScreen() {
           unitCents: l.unitCents,
           discountCents: l.discountCents,
           taxable: l.taxable,
-          inventoryItemId: l.inventoryItemId ?? undefined,
-          ticketId: l.ticketId ?? undefined,
+          inventoryItemId: l.inventoryItemId,
         })),
       );
-      setCustomer(
-        s.customerId && src?.customerName ? { id: s.customerId, name: src.customerName, phone: src.customerPhone } : null,
-      );
-      setEditingSale({ id: receiptView.id, number: receiptView.number });
+      setCustomer(cust);
+      setEditingSale({ id, number, paidCents: s.payments.reduce((a, p) => a + p.amountCents, 0) });
       setReceiptView(null);
-    } catch {
-      setReceiptMsg('Could not load the sale.');
+    } catch (e) {
+      setReceiptMsg(e instanceof Error ? e.message : 'Could not load sale');
     }
   }
 
-  /** Write the edited cart back onto the original sale and show the new receipt. */
-  async function saveAmend(useLines: CartLine[] = lines) {
+  /**
+   * Save a correction: the server voids the original, re-rings these lines as a new
+   * sale with the original tenders carried over, and settles the difference — extra
+   * `payments` when the total went up, cash back when it went down. Employees need a
+   * manager code.
+   */
+  async function saveAmend(useLines: CartLine[] = lines, payments?: PaymentDraft[], managerPin?: string) {
     if (!editingSale || useLines.length === 0) return;
-    setBusy(true);
+    const diff = lineTotals(useLines).totalCents - editingSale.paidCents;
     setError('');
+    if (diff > 0 && !payments?.length) {
+      setError(`The new total is ${formatCents(diff)} more than what was paid. Collect the difference with Cash, Card, Zelle or Cash App.`);
+      return;
+    }
+    if (session.user?.role !== 'manager' && !managerPin) {
+      setAmendCodeError('');
+      setAmendPending({ lines: useLines, payments });
+      return;
+    }
+    setBusy(true);
     try {
-      const res = await api<{ receiptText: string }>(`/api/sales/${editingSale.id}/amend`, {
+      const res = await api<{ receiptText: string; diffCents: number }>(`/api/sales/${editingSale.id}/amend`, {
         method: 'POST',
-        body: JSON.stringify({ lines: useLines.map(({ key, detail, serialized, ...l }) => l) }),
+        body: JSON.stringify({
+          lines: useLines.map(({ key, detail, serialized, ...l }) => l),
+          customerId: customer?.id ?? null,
+          payments: diff > 0 ? payments : [],
+          refundMethod: diff < 0 ? 'cash' : null,
+          managerPin: managerPin ?? null,
+        }),
       });
-      setDone({ changeCents: null, receiptText: res.receiptText, printed: false, updated: true });
+      setAmendPending(null);
+      setDone({ changeCents: res.diffCents < 0 ? -res.diffCents : null, receiptText: res.receiptText, printed: false, updated: true });
       clearSale();
       await refreshSide();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not update sale');
+      const message = e instanceof Error ? e.message : 'Could not update sale';
+      if (managerPin) setAmendCodeError(message);
+      else setError(message);
     } finally {
       setBusy(false);
     }
+  }
+
+  const reachable = (c: CartCustomer | null) => !!c && c.name.trim().length > 0 && !!c.phone?.trim();
+
+  /** Deposit line: held as the customer's store credit once the sale completes, so it needs a name and phone. */
+  function addDepositLine() {
+    const key = lineKey();
+    setLines((prev) => [...prev, { key, kind: 'deposit', description: 'Deposit', qty: 1, unitCents: 0, discountCents: 0, taxable: false }]);
+    setSelectedKey(key);
+    ringUpRef.current?.focus();
+  }
+
+  function startDeposit() {
+    setError('');
+    if (reachable(customer)) {
+      addDepositLine();
+      return;
+    }
+    setDepositPending(true);
+    setModal('customer');
+  }
+
+  /** Customer picked from the sheet: attach, and finish a pending deposit if the customer is reachable. */
+  function pickCustomer(c: CartCustomer) {
+    setCustomer(c);
+    if (!depositPending) return;
+    setDepositPending(false);
+    if (reachable(c)) addDepositLine();
+    else setError(`Add a phone number for ${c.name} in Customers before taking a deposit.`);
   }
 
   /** Accessory / Service fee / typed search text: goes straight into the sale,
@@ -375,6 +547,12 @@ export function RegisterScreen() {
   }
 
   async function complete(payments: PaymentDraft[], useLines: CartLine[] = lines) {
+    if (useLines.some((l) => l.kind === 'deposit') && !reachable(customer)) {
+      setError('A deposit needs a customer with a name and phone number.');
+      setDepositPending(false);
+      setModal('customer');
+      return;
+    }
     setBusy(true);
     setError('');
     try {
@@ -474,6 +652,7 @@ export function RegisterScreen() {
     { icon: 'bi-wrench-adjustable', title: 'New repair', caption: 'Start a repair ticket', bg: 'var(--orange-soft)', onClick: () => setRepairOpen(true) },
     { icon: 'bi-lightning-charge', title: 'Accessory', caption: 'Cases, chargers, glass', bg: 'var(--blue-bg)', onClick: () => setModal('accessory') },
     { icon: 'bi-phone', title: 'Device sale', caption: 'Sell a used or new phone', bg: 'var(--green-bg)', onClick: () => setModal('device') },
+    { icon: 'bi-tools', title: 'Service fee', caption: 'Diagnostic, labor, misc', bg: 'var(--amber-bg)', onClick: () => addPendingItem('Service fee') },
     { icon: 'bi-arrow-left-right', title: 'Trade-in', caption: 'Buy or exchange a device', bg: 'var(--purple-bg)', onClick: () => setModal('tradein') },
     { icon: 'bi-search', title: 'Check IMEI', caption: 'Carrier and blacklist status', bg: 'var(--card)', disabled: true },
     { icon: 'bi-cash-coin', title: 'Payout', caption: 'Cash paid from register', bg: 'var(--red-bg)', onClick: () => setModal('payout') },
@@ -590,6 +769,8 @@ export function RegisterScreen() {
   );
 
   return (
+    <CheckoutRecoveryBoundary onCartCleared={() => { clearSale(); setModal(null); }} onResolved={result => { clearSale(); setModal(null); setError(''); if(result.state === 'saved') setDone({changeCents:null,receiptText:result.receiptText,printed:false}); }}>
+
     <div
       style={
         narrow
@@ -610,7 +791,7 @@ export function RegisterScreen() {
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
-            <h1 style={{ margin: 0, font: '700 27.5px Inter, sans-serif' }}>
+            <h1 style={{ margin: 0, font: '700 clamp(19px, 3.2vw, 27.5px) Inter, sans-serif' }}>
               {now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
               <span style={{ color: 'var(--ink-3)', fontWeight: 600 }}>
                 {' '}
@@ -628,13 +809,9 @@ export function RegisterScreen() {
               onUseDescription={(text) => addPendingItem(text)}
             />
           </div>
-          {[
-            { label: 'Accessory', icon: 'bi-lightning-charge' },
-            { label: 'Service fee', icon: 'bi-tools' },
-          ].map((preset) => (
+          <Link to="/transactions" style={{ textDecoration: 'none' }}>
             <button
-              key={preset.label}
-              onClick={() => addPendingItem(preset.label)}
+              title="All transactions — sales, refunds, repair deposits, payouts, trade-ins"
               style={{
                 marginTop: 12,
                 minHeight: 50,
@@ -651,37 +828,41 @@ export function RegisterScreen() {
                 boxShadow: 'var(--shadow-card)',
               }}
             >
-              <i className={`bi ${preset.icon}`} style={{ fontSize: 16, color: 'var(--orange)' }} />
-              {preset.label}
+              <i className="bi bi-receipt" style={{ fontSize: 16, color: 'var(--orange)' }} />
+              Transactions
             </button>
-          ))}
-        </div>
-
-        {/* Primary actions live right above the register */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginTop: 12 }}>
-          {smartActions.slice(0, 3).map((a, i) => renderPrimary(a, ['var(--orange)', 'var(--navy)', 'var(--green)'][i]!))}
+          </Link>
         </div>
 
         <RingUpPad
+          quickActions={
+            // Primary actions live inside the register, between the amount entry and the tender row
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10 }}>
+              {smartActions.slice(0, 4).map((a, i) => renderPrimary(a, ['var(--orange)', 'var(--navy)', 'var(--green)', 'var(--amber)'][i]!))}
+            </div>
+          }
           ref={ringUpRef}
           taxRateBp={taxRateBp}
           subtotalCents={totals.subtotalCents}
           taxCents={totals.taxCents}
-          totalCents={totals.totalCents}
+          totalCents={editingSale ? Math.max(0, totals.totalCents - editingSale.paidCents) : totals.totalCents}
           customer={customer}
           busy={busy}
-          taxRemovedInSale={lines.some((l) => !l.taxable)}
+          taxRemovedInSale={lines.some((l) => !l.taxable && l.kind !== 'deposit')}
           showItemOptions={false}
           onAdd={(item) => setLines(applyAmount(item))}
           onCollectCard={(item) => {
-            if (editingSale) void saveAmend(item ? applyAmount(item) : lines);
-            else collectCard(item);
+            if (editingSale) {
+              const ls = item ? applyAmount(item) : lines;
+              const diff = lineTotals(ls).totalCents - editingSale.paidCents;
+              void saveAmend(ls, diff > 0 ? [{ method: 'card', amountCents: diff }] : undefined);
+            } else collectCard(item);
           }}
-          onComplete={(p) => (editingSale ? void saveAmend() : void complete(p))}
+          onComplete={(p) => (editingSale ? void saveAmend(lines, p) : void complete(p))}
         />
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginTop: 12 }}>
-          {smartActions.slice(3).map(renderAction)}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 10, marginTop: 12 }}>
+          {smartActions.slice(4).map(renderAction)}
         </div>
 
         <div style={{ font: '600 11.5px Inter, sans-serif', color: 'var(--ink-4)', letterSpacing: '0.08em', margin: '14px 0 7px' }}>
@@ -798,7 +979,46 @@ export function RegisterScreen() {
         </div>
       </div>
 
-      {/* Right (portrait: below): current sale */}
+      {/* Right (portrait: below): current sale — collapsible to a slim strip */}
+      {cartHidden ? (
+        <button
+          onClick={() => toggleCart(false)}
+          aria-label="Show current sale"
+          title="Show current sale"
+          style={{
+            flexShrink: 0,
+            width: narrow ? '100%' : 52,
+            minHeight: narrow ? 52 : undefined,
+            display: 'flex',
+            flexDirection: narrow ? 'row' : 'column',
+            alignItems: 'center',
+            justifyContent: narrow ? 'center' : 'flex-start',
+            gap: 10,
+            padding: narrow ? '0 16px' : '16px 0',
+            background: 'var(--card)',
+            borderLeft: narrow ? 'none' : '1px solid var(--line-soft)',
+            borderTop: narrow ? '1px solid var(--line-soft)' : 'none',
+            color: 'var(--ink-2)',
+            font: '700 13px Inter, sans-serif',
+          }}
+        >
+          <i className={`bi ${narrow ? 'bi-chevron-up' : 'bi-chevron-double-left'}`} style={{ fontSize: 15 }} />
+          <span style={narrow ? undefined : { writingMode: 'vertical-rl', letterSpacing: '0.04em' }}>Current sale</span>
+          <span
+            style={{
+              minWidth: 22,
+              padding: '2px 7px',
+              borderRadius: 999,
+              background: lines.length ? 'var(--orange)' : 'var(--line-soft)',
+              color: lines.length ? '#fff' : 'var(--ink-3)',
+              font: '700 12px Inter, sans-serif',
+              textAlign: 'center',
+            }}
+          >
+            {lines.reduce((n, l) => n + l.qty, 0)}
+          </span>
+        </button>
+      ) : (
       <div
         style={{
           width: narrow ? '100%' : 360,
@@ -811,9 +1031,31 @@ export function RegisterScreen() {
         }}
       >
         <div style={{ padding: '18px 20px 14px', borderBottom: '1px solid var(--line-soft)' }}>
-          <h2 style={{ margin: 0, font: '700 20.5px Inter, sans-serif' }}>
-            Current sale <span style={{ color: 'var(--orange)' }}>items: {lines.reduce((n, l) => n + l.qty, 0)}</span>
-          </h2>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+            <h2 style={{ margin: 0, font: '700 20.5px Inter, sans-serif' }}>
+              Current sale <span style={{ color: 'var(--orange)' }}>items: {lines.reduce((n, l) => n + l.qty, 0)}</span>
+            </h2>
+            <button
+              onClick={() => toggleCart(true)}
+              aria-label="Hide current sale"
+              title="Hide current sale"
+              style={{
+                width: 34,
+                height: 34,
+                borderRadius: 9,
+                border: '1px solid var(--line-soft)',
+                background: 'var(--card)',
+                color: 'var(--ink-3)',
+                fontSize: 14,
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}
+            >
+              <i className={`bi ${narrow ? 'bi-chevron-down' : 'bi-chevron-double-right'}`} />
+            </button>
+          </div>
           {editingSale && (
             <div
               style={{
@@ -830,7 +1072,7 @@ export function RegisterScreen() {
               }}
             >
               <span>
-                <i className="bi bi-pencil-square" /> Editing #{editingSale.number} — tap an item, punch its new price
+                <i className="bi bi-pencil-square" /> Editing #{editingSale.number} · paid {formatCents(editingSale.paidCents)} — tap an item, punch its new price
               </span>
               <button
                 onClick={clearSale}
@@ -895,7 +1137,7 @@ export function RegisterScreen() {
             <div key={l.key} style={{ borderBottom: '1px solid var(--line-soft)', padding: '10px 0' }}>
               <div
                 onClick={
-                  l.kind === 'custom' || editingSale
+                  l.kind === 'custom' || l.kind === 'deposit' || editingSale
                     ? () => setSelectedKey((k) => (k === l.key ? null : l.key))
                     : undefined
                 }
@@ -903,17 +1145,56 @@ export function RegisterScreen() {
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'flex-start',
-                  cursor: l.kind === 'custom' || editingSale ? 'pointer' : undefined,
+                  cursor: l.kind === 'custom' || l.kind === 'deposit' || editingSale ? 'pointer' : undefined,
                   background: selectedKey === l.key ? 'var(--orange-soft)' : undefined,
                   borderRadius: 10,
                   margin: '0 -8px',
                   padding: '6px 8px',
                 }}
               >
-                <span style={{ font: '600 15px Inter, sans-serif' }}>{l.description}</span>
-                <span style={{ textAlign: 'right' }}>
+                {l.kind === 'custom' && selectedKey === l.key ? (
+                  <span
+                    onClick={(e) => e.stopPropagation()}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 0, flex: 1, marginRight: 10 }}
+                  >
+                    <input
+                      title="Rename this item"
+                      value={l.description}
+                      maxLength={200}
+                      placeholder="Custom item"
+                      aria-label="Item name"
+                      onChange={(e) => {
+                        const description = e.target.value;
+                        setLines((prev) => prev.map((x) => (x.key === l.key ? { ...x, description } : x)));
+                      }}
+                      onBlur={() => {
+                        if (!l.description.trim())
+                          setLines((prev) => prev.map((x) => (x.key === l.key ? { ...x, description: 'Custom item' } : x)));
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === 'Escape') (e.target as HTMLInputElement).blur();
+                      }}
+                      style={{
+                        font: '600 15px Inter, sans-serif',
+                        color: 'var(--ink)',
+                        background: 'transparent',
+                        border: 'none',
+                        borderBottom: '1px dashed var(--line)',
+                        borderRadius: 0,
+                        padding: '2px 0',
+                        minWidth: 0,
+                        width: '100%',
+                        outline: 'none',
+                      }}
+                    />
+                    <i className="bi bi-pencil" style={{ color: 'var(--ink-4)', fontSize: 13, flexShrink: 0 }} />
+                  </span>
+                ) : (
+                  <span style={{ font: '600 15px Inter, sans-serif' }}>{l.description}</span>
+                )}
+                <span style={{ textAlign: 'right', flexShrink: 0 }}>
                   <span style={{ font: '700 15px Inter, sans-serif' }}>{formatCents(l.qty * l.unitCents - l.discountCents)}</span>
-                  {(l.kind === 'custom' && l.unitCents === 0) || selectedKey === l.key ? (
+                  {((l.kind === 'custom' || l.kind === 'deposit') && l.unitCents === 0) || selectedKey === l.key ? (
                     <span style={{ display: 'block', fontSize: 12.5, fontWeight: 600, color: 'var(--amber)' }}>
                       {selectedKey === l.key ? 'Punch the price on the pad' : 'Needs price — tap to select'}
                     </span>
@@ -977,6 +1258,14 @@ export function RegisterScreen() {
                   >
                     Remove
                   </button>
+                  {l.kind === 'deposit' ? (
+                    <span
+                      title="Held as store credit for this customer once the sale completes"
+                      style={{ background: 'var(--purple-bg)', color: 'var(--purple)', borderRadius: 8, padding: '6px 14px', font: '600 13px Inter, sans-serif' }}
+                    >
+                      <i className="bi bi-wallet2" /> Store credit
+                    </span>
+                  ) : (
                   <button
                     onClick={() => setLines((prev) => prev.map((x) => (x.key === l.key ? { ...x, taxable: !x.taxable } : x)))}
                     title={l.taxable ? 'Tap to remove tax from this item (logged, cash only)' : 'Tax removed — tap to add it back'}
@@ -991,6 +1280,7 @@ export function RegisterScreen() {
                   >
                     {l.taxable ? `Tax ${(taxRateBp / 100).toFixed(taxRateBp % 100 === 0 ? 0 : 2)}%` : 'No tax'}
                   </button>
+                  )}
                 </span>
               </div>
             </div>
@@ -1018,6 +1308,25 @@ export function RegisterScreen() {
               + Add custom item
             </button>
           )}
+          <button
+            onClick={startDeposit}
+            title="Take a deposit — needs a customer with a name and phone number"
+            style={{
+              width: '100%',
+              marginTop: 10,
+              padding: '10px 0',
+              borderRadius: 10,
+              border: '1px dashed var(--purple)',
+              background: 'var(--purple-bg)',
+              color: 'var(--purple)',
+              font: '600 14px Inter, sans-serif',
+            }}
+          >
+            <i className="bi bi-wallet2" /> Take deposit
+            <span style={{ display: 'block', fontSize: 11.5, fontWeight: 500, color: 'var(--purple)', opacity: 0.85 }}>
+              {reachable(customer) ? `Held as store credit for ${customer!.name}` : 'Needs customer name and phone'}
+            </span>
+          </button>
         </div>
 
         <div style={{ borderTop: '1px solid var(--line-soft)', padding: '12px 20px 16px' }}>
@@ -1052,8 +1361,16 @@ export function RegisterScreen() {
           </div>
         </div>
       </div>
+      )}
 
-      <CustomerModal open={modal === 'customer'} onClose={() => setModal(null)} onPick={setCustomer} />
+      <CustomerModal
+        open={modal === 'customer'}
+        onClose={() => {
+          setModal(null);
+          setDepositPending(false);
+        }}
+        onPick={pickCustomer}
+      />
       <InventoryPickerModal
         open={modal === 'accessory'}
         tab="accessories"
@@ -1068,7 +1385,29 @@ export function RegisterScreen() {
         onClose={() => setModal(null)}
         onPick={addItem}
       />
+      <ManagerCodePrompt
+        open={amendPending !== null}
+        busy={busy}
+        error={amendCodeError}
+        ticketNumber={editingSale ? `#${editingSale.number}` : ''}
+        message="Correcting a completed sale needs a manager's approval. The original tenders carry over to the corrected sale and the difference is settled now."
+        onCancel={() => setAmendPending(null)}
+        onSubmit={(pin) => amendPending && void saveAmend(amendPending.lines, amendPending.payments, pin)}
+      />
       <NewRepairWindow open={repairOpen} onClose={() => setRepairOpen(false)} onCreated={handleRepairCreated} />
+      <NewRepairWindow
+        open={editSeed !== null}
+        edit={editSeed}
+        onClose={() => {
+          setEditSeed(null);
+          openRepairsPopup();
+        }}
+        onCreated={handleRepairCreated}
+        onSaved={() => {
+          setEditSeed(null);
+          openRepairsPopup();
+        }}
+      />
       <TradeInModal
         open={modal === 'tradein'}
         customer={customer}
@@ -1182,12 +1521,10 @@ export function RegisterScreen() {
                   {t.serviceSummary ? ` — ${t.serviceSummary}` : ''}
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 7 }}>
-                  <span style={{ fontSize: 12.5, color: 'var(--orange)', fontWeight: 600 }}>
-                    {t.callFlag && (
-                      <>
-                        <i className="bi bi-telephone" /> Customer wants a call
-                      </>
-                    )}
+                  <span style={{ display: 'inline-flex', gap: 6 }}>
+                    {ticketTag(t, 'callFlag', 'bi-telephone-fill', 'Call', 'var(--purple)', 'var(--purple-bg)')}
+                    {ticketTag(t, 'partsFlag', 'bi-box-seam', 'Order parts', 'var(--amber)', 'var(--amber-bg)')}
+                    {ticketTag(t, 'alertFlag', 'bi-exclamation-triangle-fill', 'Alert', 'var(--red)', 'var(--red-bg)')}
                   </span>
                   {balance > 0 ? (
                     <span style={{ font: '700 14.5px Inter, sans-serif', color: 'var(--red)' }}>
@@ -1246,6 +1583,13 @@ export function RegisterScreen() {
                     <i className="bi bi-tag" /> Label
                   </button>
                   <button
+                    onClick={() => void editTicket(t)}
+                    title={ticketIsLocked(t) ? 'Completed or paid — a manager code is required' : 'Edit ticket'}
+                    style={{ minHeight: 38, borderRadius: 9, border: '1px solid var(--line)', background: 'var(--card)', color: 'var(--ink)', font: '600 13.5px Inter, sans-serif', padding: '0 12px' }}
+                  >
+                    <i className={`bi ${ticketIsLocked(t) ? 'bi-shield-lock' : 'bi-pencil'}`} /> Edit
+                  </button>
+                  <button
                     onClick={() => {
                       setCancelReason('');
                       setCancelTicket({ id: t.id, number: t.number });
@@ -1280,22 +1624,8 @@ export function RegisterScreen() {
                 <i className="bi bi-x-lg" />
               </button>
             </div>
-            <pre
-              style={{
-                textAlign: 'left',
-                background: 'var(--line-soft)',
-                borderRadius: 10,
-                padding: 12,
-                marginTop: 12,
-                fontSize: 12,
-                fontFamily: 'ui-monospace, monospace',
-                overflow: 'auto',
-                userSelect: 'text',
-              }}
-            >
-              {receiptView.text}
-            </pre>
-            {receiptMsg && <div style={{ marginTop: 8, fontSize: 14, color: 'var(--ink-2)' }}>{receiptMsg}</div>}
+            <ReceiptView text={receiptView.text} style={{ marginTop: 12 }} />
+            {receiptMsg && <div role="status" style={{ marginTop: 8, fontSize: 14, color: 'var(--ink-2)' }}>{receiptMsg}</div>}
             {!refunding ? (
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 12 }}>
                 <Button
@@ -1311,14 +1641,11 @@ export function RegisterScreen() {
                 >
                   <i className="bi bi-printer" /> Print
                 </Button>
-                {receiptView.completedAt != null &&
-                  new Date(receiptView.completedAt).toDateString() === new Date().toDateString() && (
-                    <Button variant="secondary" onClick={() => void startEditSale()}>
-                      <i className="bi bi-pencil-square" /> Edit
-                    </Button>
-                  )}
                 <Button variant="secondary" onClick={() => setRefunding(true)}>
                   <i className="bi bi-arrow-counterclockwise" /> Refund
+                </Button>
+                <Button variant="secondary" onClick={() => void startEditSale(receiptView.id, receiptView.number)}>
+                  <i className="bi bi-pencil-square" /> Edit sale
                 </Button>
                 <Button
                   variant="danger"
@@ -1499,20 +1826,7 @@ export function RegisterScreen() {
               {done.printed ? 'Receipt sent to printer.' : 'Print bridge offline — receipt below.'}
             </div>
             {!done.printed && (
-              <pre
-                style={{
-                  textAlign: 'left',
-                  background: 'var(--line-soft)',
-                  borderRadius: 10,
-                  padding: 12,
-                  fontSize: 12,
-                  fontFamily: 'ui-monospace, monospace',
-                  overflow: 'auto',
-                  userSelect: 'text',
-                }}
-              >
-                {done.receiptText}
-              </pre>
+              <ReceiptView text={done.receiptText} />
             )}
             <Button variant="primary" size="lg" style={{ width: '100%', marginTop: 12 }} onClick={() => setDone(null)}>
               {done.updated ? 'Done' : 'New sale'}
@@ -1521,6 +1835,7 @@ export function RegisterScreen() {
         )}
       </Modal>
     </div>
+    </CheckoutRecoveryBoundary>
   );
 }
 
@@ -1565,13 +1880,18 @@ function SearchBar({
         style={{
           width: '100%',
           height: 50,
-          padding: '0 14px 0 41px',
+          padding: '0 52px 0 41px',
           borderRadius: 12,
           border: '1px solid var(--line-soft)',
           background: 'var(--card)',
           fontSize: 15.5,
           boxShadow: 'var(--shadow-card)',
         }}
+      />
+      <ScanButton
+        title="Scan IMEI or SKU"
+        onScan={(text) => setQ(text.trim())}
+        style={{ position: 'absolute', right: 8, top: 7, width: 36, height: 36 }}
       />
       {(q.trim().length >= 2 || (results && (results.customers.length > 0 || results.items.length > 0))) && (
         <div

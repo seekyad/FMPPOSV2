@@ -27,10 +27,14 @@ export interface DataTableProps<T> {
   emptyText?: string;
   /** rendered on the toolbar's right side (e.g. an Add button) */
   toolbar?: ReactNode;
+  /** rendered right after the search box (e.g. a tab strip) */
+  toolbarStart?: ReactNode;
   /** footer bar under the table (e.g. "Showing 14 of 86 · retail value …") */
   footer?: ReactNode;
   /** lets the page focus the search input (barcode scanners type into it) */
   searchInputRef?: RefObject<HTMLInputElement>;
+  /** rendered inside the search box on the right (e.g. a camera scan button); receives a setter for the query */
+  searchAccessory?: (setQuery: (query: string) => void) => ReactNode;
   style?: CSSProperties;
 }
 
@@ -53,8 +57,10 @@ export function DataTable<T>({
   initialSort,
   emptyText = 'Nothing here yet.',
   toolbar,
+  toolbarStart,
   footer,
   searchInputRef,
+  searchAccessory,
   style,
 }: DataTableProps<T>) {
   const [query, setQuery] = useState('');
@@ -93,7 +99,7 @@ export function DataTable<T>({
     );
   }
 
-  const hasToolbar = Boolean(searchText || filters || toolbar);
+  const hasToolbar = Boolean(searchText || filters || toolbar || toolbarStart);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1, ...style }}>
@@ -113,14 +119,21 @@ export function DataTable<T>({
                 style={{
                   width: '100%',
                   padding: '12px 14px 12px 40px',
+                  paddingRight: searchAccessory ? 48 : 14,
                   borderRadius: 12,
                   border: '1px solid var(--line)',
                   background: 'var(--card)',
                   fontSize: 15,
                 }}
               />
+              {searchAccessory && (
+                <div style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', display: 'flex' }}>
+                  {searchAccessory(setQuery)}
+                </div>
+              )}
             </div>
           )}
+          {toolbarStart}
           {filters?.map((f) => (
             <button
               key={f.id}

@@ -29,6 +29,29 @@ interface Summary {
   };
 }
 
+interface ReportTxn {
+  at: string;
+  number: string;
+  customer: string | null;
+  description: string;
+  method: string | null;
+  amountCents: number;
+  note: string | null;
+}
+type GroupKey = 'repairs' | 'sales' | 'accessories' | 'payouts' | 'tradeins' | 'credits';
+interface TxnReport {
+  groups: Record<GroupKey, ReportTxn[]>;
+  totals: Record<GroupKey, { count: number; cents: number }>;
+}
+const GROUPS: Array<{ key: GroupKey; label: string; icon: string; hint: string }> = [
+  { key: 'repairs', label: 'Repairs', icon: 'bi-wrench-adjustable', hint: 'Ticket payments and deposits' },
+  { key: 'sales', label: 'Sales', icon: 'bi-receipt', hint: 'Devices, service fees, custom items' },
+  { key: 'accessories', label: 'Accessories', icon: 'bi-lightning-charge', hint: 'Parts and accessories sold' },
+  { key: 'payouts', label: 'Payouts', icon: 'bi-cash-coin', hint: 'Cash out, paid in, drops' },
+  { key: 'tradeins', label: 'Trade-ins', icon: 'bi-arrow-left-right', hint: 'Paid in cash or store credit' },
+  { key: 'credits', label: 'Credits', icon: 'bi-wallet2', hint: 'Store credit issued and spent' },
+];
+
 const RANGES = [
   { id: 'today', label: 'Today' },
   { id: 'week', label: 'This week' },
@@ -39,6 +62,8 @@ const METHOD_LABELS: Record<string, { label: string; icon: string }> = {
   cash: { label: 'Cash', icon: 'bi-cash' },
   card: { label: 'Card', icon: 'bi-credit-card' },
   tap: { label: 'Tap / wallet', icon: 'bi-phone' },
+  zelle: { label: 'Zelle', icon: 'bi-bank' },
+  cash_app: { label: 'Cash App', icon: 'bi-qr-code-scan' },
   store_credit: { label: 'Store credit', icon: 'bi-wallet2' },
 };
 
@@ -53,6 +78,8 @@ export function ReportsScreen() {
   const narrow = useNarrow();
   const [range, setRange] = useState<string>('today');
   const [data, setData] = useState<Summary | null>(null);
+  const [txns, setTxns] = useState<TxnReport | null>(null);
+  const [group, setGroup] = useState<GroupKey | 'all'>('all');
   const [closing, setClosing] = useState(false);
   const [counted, setCounted] = useState('');
   const [closeResult, setCloseResult] = useState<null | { overShortCents: number; expectedCents: number }>(null);
@@ -60,7 +87,12 @@ export function ReportsScreen() {
   const isManager = session.user?.role === 'manager';
 
   async function load() {
-    setData(await api<Summary>(`/api/reports/summary?range=${range}`).catch(() => null));
+    const [summary, list] = await Promise.all([
+      api<Summary>(`/api/reports/summary?range=${range}`).catch(() => null),
+      api<TxnReport>(`/api/reports/transactions?range=${range}`).catch(() => null),
+    ]);
+    setData(summary);
+    setTxns(list);
   }
 
   useEffect(() => {
@@ -85,6 +117,18 @@ export function ReportsScreen() {
       '',
       'payment_method,total',
       ...data.paymentMix.map((p) => `${p.method},${(p.totalCents / 100).toFixed(2)}`),
+      ...(txns
+        ? GROUPS.flatMap((g) => [
+            '',
+            `${g.label.toLowerCase()} (${txns.totals[g.key].count}),,,,,${(txns.totals[g.key].cents / 100).toFixed(2)}`,
+            'date,number,customer,description,tender,amount,note',
+            ...txns.groups[g.key].map((r) =>
+              [new Date(r.at).toLocaleString('en-US'), r.number, r.customer ?? '', r.description, r.method ?? '', (r.amountCents / 100).toFixed(2), r.note ?? '']
+                .map((v) => (/[",\n]/.test(v) ? `"${v.replaceAll('"', '""')}"` : v))
+                .join(','),
+            ),
+          ])
+        : []),
     ];
     const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
     const a = document.createElement('a');
@@ -120,10 +164,10 @@ export function ReportsScreen() {
     ? Math.round(((data.grossSalesCents - data.prevGrossSalesCents) / data.prevGrossSalesCents) * 100)
     : null;
   const collected = data.paymentMix.reduce((s, p) => s + Math.max(p.totalCents, 0), 0);
-  const maxCategory = Math.max(...CATEGORY_META.map((c) => data.revenueByCategory[c.key]), 1);
 
   const card = { background: 'var(--card)', borderRadius: 14, border: '1px solid var(--line-soft)', padding: '16px 18px' };
   const cardTitle = { font: '700 16px Inter, sans-serif', margin: '0 0 12px' };
+  const sectionLabel = { font: '600 11.5px Inter, sans-serif', letterSpacing: '0.06em', textTransform: 'uppercase' as const, color: 'var(--ink-4)', marginBottom: 6 };
 
   return (
     <div style={{ padding: '22px 24px', height: '100vh', overflow: 'auto' }}>
@@ -199,69 +243,12 @@ export function ReportsScreen() {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: narrow ? '1fr' : '1.4fr 1fr', gap: 12, marginTop: 12, alignItems: 'start' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div style={card}>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <h3 style={cardTitle}>Revenue by category</h3>
-              <span style={{ fontSize: 11.5, color: 'var(--ink-4)' }}>Net of tax</span>
-            </div>
-            {CATEGORY_META.map((c) => (
-              <div key={c.key} style={{ marginBottom: 12 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14.5 }}>
-                  <span>{c.label}</span>
-                  <span style={{ fontWeight: 700 }}>{formatCents(data.revenueByCategory[c.key])}</span>
-                </div>
-                <div style={{ height: 6, background: 'var(--line-soft)', borderRadius: 999, marginTop: 5 }}>
-                  <div
-                    style={{
-                      height: 6,
-                      width: `${Math.max((data.revenueByCategory[c.key] / maxCategory) * 100, 1)}%`,
-                      background: c.color,
-                      borderRadius: 999,
-                    }}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div style={card}>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <h3 style={cardTitle}>Top repair types</h3>
-              <span style={{ fontSize: 11.5, color: 'var(--ink-4)' }}>Last 30 days</span>
-            </div>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14.5 }}>
-              <thead>
-                <tr style={{ textAlign: 'left', color: 'var(--ink-4)', font: '600 11.5px Inter, sans-serif' }}>
-                  <th style={{ padding: '6px 0' }}>REPAIR TYPE</th>
-                  <th>JOBS</th>
-                  <th>REVENUE</th>
-                  <th>AVG MARGIN</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.topRepairs.map((t) => (
-                  <tr key={t.name}>
-                    <td style={{ padding: '7px 0', borderTop: '1px solid var(--line-soft)' }}>{t.name}</td>
-                    <td style={{ borderTop: '1px solid var(--line-soft)' }}>{t.jobs}</td>
-                    <td style={{ borderTop: '1px solid var(--line-soft)', fontWeight: 700 }}>{formatCents(t.revenueCents)}</td>
-                    <td style={{ borderTop: '1px solid var(--line-soft)', color: t.marginPct >= 50 ? 'var(--green)' : 'var(--amber)', fontWeight: 600 }}>
-                      {t.marginPct}%
-                    </td>
-                  </tr>
-                ))}
-                {data.topRepairs.length === 0 && (
-                  <tr><td colSpan={4} style={{ padding: '10px 0', color: 'var(--ink-4)' }}>No catalog repairs yet.</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div style={card}>
-            <h3 style={cardTitle}>Payment mix</h3>
+      {/* Payment mix and cash drawer, side by side in one card */}
+      <div style={{ ...card, marginTop: 12 }}>
+        <h3 style={cardTitle}>Payments & cash drawer</h3>
+        <div style={{ display: 'grid', gridTemplateColumns: narrow ? '1fr' : '1fr 1fr', gap: narrow ? 18 : 32, alignItems: 'start' }}>
+          <div>
+            <div style={sectionLabel}>Payment mix</div>
             {data.paymentMix.map((p) => (
               <div key={p.method} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14.5, padding: '5px 0' }}>
                 <span>
@@ -282,8 +269,8 @@ export function ReportsScreen() {
             </div>
           </div>
 
-          <div style={card}>
-            <h3 style={cardTitle}>Cash drawer</h3>
+          <div style={narrow ? { borderTop: '1px solid var(--line-soft)', paddingTop: 14 } : { borderLeft: '1px solid var(--line-soft)', paddingLeft: 32 }}>
+            <div style={sectionLabel}>Cash drawer</div>
             {[
               ['Opening float', data.drawer.openingFloatCents, ''],
               ['Cash sales', data.drawer.cashSalesCents, ''],
@@ -303,8 +290,89 @@ export function ReportsScreen() {
               <span style={{ font: '800 17.5px Inter, sans-serif' }}>{formatCents(data.drawer.expectedCents)}</span>
             </div>
           </div>
-
         </div>
+      </div>
+
+      {/* Every transaction behind the numbers, grouped */}
+      <div style={{ ...card, marginTop: 12 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
+            <h3 style={{ ...cardTitle, margin: 0 }}>Transactions</h3>
+            <div style={{ display: 'flex', gap: 2, padding: 3, borderRadius: 12, background: 'var(--line-soft)', overflowX: 'auto' }}>
+              {[{ key: 'all' as const, label: 'All' }, ...GROUPS.map((g) => ({ key: g.key, label: g.label }))].map((g) => {
+                const active = group === g.key;
+                const count = g.key === 'all' ? GROUPS.reduce((s, x) => s + (txns?.totals[x.key].count ?? 0), 0) : txns?.totals[g.key].count ?? 0;
+                return (
+                  <button
+                    key={g.key}
+                    onClick={() => setGroup(g.key)}
+                    style={{
+                      padding: '7px 11px', borderRadius: 9, border: 'none', background: active ? 'var(--card)' : 'transparent',
+                      boxShadow: active ? 'var(--shadow-card)' : 'none', color: active ? 'var(--ink)' : 'var(--ink-3)',
+                      font: `${active ? 700 : 600} 13px Inter, sans-serif`, whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {g.label} <span style={{ color: 'var(--ink-4)', fontWeight: 500 }}>{count}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          {!txns ? (
+            <div style={{ color: 'var(--ink-4)', fontSize: 14 }}>Loading…</div>
+          ) : (
+            GROUPS.filter((g) => group === 'all' || group === g.key).map((g) => {
+              const rows = txns.groups[g.key];
+              const total = txns.totals[g.key];
+              return (
+                <div key={g.key} style={{ marginTop: 10 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10, padding: '8px 0', borderBottom: '2px solid var(--line-soft)' }}>
+                    <span>
+                      <i className={`bi ${g.icon}`} style={{ color: 'var(--orange)', marginRight: 7 }} />
+                      <span style={{ font: '700 15px Inter, sans-serif' }}>{g.label}</span>
+                      <span style={{ marginLeft: 8, fontSize: 12.5, color: 'var(--ink-4)' }}>{g.hint} · {total.count}</span>
+                    </span>
+                    <span style={{ font: '700 15px Inter, sans-serif', color: total.cents < 0 ? 'var(--red)' : 'var(--ink)' }}>
+                      {total.cents < 0 ? `−${formatCents(-total.cents)}` : formatCents(total.cents)}
+                    </span>
+                  </div>
+                  {rows.length === 0 ? (
+                    <div style={{ padding: '10px 0', fontSize: 13.5, color: 'var(--ink-4)' }}>None in this range.</div>
+                  ) : (
+                    <div style={{ overflowX: 'auto' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+                        <thead>
+                          <tr style={{ color: 'var(--ink-4)', font: '600 11.5px Inter, sans-serif', letterSpacing: '0.06em' }}>
+                            {['DATE', 'NUMBER', 'CUSTOMER', 'DESCRIPTION', 'TENDER', 'AMOUNT', 'NOTE'].map((h) => (
+                              <th key={h} style={{ textAlign: h === 'AMOUNT' ? 'right' : 'left', padding: '8px 10px 6px', whiteSpace: 'nowrap' }}>{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {rows.map((r, i) => (
+                            <tr key={i} style={{ borderTop: '1px solid var(--line-soft)' }}>
+                              <td style={{ padding: '8px 10px', whiteSpace: 'nowrap', color: 'var(--ink-3)' }}>
+                                {new Date(r.at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                              </td>
+                              <td style={{ padding: '8px 10px', whiteSpace: 'nowrap', font: '600 13.5px "SF Mono", Menlo, Consolas, ui-monospace, monospace' }}>#{r.number}</td>
+                              <td style={{ padding: '8px 10px' }}>{r.customer ?? <span style={{ color: 'var(--ink-4)' }}>—</span>}</td>
+                              <td style={{ padding: '8px 10px', color: 'var(--ink-2)' }}>{r.description}</td>
+                              <td style={{ padding: '8px 10px', color: 'var(--ink-2)', whiteSpace: 'nowrap' }}>
+                                {r.method ? r.method.split(',').map((x) => METHOD_LABELS[x.trim()]?.label ?? x.trim()).join(', ') : '—'}
+                              </td>
+                              <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 700, whiteSpace: 'nowrap', color: r.amountCents < 0 ? 'var(--red)' : 'var(--ink)' }}>
+                                {r.amountCents < 0 ? `−${formatCents(-r.amountCents)}` : formatCents(r.amountCents)}
+                              </td>
+                              <td style={{ padding: '8px 10px', fontSize: 13, color: 'var(--ink-3)' }}>{r.note ?? ''}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
       </div>
 
       {/* Close drawer */}

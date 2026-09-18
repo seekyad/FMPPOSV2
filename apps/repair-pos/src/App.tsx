@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { subscribeSessionInvalidation } from '@fmp/pos-client';
+import { useEffect, useState } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { PinScreen } from '@fmp/pos-client';
 import { Sidebar } from './Sidebar';
@@ -11,6 +12,7 @@ import { RepairsScreen } from './screens/repairs/RepairsScreen';
 import { SettingsHub } from './screens/settings/SettingsHub';
 import { ReportsScreen } from './screens/ReportsScreen';
 import { CatalogPage } from './screens/catalog/CatalogPage';
+import { TransactionsScreen } from './screens/TransactionsScreen';
 
 function Placeholder({ title }: { title: string }) {
   return (
@@ -22,7 +24,14 @@ function Placeholder({ title }: { title: string }) {
 }
 
 export function App() {
-  const [signedIn, setSignedIn] = useState(() => Boolean(session.token));
+  const [signedIn, setSignedIn] = useState(() => Boolean(session.token && session.user));
+
+  useEffect(()=>{
+    const unsubscribe=subscribeSessionInvalidation(()=>setSignedIn(false));
+    const changed=()=>{if(!session.token || !session.user)setSignedIn(false);};
+    window.addEventListener('storage',changed);
+    return ()=>{unsubscribe();window.removeEventListener('storage',changed);};
+  },[]);
 
   if (!signedIn) {
     return <PinScreen system="repair" onSignedIn={() => setSignedIn(true)} />;
@@ -41,6 +50,7 @@ export function App() {
           <Route path="/" element={<Navigate to="/register" replace />} />
           <Route path="/register" element={<RegisterScreen />} />
           <Route path="/pending" element={<PendingSalesScreen />} />
+          <Route path="/transactions" element={<TransactionsScreen />} />
           <Route path="/repairs" element={<RepairsScreen />} />
           <Route path="/inventory" element={<InventoryScreen />} />
           <Route path="/customers" element={<CustomersScreen />} />

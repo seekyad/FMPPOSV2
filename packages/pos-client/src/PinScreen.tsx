@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { AuthResponse } from '@fmp/shared';
 import { Button } from '@fmp/ui';
-import { api, session, switchSystemUrl, type PosSystem } from './api';
+import { api, ApiError, session, switchSystemUrl, type PosSystem } from './api';
+import { SecretField } from './SecretField';
+import { refreshBridgeStatus } from './labels';
 
 interface Staff {
   id: number;
@@ -12,9 +14,12 @@ interface Staff {
 
 /** First-run terminal setup + per-shift PIN lock screen + system choice. */
 export function PinScreen({ system, onSignedIn }: { system: PosSystem; onSignedIn: () => void }) {
+  const [loadingStaff, setLoadingStaff] = useState(true);
   const [staff, setStaff] = useState<Staff[]>([]);
   const [needsSetup, setNeedsSetup] = useState(false);
-  const [stores, setStores] = useState<{ id: number; name: string }[]>([]);
+  const [pairingCode, setPairingCode] = useState('');
+  const [busy, setBusy] = useState(false);
+  const inFlight = useRef(false);
   const [terminalName, setTerminalName] = useState('Front counter');
   const [selected, setSelected] = useState<Staff | null>(null);
   const [pin, setPin] = useState('');
@@ -22,37 +27,40 @@ export function PinScreen({ system, onSignedIn }: { system: PosSystem; onSignedI
   const [error, setError] = useState('');
 
   async function loadStaff() {
+    setError('');
     const deviceToken = session.deviceToken;
-    if (!deviceToken) {
-      setNeedsSetup(true);
-      setStores(await api('/api/auth/stores'));
-      return;
-    }
+    if (!deviceToken) { setNeedsSetup(true); setLoadingStaff(false); return; }
+    setLoadingStaff(true);
     try {
-      const res = await api<{ staff: Staff[] }>(`/api/auth/staff?deviceToken=${deviceToken}`);
-      setStaff(res.staff);
-    } catch {
-      setNeedsSetup(true);
-      setStores(await api('/api/auth/stores'));
-    }
+      const res = await api<{ staff: Staff[] }>('/api/auth/staff', { headers: { 'X-Device-Token': deviceToken } });
+      setNeedsSetup(false); setStaff(res.staff);
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 404) setNeedsSetup(true);
+      setError(e instanceof Error ? e.message : 'Staff could not be loaded');
+    } finally { setLoadingStaff(false); }
   }
 
   useEffect(() => {
     void loadStaff();
   }, []);
 
-  async function registerTerminal(storeId: number) {
-    const res = await api<{ deviceToken: string }>('/api/auth/terminal/register', {
-      method: 'POST',
-      body: JSON.stringify({ storeId, name: terminalName }),
-    });
-    session.setDeviceToken(res.deviceToken);
-    setNeedsSetup(false);
-    await loadStaff();
+  async function registerTerminal() {
+    if (inFlight.current) return;
+    inFlight.current = true; setBusy(true); setError('');
+    try {
+      const res = await api<{ deviceToken: string; kind: string }>('/api/auth/terminal/register', {
+        method: 'POST', body: JSON.stringify({ pairingCode, name: terminalName }),
+      });
+      if (res.kind !== 'pos') { setError('This code is for a print bridge. Ask for a register pairing code.'); return; }
+      session.setDeviceToken(res.deviceToken); setPairingCode(''); setNeedsSetup(false);
+      await loadStaff();
+    } catch (e) { setError(e instanceof Error ? e.message : 'Device could not be paired'); }
+    finally { inFlight.current = false; setBusy(false); }
   }
 
   async function submitPin(fullPin: string) {
-    if (!selected) return;
+    if (!selected || inFlight.current) return;
+    inFlight.current = true; setBusy(true);
     try {
       const auth = await api<AuthResponse>('/api/auth/pin', {
         method: 'POST',
@@ -63,11 +71,12 @@ export function PinScreen({ system, onSignedIn }: { system: PosSystem; onSignedI
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Sign-in failed');
       setPin('');
-    }
+    } finally { inFlight.current = false; setBusy(false); }
   }
 
   function pickSystem(target: PosSystem) {
     if (target === system) {
+      void refreshBridgeStatus();
       onSignedIn();
     } else {
       window.location.href = switchSystemUrl(target);
@@ -75,6 +84,7 @@ export function PinScreen({ system, onSignedIn }: { system: PosSystem; onSignedI
   }
 
   function press(digit: string) {
+    if (inFlight.current) return;
     setError('');
     const next = (pin + digit).slice(0, 4);
     setPin(next);
@@ -172,35 +182,26 @@ export function PinScreen({ system, onSignedIn }: { system: PosSystem; onSignedI
           </button>
         </>
       ) : needsSetup ? (
-        <div style={{ background: '#fff', borderRadius: 20, padding: 28, width: 380 }}>
-          <h2 style={{ margin: '0 0 4px', font: '700 23px Inter, sans-serif' }}>Register this terminal</h2>
-          <p style={{ margin: '0 0 16px', color: 'var(--ink-3)', fontSize: 15 }}>
-            One-time setup: pick the store this device belongs to.
-          </p>
-          <input
-            value={terminalName}
-            onChange={(e) => setTerminalName(e.target.value)}
-            placeholder="Terminal name"
-            style={{
-              width: '100%',
-              padding: '12px 14px',
-              borderRadius: 10,
-              border: '1px solid var(--line)',
-              fontSize: 16,
-              marginBottom: 12,
-            }}
-          />
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {stores.map((s) => (
-              <Button key={s.id} variant="dark" size="lg" onClick={() => void registerTerminal(s.id)}>
-                {s.name}
-              </Button>
-            ))}
-          </div>
-        </div>
+        <form noValidate onSubmit={e => { e.preventDefault(); void registerTerminal(); }}
+          style={{ background: '#fff', borderRadius: 20, padding: 28, width: 420, maxWidth: 'calc(100vw - 32px)' }}>
+          <h2 style={{ margin: '0 0 8px', fontSize: 23 }}>Register this terminal</h2>
+          <p style={{ color: 'var(--ink-3)' }}>Enter a register pairing code from your store manager. The code determines the store.</p>
+          <label style={{ display: 'block', marginBottom: 12 }}>Terminal name
+            <input value={terminalName} disabled={busy} onChange={e => setTerminalName(e.target.value)}
+              style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: '1px solid var(--line)', fontSize: 16, marginTop: 5 }} />
+          </label>
+          <SecretField label="Pairing code" value={pairingCode} onChange={setPairingCode} disabled={busy} error={error}
+            hint="Codes expire after 15 minutes and can be used once." />
+          <Button type="submit" variant="dark" size="lg" disabled={busy || !terminalName.trim() || !pairingCode.trim()}>
+            {busy ? 'Pairing…' : 'Pair this register'}
+          </Button>
+        </form>
       ) : !selected ? (
         <>
           <div style={{ color: '#9aa1ad', font: '600 16px Inter, sans-serif' }}>Who's on the register?</div>
+          {loadingStaff && <div role="status" style={{ color: '#fff' }}>Loading staff…</div>}
+          {!loadingStaff && !error && staff.length === 0 && <div role="status" style={{ color: '#fff' }}>No active staff. Contact your manager to restore access.</div>}
+          {error && <div role="alert" style={{ color: '#fca5a5' }}>{error} <Button disabled={loadingStaff} onClick={() => void loadStaff()}>Retry</Button></div>}
           <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', justifyContent: 'center', maxWidth: 520 }}>
             {staff.map((s) => (
               <button
@@ -246,20 +247,15 @@ export function PinScreen({ system, onSignedIn }: { system: PosSystem; onSignedI
           <div style={{ color: '#fff', font: '600 17.5px Inter, sans-serif' }}>
             {selected.name} — enter PIN
           </div>
-          <div style={{ display: 'flex', gap: 10 }}>
-            {[0, 1, 2, 3].map((i) => (
-              <span
-                key={i}
-                style={{
-                  width: 14,
-                  height: 14,
-                  borderRadius: 999,
-                  background: i < pin.length ? 'var(--orange)' : 'rgba(255,255,255,0.15)',
-                }}
-              />
-            ))}
+          <div style={{ background: 'var(--card)', color: 'var(--ink)', borderRadius: 12, padding: 12, width: 280 }}>
+            <SecretField label="PIN" value={pin} disabled={busy} autoComplete="current-password" inputMode="numeric" maxLength={4}
+              error={error} onChange={value => {
+                if (inFlight.current) return;
+                const digits = value.replace(/[^0-9]/g, '').slice(0, 4);
+                setError(''); setPin(digits);
+                if (digits.length === 4) void submitPin(digits);
+              }} />
           </div>
-          {error && <div style={{ color: '#fca5a5', fontSize: 15 }}>{error}</div>}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 72px)', gap: 10 }}>
             {keypadKeys.map((k, i) =>
               k === '' ? (
@@ -267,6 +263,7 @@ export function PinScreen({ system, onSignedIn }: { system: PosSystem; onSignedI
               ) : (
                 <button
                   key={i}
+                  disabled={busy}
                   onClick={() => (k === '⌫' ? setPin((p) => p.slice(0, -1)) : press(k))}
                   style={{
                     height: 60,
@@ -283,6 +280,7 @@ export function PinScreen({ system, onSignedIn }: { system: PosSystem; onSignedI
             )}
           </div>
           <button
+            disabled={busy}
             onClick={() => {
               setSelected(null);
               setPin('');

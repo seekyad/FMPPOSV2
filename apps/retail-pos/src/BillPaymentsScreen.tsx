@@ -20,7 +20,7 @@ export function BillPaymentsScreen() {
   const [taking, setTaking] = useState(false);
   const [customer, setCustomer] = useState<CartCustomer | null>(null);
   const [pickingCustomer, setPickingCustomer] = useState(false);
-  const [form, setForm] = useState({ carrier: '', accountNumber: '', amount: '', fee: '', method: 'cash' as 'cash' | 'card' | 'tap', tendered: '' });
+  const [form, setForm] = useState({ carrier: '', accountNumber: '', amount: '', fee: '', method: 'cash' as 'cash' | 'card' | 'tap' | 'zelle' | 'cash_app', tendered: '' });
   const [result, setResult] = useState<null | { changeCents: number | null }>(null);
   const [error, setError] = useState('');
 
@@ -166,13 +166,13 @@ export function BillPaymentsScreen() {
           <input value={form.fee} onChange={(e) => setForm((p) => ({ ...p, fee: e.target.value }))} placeholder="Service fee $" style={{ padding: '10px 12px', borderRadius: 10, border: '1px solid var(--line)', fontSize: 15 }} />
         </div>
         <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
-          {(['cash', 'card', 'tap'] as const).map((m) => (
+          {(['cash', 'card', 'tap', 'zelle', 'cash_app'] as const).map((m) => (
             <button
               key={m}
               onClick={() => setForm((p) => ({ ...p, method: m }))}
-              style={{ flex: 1, padding: '9px 0', borderRadius: 10, border: '1px solid var(--line)', background: form.method === m ? 'var(--navy)' : 'var(--card)', color: form.method === m ? '#fff' : 'var(--ink-2)', font: '600 14px Inter, sans-serif', textTransform: 'capitalize' }}
+              style={{ flex: 1, padding: '9px 0', borderRadius: 10, border: '1px solid var(--line)', background: form.method === m ? 'var(--navy)' : 'var(--card)', color: form.method === m ? '#fff' : 'var(--ink-2)', font: '600 14px Inter, sans-serif', whiteSpace: 'nowrap' }}
             >
-              {m}
+              {{ cash: 'Cash', card: 'Card', tap: 'Tap', zelle: 'Zelle', cash_app: 'Cash App' }[m]}
             </button>
           ))}
         </div>

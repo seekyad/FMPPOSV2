@@ -27,3 +27,15 @@ export { useNarrow } from './useNarrow';
 export { SidePanel } from './SidePanel';
 export { RingUpPad, type RingUpPadHandle } from './RingUpPad';
 export { InventoryScreen } from './InventoryScreen';
+
+export { SecretField } from './SecretField';
+export { DevicesSection } from './DevicesSection';
+
+export { CheckoutRecoveryBoundary } from './CheckoutRecoveryBoundary';
+
+export { subscribeSessionInvalidation } from './api';
+
+export { CodeField, KeypadSheet, ScanButton, cleanCode, type CodeKind } from './CodeField';
+export { ScanModal } from './ScanModal';
+export { ReceiptView } from './ReceiptView';
+export { MoneyKeypadSheet } from './MoneyKeypadSheet';

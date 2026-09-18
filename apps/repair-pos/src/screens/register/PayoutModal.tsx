@@ -7,6 +7,7 @@ import { api } from '@fmp/pos-client';
 export function PayoutModal({ open, onClose, onDone }: { open: boolean; onClose: () => void; onDone: (msg: string) => void }) {
   const [amount, setAmount] = useState('');
   const [reason, setReason] = useState('');
+  const [source, setSource] = useState<'drawer' | 'back_office'>('drawer');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -19,13 +20,18 @@ export function PayoutModal({ open, onClose, onDone }: { open: boolean; onClose:
     }
     setBusy(true);
     try {
-      await api('/api/drawer/movement', {
+      const res = await api<{ drawerOpened: boolean }>('/api/drawer/movement', {
         method: 'POST',
-        body: JSON.stringify({ kind: 'paid_out', amountCents: cents, reason: reason.trim() }),
+        body: JSON.stringify({ kind: 'paid_out', amountCents: cents, reason: reason.trim(), source }),
       });
-      onDone(`Paid out ${formatCents(cents)} — logged to the drawer`);
+      onDone(
+        source === 'drawer'
+          ? `Paid out ${formatCents(cents)} from the drawer${res.drawerOpened ? ' — drawer opened' : ' — drawer offline, open it by key'}`
+          : `Paid out ${formatCents(cents)} from the back office — drawer untouched`,
+      );
       setAmount('');
       setReason('');
+      setSource('drawer');
       setError('');
       onClose();
     } catch (e) {
@@ -36,11 +42,59 @@ export function PayoutModal({ open, onClose, onDone }: { open: boolean; onClose:
   }
 
   return (
-    <Modal open={open} onClose={onClose} width={360}>
+    <Modal open={open} onClose={onClose} width={440}>
       <h2 style={{ margin: 0, font: '700 19.5px Inter, sans-serif' }}>Payout</h2>
       <p style={{ margin: '4px 0 0', fontSize: 14, color: 'var(--ink-3)' }}>
-        Cash paid from the register — every payout is logged with your name.
+        Every payout is logged with your name. Pick where the cash comes from.
       </p>
+      <div role="radiogroup" aria-label="Cash source" style={{ display: 'grid', gap: 8, marginTop: 12 }}>
+        {(
+          [
+            { id: 'drawer', icon: 'bi-cash-stack', label: 'From drawer', caption: 'Opens the cash drawer and counts against it' },
+            { id: 'back_office', icon: 'bi-safe2', label: 'From back office', caption: 'Drawer stays closed and is not affected' },
+          ] as const
+        ).map((o) => {
+          const active = source === o.id;
+          return (
+            <button
+              key={o.id}
+              role="radio"
+              aria-checked={active}
+              onClick={() => setSource(o.id)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+                textAlign: 'left',
+                padding: '10px 14px',
+                borderRadius: 12,
+                border: `1.5px solid ${active ? 'var(--orange)' : 'var(--line)'}`,
+                background: active ? 'var(--orange-soft)' : 'var(--card)',
+              }}
+            >
+              <span
+                style={{
+                  width: 38,
+                  height: 38,
+                  borderRadius: 10,
+                  flexShrink: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: active ? 'var(--orange)' : 'var(--line-soft)',
+                  color: active ? '#fff' : 'var(--ink-2)',
+                }}
+              >
+                <i className={`bi ${o.icon}`} style={{ fontSize: 18 }} />
+              </span>
+              <span style={{ minWidth: 0 }}>
+                <span style={{ display: 'block', font: '700 14.5px Inter, sans-serif', color: active ? 'var(--orange)' : 'var(--ink)' }}>{o.label}</span>
+                <span style={{ display: 'block', fontSize: 12, lineHeight: 1.3, color: 'var(--ink-3)' }}>{o.caption}</span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
       <input
         value={amount}
         onChange={(e) => setAmount(e.target.value)}
@@ -57,7 +111,7 @@ export function PayoutModal({ open, onClose, onDone }: { open: boolean; onClose:
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 14 }}>
         <Button variant="ghost" onClick={onClose}>Cancel</Button>
         <Button variant="primary" disabled={busy || cents <= 0} onClick={() => void pay()}>
-          Pay out {formatCents(cents)}
+          Pay out {formatCents(cents)} {source === 'drawer' ? '· open drawer' : '· back office'}
         </Button>
       </div>
     </Modal>

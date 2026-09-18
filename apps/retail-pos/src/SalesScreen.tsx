@@ -1,3 +1,4 @@
+import { CheckoutRecoveryBoundary } from '@fmp/pos-client';
 import { useEffect, useMemo, useState } from 'react';
 import { computeTotals, formatCents } from '@fmp/shared';
 import { Button, Modal } from '@fmp/ui';
@@ -7,6 +8,7 @@ import {
   lineKey,
   CustomerModal,
   InventoryPickerModal,
+  ReceiptView,
   RingUpPad,
   useNarrow,
   type CartCustomer,
@@ -153,6 +155,8 @@ export function SalesScreen() {
   );
 
   return (
+    <CheckoutRecoveryBoundary onCartCleared={() => { setLines([]); setCustomer(null); setModal(null); }} onResolved={result => { setLines([]); setCustomer(null); setModal(null); setError(''); if(result.state === 'saved') setDone({changeCents:null,receiptText:result.receiptText,printed:false}); }}>
+
     <div
       style={
         narrow
@@ -403,9 +407,7 @@ export function SalesScreen() {
               </div>
             )}
             {!done.printed && (
-              <pre style={{ textAlign: 'left', background: 'var(--line-soft)', borderRadius: 10, padding: 12, fontSize: 12, fontFamily: 'ui-monospace, monospace', overflow: 'auto', userSelect: 'text' }}>
-                {done.receiptText}
-              </pre>
+              <ReceiptView text={done.receiptText} />
             )}
             <Button variant="primary" size="lg" style={{ width: '100%', marginTop: 12 }} onClick={() => setDone(null)}>
               New sale
@@ -414,5 +416,6 @@ export function SalesScreen() {
         )}
       </Modal>
     </div>
+    </CheckoutRecoveryBoundary>
   );
 }

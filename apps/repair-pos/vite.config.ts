@@ -6,6 +6,7 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   optimizeDeps: {
     exclude: ['@fmp/pos-client', '@fmp/ui', '@fmp/shared'],
+    include: ['@zxing/browser', '@zxing/library'],
   },
   server: {
     proxy: {

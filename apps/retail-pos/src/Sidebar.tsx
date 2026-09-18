@@ -7,6 +7,7 @@ const NAV = [
   { to: '/bills', icon: 'bi-receipt', label: 'Bills' },
   { to: '/inventory', icon: 'bi-box-seam', label: 'Inventory' },
   { to: '/customers', icon: 'bi-people', label: 'Customers' },
+  { to: '/devices', icon: 'bi-tablet', label: 'Devices' },
 ];
 
 export function Sidebar({ onLock }: { onLock: () => void }) {

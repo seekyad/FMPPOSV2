@@ -647,9 +647,11 @@ export function PrintCenterTab() {
             {
               role: 'LABELS',
               printer: 'Niimbot',
-              sub: 'Claim tags print on 50 × 80, device and inventory labels on 50 × 30, through the browser dialog. Native bridge printing comes after validating your model.',
-              status: 'Browser print',
-              good: true,
+              sub: bridgeOnline
+                ? 'Claim tags print on 50 × 80, device and inventory labels on 50 × 30, on the store PC through the bridge. Set the Niimbot as that PC\'s default Windows printer.'
+                : 'Claim tags print on 50 × 80, device and inventory labels on 50 × 30, through this browser\'s print dialog until the bridge comes online.',
+              status: bridgeOnline ? 'Via bridge' : 'Browser print',
+              good: bridgeOnline,
               test: printSample,
             },
             {

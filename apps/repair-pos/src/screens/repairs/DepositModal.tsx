@@ -13,7 +13,7 @@ export function DepositModal({
   onClose: () => void;
   onDone: () => void;
 }) {
-  const [method, setMethod] = useState<'cash' | 'card' | 'tap'>('cash');
+  const [method, setMethod] = useState<'cash' | 'card' | 'tap' | 'zelle' | 'cash_app'>('cash');
   const [amount, setAmount] = useState('');
   const [tendered, setTendered] = useState('');
   const [error, setError] = useState('');
@@ -57,7 +57,7 @@ export function DepositModal({
         Balance {formatCents(ticket?.balanceCents ?? 0)} — rest is collected at pickup.
       </p>
       <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-        {(['cash', 'card', 'tap'] as const).map((m) => (
+        {(['cash', 'card', 'tap', 'zelle', 'cash_app'] as const).map((m) => (
           <button
             key={m}
             onClick={() => setMethod(m)}
@@ -69,10 +69,10 @@ export function DepositModal({
               background: method === m ? 'var(--navy)' : 'var(--card)',
               color: method === m ? '#fff' : 'var(--ink-2)',
               font: '600 14px Inter, sans-serif',
-              textTransform: 'capitalize',
+              whiteSpace: 'nowrap',
             }}
           >
-            {m}
+            {{ cash: 'Cash', card: 'Card', tap: 'Tap', zelle: 'Zelle', cash_app: 'Cash App' }[m]}
           </button>
         ))}
       </div>

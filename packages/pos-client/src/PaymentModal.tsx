@@ -5,7 +5,7 @@ import { api } from './api';
 import type { CartCustomer } from './cart';
 
 export interface PaymentDraft {
-  method: 'cash' | 'card' | 'tap' | 'store_credit';
+  method: 'cash' | 'card' | 'tap' | 'zelle' | 'cash_app' | 'store_credit';
   amountCents: number;
   tenderedCents?: number;
 }
@@ -91,6 +91,8 @@ export function PaymentModal({
     { id: 'cash', label: 'Cash', icon: 'bi-cash' },
     { id: 'card', label: 'Card', icon: 'bi-credit-card' },
     { id: 'tap', label: 'Tap / wallet', icon: 'bi-phone' },
+    { id: 'zelle', label: 'Zelle', icon: 'bi-bank' },
+    { id: 'cash_app', label: 'Cash App', icon: 'bi-qr-code-scan' },
     {
       id: 'store_credit',
       label: `Store credit${customer ? ` · ${formatCents(credit)}` : ''}`,
@@ -225,6 +227,12 @@ export function PaymentModal({
             </div>
           </div>
         </>
+      )}
+
+      {(method === 'zelle' || method === 'cash_app') && (
+        <div style={{ marginTop: 14, padding: '14px 16px', border: '1px dashed var(--line)', borderRadius: 12, fontSize: 15, color: 'var(--ink-2)' }}>
+          Have the customer send <b>{formatCents(amount)}</b> to the shop's {method === 'zelle' ? 'Zelle' : 'Cash App'}. Confirm once it shows as received.
+        </div>
       )}
 
       {(method === 'card' || method === 'tap') && (

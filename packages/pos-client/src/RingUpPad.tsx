@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type ReactNode } from 'react';
 import { formatCents } from '@fmp/shared';
 import { Keypad } from '@fmp/ui';
 import { api } from './api';
@@ -37,6 +37,8 @@ export const RingUpPad = forwardRef<
     taxRemovedInSale?: boolean;
     /** false hides the pad's own description/preset row (the parent provides them, e.g. via the search bar) */
     showItemOptions?: boolean;
+    /** the register's primary action tiles (New repair, Accessory, Device sale), shown between the amount entry and the tender row */
+    quickActions?: ReactNode;
     onAdd: (item: RingUpItem) => void;
     /** card fast path: parent adds the pending item (if any) and completes as card */
     onCollectCard: (item: RingUpItem | null) => void;
@@ -52,6 +54,7 @@ export const RingUpPad = forwardRef<
     busy,
     taxRemovedInSale = false,
     showItemOptions = true,
+    quickActions,
     onAdd,
     onCollectCard,
     onComplete,
@@ -143,12 +146,12 @@ export const RingUpPad = forwardRef<
     resetEntry();
   }
 
-  function startTender() {
+  function startTender(withMethod: PaymentDraft['method'] = 'cash') {
     const item = currentItem();
     if (item) onAdd(item);
     else if (totalCents <= 0) return;
     resetEntry();
-    setMethod('cash');
+    setMethod(withMethod);
     setTendered(0);
     setTaken([]);
     setMode('tender');
@@ -243,18 +246,50 @@ export const RingUpPad = forwardRef<
     </div>
   );
 
-  const methodBtn = (id: PaymentDraft['method'], icon: string, label: string, disabled = false) => (
-    <button
-      key={id}
-      disabled={disabled}
-      onClick={() => setMethod(id)}
-      className={`flex min-h-[48px] items-center justify-center gap-2 rounded-xl text-[14.5px] font-semibold ${
-        method === id ? 'bg-navy text-white' : 'border border-line bg-card text-ink-2'
-      } ${disabled ? 'opacity-40' : ''}`}
-    >
-      <i className={`bi ${icon}`} /> {label}
-    </button>
-  );
+  const TENDER_CAPTIONS: Record<string, string> = {
+    cash: 'Drawer · change due',
+    card: 'Tap, chip or swipe',
+    tap: 'Phone or watch',
+    zelle: 'Bank transfer · confirm',
+    cash_app: 'Scan $cashtag',
+    split: 'Two tenders',
+    store_credit: 'Store credit balance',
+  };
+
+  /**
+   * Tender tile in the register's card style (icon badge + label), the same in entry
+   * and tender mode; the caption shows on hover, and the chosen tender lights up orange.
+   */
+  const tenderTile = (
+    id: string,
+    icon: string,
+    label: string,
+    opts: { active?: boolean; disabled?: boolean; title?: string; onClick: () => void },
+  ) => {
+    const caption = id === 'store_credit' && customer && credit > 0 ? `${formatCents(credit)} available` : TENDER_CAPTIONS[id];
+    const state = opts.disabled
+      ? 'border-line-soft bg-line-soft text-ink-4'
+      : opts.active
+        ? 'border-orange bg-orange-soft text-ink shadow-sm'
+        : 'border-line bg-card text-ink shadow-sm';
+    const badge = opts.disabled ? 'bg-card text-ink-4' : opts.active ? 'bg-orange text-white' : 'bg-line-soft text-ink-2';
+    return (
+      <button
+        key={id}
+        disabled={opts.disabled}
+        title={opts.title ?? caption}
+        aria-label={`${label} — ${caption}`}
+        aria-pressed={opts.active}
+        onClick={opts.onClick}
+        className={`flex min-h-[60px] items-center gap-3 rounded-[12px] border px-3 py-2 text-left ${state}`}
+      >
+        <span className={`flex size-10 shrink-0 items-center justify-center rounded-[10px] ${badge}`}>
+          <i className={`bi ${icon} text-[19px]`} />
+        </span>
+        <span className={`min-w-0 truncate text-[15px] leading-tight font-bold ${opts.active ? 'text-orange' : ''}`}>{label}</span>
+      </button>
+    );
+  };
 
   const disabledBtn = 'bg-line-soft text-ink-4';
   // No-tax deals are cash only: card/tap blocked when tax was removed on the sale
@@ -268,8 +303,10 @@ export const RingUpPad = forwardRef<
 
       <div className="flex flex-wrap gap-4">
         {/* keys */}
-        <div className="w-[410px] max-w-full flex-none max-[1080px]:w-full max-[1080px]:max-w-[480px]">
+        <div className="flex min-w-[340px] max-w-[640px] shrink-0 grow-0 basis-[40%] max-[1180px]:basis-full max-[1180px]:max-w-[560px]">
           <Keypad
+            size="lg"
+            fill
             onDigit={(d) => keypadTarget.set(Math.min(keypadTarget.value * 10 + d, 9_999_999))}
             onDoubleZero={() => keypadTarget.set(Math.min(keypadTarget.value * 100, 9_999_999))}
             onBackspace={() => keypadTarget.set(Math.floor(keypadTarget.value / 10))}
@@ -278,7 +315,7 @@ export const RingUpPad = forwardRef<
         </div>
 
         {/* right side */}
-        <div className="flex min-w-[300px] flex-1 flex-col gap-2.5">
+        <div className="flex min-w-0 flex-1 basis-[300px] flex-col gap-2.5">
         {mode === 'entry' ? (
           <>
             <div className="flex flex-col rounded-xl bg-line-soft px-4 py-3.5">
@@ -345,60 +382,50 @@ export const RingUpPad = forwardRef<
                 </span>
               </div>
             ) : null}
-            <div className="mt-auto flex flex-1 flex-wrap gap-2.5">
+            {quickActions}
+            <div className="mt-auto flex flex-1 flex-col gap-2.5">
               <button
                 onClick={add}
                 disabled={cents <= 0}
-                className={`flex min-h-[84px] min-w-[220px] flex-[2] items-center justify-center gap-2 rounded-xl text-[21px] font-bold whitespace-nowrap ${
+                className={`flex min-h-[64px] w-full flex-1 items-center justify-center gap-2 rounded-xl text-[21px] font-bold whitespace-nowrap ${
                   cents <= 0 ? disabledBtn : 'bg-orange text-white'
                 }`}
               >
                 <i className="bi bi-plus-lg" /> Add to sale
               </button>
-              <div className="flex flex-1 gap-2.5">
-                <button
-                  onClick={startTender}
-                  disabled={busy || (totalCents <= 0 && cents <= 0)}
-                  className={`flex min-h-[84px] min-w-[92px] flex-1 flex-col items-center justify-center rounded-xl text-[18px] font-bold ${
-                    busy || (totalCents <= 0 && cents <= 0) ? disabledBtn : 'bg-green text-white'
-                  }`}
-                >
-                  <i className="bi bi-cash text-[24px]" /> Cash
-                </button>
-                <button
-                  onClick={() => {
+              {/* tenders: one even row, same tiles and order as tender mode */}
+              <div className="grid grid-cols-3 gap-2.5 max-[640px]:grid-cols-2">
+                {tenderTile('cash', 'bi-cash', 'Cash', { disabled: busy || (totalCents <= 0 && cents <= 0), onClick: () => startTender() })}
+                {tenderTile('card', 'bi-credit-card', 'Card', {
+                  disabled: busy || (totalCents <= 0 && cents <= 0) || cardBlocked,
+                  title: cardBlocked ? 'Tax was removed — cash only' : undefined,
+                  onClick: () => {
                     onCollectCard(currentItem());
                     resetEntry();
-                  }}
-                  disabled={busy || (totalCents <= 0 && cents <= 0) || cardBlocked}
-                  title={cardBlocked ? 'Tax was removed — cash only' : undefined}
-                  className={`flex min-h-[84px] min-w-[92px] flex-1 flex-col items-center justify-center rounded-xl text-[18px] font-bold ${
-                    busy || (totalCents <= 0 && cents <= 0) || cardBlocked ? disabledBtn : 'bg-navy text-white'
-                  }`}
-                >
-                  <i className="bi bi-credit-card text-[24px]" /> Card
-                </button>
-                <button
-                  onClick={startTender}
-                  disabled={busy || (totalCents <= 0 && cents <= 0)}
-                  className={`flex min-h-[84px] min-w-[110px] flex-1 flex-col items-center justify-center rounded-xl text-[18px] font-bold whitespace-nowrap ${
-                    busy || (totalCents <= 0 && cents <= 0) ? disabledBtn : 'border-2 border-navy bg-card text-navy'
-                  }`}
-                >
-                  <i className="bi bi-layout-split text-[24px]" /> Cash split
-                </button>
+                  },
+                })}
+                {tenderTile('zelle', 'bi-bank', 'Zelle', {
+                  disabled: busy || (totalCents <= 0 && cents <= 0) || cardBlocked,
+                  title: cardBlocked ? 'Tax was removed — cash only' : undefined,
+                  onClick: () => startTender('zelle'),
+                })}
+                {tenderTile('cash_app', 'bi-qr-code-scan', 'Cash App', {
+                  disabled: busy || (totalCents <= 0 && cents <= 0) || cardBlocked,
+                  title: cardBlocked ? 'Tax was removed — cash only' : undefined,
+                  onClick: () => startTender('cash_app'),
+                })}
+                {tenderTile('split', 'bi-layout-split', 'Cash split', { disabled: busy || (totalCents <= 0 && cents <= 0), onClick: () => startTender() })}
+                {tenderTile('store_credit', 'bi-wallet2', 'Credit', {
+                  disabled: busy || (totalCents <= 0 && cents <= 0) || !customer || credit <= 0,
+                  title: !customer ? 'Add a customer to use store credit' : credit <= 0 ? 'No store credit on this customer' : undefined,
+                  onClick: () => startTender('store_credit'),
+                })}
               </div>
             </div>
           </>
         ) : (
           <>
             {/* tender mode */}
-            <div className="grid grid-cols-4 gap-2">
-              {methodBtn('cash', 'bi-cash', 'Cash')}
-              {methodBtn('card', 'bi-credit-card', 'Card', taxRemovedInSale)}
-              {methodBtn('tap', 'bi-phone', 'Tap', taxRemovedInSale)}
-              {methodBtn('store_credit', 'bi-wallet2', 'Credit', !customer || credit <= 0)}
-            </div>
             {taxRemovedInSale && (
               <div className="text-[12.5px] font-semibold text-amber">
                 Tax was removed on this sale — cash only.
@@ -430,6 +457,17 @@ export const RingUpPad = forwardRef<
                   >
                     Exact
                   </button>
+                </div>
+              </div>
+            ) : method === 'zelle' || method === 'cash_app' ? (
+              <div className="flex flex-1 flex-col justify-center rounded-xl border border-dashed border-line px-4 py-3 text-[14.5px] text-ink-2">
+                <div className="text-[15.5px] font-bold text-ink">
+                  <i className={`bi ${method === 'zelle' ? 'bi-bank' : 'bi-qr-code-scan'} mr-1.5`} />
+                  {method === 'zelle' ? 'Zelle transfer' : 'Cash App payment'} · {formatCents(paying)}
+                </div>
+                <div className="mt-1">
+                  Have the customer send {formatCents(paying)} to the shop's {method === 'zelle' ? 'Zelle' : 'Cash App'}. Tap Complete once
+                  it shows as received.
                 </div>
               </div>
             ) : method === 'store_credit' ? (
@@ -472,7 +510,21 @@ export const RingUpPad = forwardRef<
               </div>
             )}
 
-            <div className="mt-auto flex gap-2.5 [container-type:inline-size]">
+            {/* the same tender row as entry mode, in the same place; the active tender is highlighted */}
+            <div className="mt-auto grid grid-cols-3 gap-2.5 max-[640px]:grid-cols-2">
+              {tenderTile('cash', 'bi-cash', 'Cash', { active: method === 'cash', onClick: () => setMethod('cash') })}
+              {tenderTile('card', 'bi-credit-card', 'Card', { active: method === 'card', disabled: taxRemovedInSale, onClick: () => setMethod('card') })}
+              {tenderTile('zelle', 'bi-bank', 'Zelle', { active: method === 'zelle', disabled: taxRemovedInSale, onClick: () => setMethod('zelle') })}
+              {tenderTile('cash_app', 'bi-qr-code-scan', 'Cash App', { active: method === 'cash_app', disabled: taxRemovedInSale, onClick: () => setMethod('cash_app') })}
+              {tenderTile('tap', 'bi-phone', 'Tap', { active: method === 'tap', disabled: taxRemovedInSale, onClick: () => setMethod('tap') })}
+              {tenderTile('store_credit', 'bi-wallet2', 'Credit', {
+                active: method === 'store_credit',
+                disabled: !customer || credit <= 0,
+                title: !customer ? 'Add a customer to use store credit' : credit <= 0 ? 'No store credit on this customer' : undefined,
+                onClick: () => setMethod('store_credit'),
+              })}
+            </div>
+            <div className="flex gap-2.5 [container-type:inline-size]">
               <button
                 onClick={resetAll}
                 className="flex min-h-[60px] w-[110px] items-center justify-center rounded-xl border border-line bg-card text-[15.5px] font-bold uppercase text-ink-2"

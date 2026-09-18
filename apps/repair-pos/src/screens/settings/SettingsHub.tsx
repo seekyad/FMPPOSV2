@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNarrow } from '@fmp/pos-client';
+import { DevicesSection, useNarrow } from '@fmp/pos-client';
 import { PricebookTab } from './PricebookTab';
 import { PrintCenterTab } from './PrintCenterTab';
 import { StaffTab } from './StaffTab';
@@ -12,6 +12,7 @@ const SECTIONS = [
   { id: 'printing', label: 'Receipts & printing', icon: 'bi-printer' },
   { id: 'printcenter', label: 'Print center', icon: 'bi-printer-fill' },
   { id: 'payments', label: 'Payments & terminal', icon: 'bi-credit-card' },
+  { id: 'devices', label: 'Registers & bridges', icon: 'bi-tablet' },
   { id: 'staff', label: 'Users & PINs', icon: 'bi-person-badge' },
   { id: 'timeclock', label: 'Time clock', icon: 'bi-clock-history' },
   { id: 'pricebook', label: 'Trade-in pricebook', icon: 'bi-arrow-left-right' },
@@ -76,6 +77,7 @@ export function SettingsHub() {
         {section === 'printing' && <ReceiptsPrintingSection />}
         {section === 'printcenter' && <PrintCenterTab />}
         {section === 'payments' && <PaymentsSection />}
+        {section === 'devices' && <DevicesSection />}
         {section === 'staff' && <StaffTab />}
         {section === 'timeclock' && <TimeClockTab />}
         {section === 'pricebook' && <PricebookTab />}
