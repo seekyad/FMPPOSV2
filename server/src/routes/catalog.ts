@@ -86,7 +86,7 @@ const serviceBody = z.object({
   active: z.boolean().default(true),
   tiers: z
     .array(z.object({ label: z.string().min(1).max(80), priceCents: z.number().int().min(0) }))
-    .max(20)
+    .max(200)
     .default([]),
 });
 

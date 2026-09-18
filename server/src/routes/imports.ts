@@ -273,3 +273,72 @@ importsRouter.post('/parts', async (req, res) => {
   await audit(db, req, 'import.parts', 'store', storeId, { ...result, skipped: result.skipped.length, source: body.data.source ?? null });
   res.json(result);
 });
+
+/**
+ * Services with per-model price tiers (built from the parts cost sheet with the owner's pricing
+ * rule). A service is matched by name + device group, case-insensitive; its prices, cost and
+ * timing are refreshed and its tiers replaced, so a new sheet re-prices everything in one go.
+ * Tier labels are model names: intake matches the device to its tier by that label.
+ */
+const servicesSchema = z.object({
+  version: z.literal(1),
+  kind: z.literal('services'),
+  source: z.string().max(200).optional(),
+  services: z.array(z.object({
+    category: z.string().min(1).max(60),
+    name: z.string().min(1).max(150),
+    deviceGroup: z.string().min(1).max(80),
+    timeMinutes: z.number().int().min(0).default(45),
+    timeLabel: z.string().max(30).nullable().optional(),
+    warrantyDays: z.number().int().min(0).default(90),
+    partsCostCents: z.number().int().min(0).default(0),
+    basePriceCents: z.number().int().min(0),
+    tiers: z.array(z.object({ label: z.string().min(1).max(80), priceCents: z.number().int().min(0) })).max(200),
+  })).max(500),
+});
+
+importsRouter.post('/services', async (req, res) => {
+  const body = servicesSchema.safeParse(req.body);
+  if (!body.success) {
+    res.status(400).json({ error: 'Services file is not in the expected format', detail: body.error.issues.slice(0, 5) });
+    return;
+  }
+  const db = await getDb();
+  const result = await db.transaction(async (tx) => {
+    const counts = { servicesCreated: 0, servicesUpdated: 0, tiersWritten: 0 };
+    const existing = await tx.select({ id: schema.services.id, name: schema.services.name, deviceGroup: schema.services.deviceGroup }).from(schema.services);
+    const byKey = new Map(existing.map((s) => [`${s.deviceGroup.trim().toLowerCase()}|${s.name.trim().toLowerCase()}`, s.id]));
+    for (const s of body.data.services) {
+      const fields = {
+        category: s.category.trim(),
+        name: s.name.trim(),
+        deviceGroup: s.deviceGroup.trim(),
+        timeMinutes: s.timeMinutes,
+        timeLabel: s.timeLabel?.trim() || null,
+        warrantyDays: s.warrantyDays,
+        partsCostCents: s.partsCostCents,
+        basePriceCents: s.basePriceCents,
+        active: true,
+      };
+      const key = `${fields.deviceGroup.toLowerCase()}|${fields.name.toLowerCase()}`;
+      let id = byKey.get(key);
+      if (id) {
+        await tx.update(schema.services).set(fields).where(eq(schema.services.id, id));
+        counts.servicesUpdated++;
+      } else {
+        const [row] = await tx.insert(schema.services).values(fields).returning();
+        id = row!.id;
+        byKey.set(key, id);
+        counts.servicesCreated++;
+      }
+      await tx.delete(schema.serviceTiers).where(eq(schema.serviceTiers.serviceId, id));
+      if (s.tiers.length) {
+        await tx.insert(schema.serviceTiers).values(s.tiers.map((t, i) => ({ serviceId: id!, label: t.label.trim(), priceCents: t.priceCents, sortOrder: i })));
+        counts.tiersWritten += s.tiers.length;
+      }
+    }
+    return counts;
+  });
+  await audit(db, req, 'import.services', 'store', req.session!.storeId, { ...result, source: body.data.source ?? null });
+  res.json(result);
+});

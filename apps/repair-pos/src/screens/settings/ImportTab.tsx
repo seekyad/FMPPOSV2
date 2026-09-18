@@ -28,6 +28,20 @@ interface PartsResult {
   skipped: string[];
 }
 
+/** Services with per-model price tiers, generated from the parts sheet with a pricing rule. */
+interface ServicesPayload {
+  version: 1;
+  kind: 'services';
+  source?: string;
+  services: Array<{ name: string; deviceGroup: string; basePriceCents: number; tiers: Array<{ label: string; priceCents: number }> }>;
+}
+
+interface ServicesResult {
+  servicesCreated: number;
+  servicesUpdated: number;
+  tiersWritten: number;
+}
+
 interface ImportResult {
   customersCreated: number;
   customersMatched: number;
@@ -47,6 +61,8 @@ export function ImportTab() {
   const fileRef = useRef<HTMLInputElement>(null);
   const [payload, setPayload] = useState<LegacyPayload | null>(null);
   const [parts, setParts] = useState<PartsPayload | null>(null);
+  const [services, setServices] = useState<ServicesPayload | null>(null);
+  const [servicesResult, setServicesResult] = useState<ServicesResult | null>(null);
   const [partsResult, setPartsResult] = useState<PartsResult | null>(null);
   const [fileName, setFileName] = useState('');
   const [error, setError] = useState('');
@@ -59,9 +75,16 @@ export function ImportTab() {
     setPartsResult(null);
     setPayload(null);
     setParts(null);
+    setServices(null);
+    setServicesResult(null);
     if (!file) return;
     try {
-      const parsed = JSON.parse(await file.text()) as LegacyPayload | PartsPayload;
+      const parsed = JSON.parse(await file.text()) as LegacyPayload | PartsPayload | ServicesPayload;
+      if ((parsed as ServicesPayload).kind === 'services' && Array.isArray((parsed as ServicesPayload).services)) {
+        setServices(parsed as ServicesPayload);
+        setFileName(file.name);
+        return;
+      }
       if ((parsed as PartsPayload).kind === 'parts' && Array.isArray((parsed as PartsPayload).parts)) {
         setParts(parsed as PartsPayload);
         setFileName(file.name);
@@ -69,7 +92,7 @@ export function ImportTab() {
       }
       const legacy = parsed as LegacyPayload;
       if (legacy.version !== 1 || !Array.isArray(legacy.customers) || !Array.isArray(legacy.tickets)) {
-        throw new Error('Not an import file. Expected legacy-import.json (customers and tickets) or parts-import.json (parts cost sheet).');
+        throw new Error('Not an import file. Expected legacy-import.json (customers and tickets), parts-import.json (parts cost sheet) or services-import.json (services and prices).');
       }
       setPayload(legacy);
       setFileName(file.name);
@@ -129,6 +152,20 @@ export function ImportTab() {
     }
   }
 
+  async function runServices() {
+    if (!services) return;
+    setError('');
+    setServicesResult(null);
+    setProgress({ done: 0, total: 1 });
+    try {
+      setServicesResult(await api<ServicesResult>('/api/imports/services', { method: 'POST', body: JSON.stringify(services) }));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Import failed');
+    } finally {
+      setProgress(null);
+    }
+  }
+
   const paid = payload?.tickets.filter((t) => t.paid).length ?? 0;
   const byStatus = payload
     ? payload.tickets.reduce<Record<string, number>>((acc, t) => ({ ...acc, [t.status]: (acc[t.status] ?? 0) + 1 }), {})
@@ -175,6 +212,47 @@ export function ImportTab() {
                 <div style={{ color: 'var(--ink-3)', fontSize: 12.5 }}>{label}</div>
               </div>
             ))}
+          </div>
+        )}
+
+        {services && (
+          <>
+            <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
+              {[
+                ['Services', services.services.length],
+                ['Model prices', services.services.reduce((n, s) => n + s.tiers.length, 0)],
+                ['Device groups', new Set(services.services.map((s) => s.deviceGroup)).size],
+              ].map(([label, n]) => (
+                <div key={String(label)} style={{ padding: '10px 12px', borderRadius: 10, background: 'var(--line-soft)' }}>
+                  <div style={{ font: '700 20px Inter, sans-serif' }}>{n}</div>
+                  <div style={{ color: 'var(--ink-3)', fontSize: 12.5 }}>{label}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ marginTop: 10, maxHeight: 220, overflow: 'auto', fontSize: 13, color: 'var(--ink-2)' }}>
+              {services.services.map((s) => (
+                <div key={`${s.deviceGroup}|${s.name}`} style={{ padding: '3px 0', borderBottom: '1px solid var(--line-soft)' }}>
+                  <b>{s.name}</b> · {s.deviceGroup} · from ${(s.basePriceCents / 100).toFixed(0)} · {s.tiers.length} models
+                </div>
+              ))}
+            </div>
+            <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
+              <Button variant="primary" onClick={() => void runServices()} disabled={progress !== null}>
+                {progress ? 'Importing…' : 'Import services and prices'}
+              </Button>
+              {services.source && <span style={{ color: 'var(--ink-4)', fontSize: 12.5 }}>{services.source}</span>}
+            </div>
+          </>
+        )}
+
+        {servicesResult && (
+          <div style={{ marginTop: 16, padding: '12px 14px', borderRadius: 12, background: 'var(--green-bg)', color: 'var(--green)', fontSize: 14.5 }}>
+            <div style={{ fontWeight: 700 }}>
+              <i className="bi bi-check2-circle" /> Services import finished
+            </div>
+            <div style={{ color: 'var(--ink)', marginTop: 4 }}>
+              {servicesResult.servicesCreated} services added, {servicesResult.servicesUpdated} updated · {servicesResult.tiersWritten} model prices written
+            </div>
           </div>
         )}
 
