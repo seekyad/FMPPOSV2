@@ -19,6 +19,7 @@ import { timeclockRouter } from './routes/timeclock';
 import { tradeinRouter } from './routes/tradein';
 import { transactionsRouter } from './routes/transactions';
 import { importsRouter } from './routes/imports';
+import { bridgeInstallRouter } from './routes/bridge-install';
 
 /** Express app without the HTTP listener so tests can drive it with supertest. */
 export function createApp() {
@@ -45,6 +46,8 @@ export function createApp() {
   app.use('/api/reports', reportsRouter);
   app.use('/api/terminal', terminalRouter);
   app.use('/api/retail', retailRouter);
+  // store-PC print bridge installer: irm https://<pos>/bridge/install.ps1 | iex
+  app.use('/bridge', bridgeInstallRouter);
 
   // Production: repair POS at /, retail POS at /retail.
   const dirname = path.dirname(fileURLToPath(import.meta.url));
