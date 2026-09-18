@@ -1,5 +1,5 @@
 import { createRouter as Router } from '../http';
-import { and, desc, eq, ilike, ne, or, sql } from 'drizzle-orm';
+import { and, desc, eq, ilike, ne, or, sql , inArray} from 'drizzle-orm';
 import { z } from 'zod';
 import { getDb, schema } from '../db/index';
 import { requireAuth, requireRole } from '../auth';
@@ -124,6 +124,42 @@ inventoryRouter.patch('/:id', async (req, res) => {
 });
 
 /** Manager-only quantity adjustment with reason (shrinkage, correction). */
+/**
+ * Bulk cost / price update for parts and accessories: pick the rows on the Inventory screen
+ * (by model, by name) and set, add or scale their cost and/or price in one go.
+ */
+const priceChange = z.object({ mode: z.enum(['set', 'add', 'percent']), value: z.number().finite() });
+const applyChange = (cents: number, c: { mode: 'set' | 'add' | 'percent'; value: number }) => {
+  const next = c.mode === 'set' ? Math.round(c.value) : c.mode === 'add' ? cents + Math.round(c.value) : Math.round(cents * (1 + c.value / 100));
+  return Math.max(0, next);
+};
+inventoryRouter.post('/bulk-price', requireRole('manager'), async (req, res) => {
+  const body = z
+    .object({ ids: z.array(z.number().int()).min(1).max(5000), cost: priceChange.optional(), price: priceChange.optional() })
+    .refine((b) => b.cost || b.price, { message: 'cost or price required' })
+    .safeParse(req.body);
+  if (!body.success) {
+    res.status(400).json({ error: 'ids and a cost or price change are required' });
+    return;
+  }
+  const db = await getDb();
+  const targets = await db
+    .select()
+    .from(schema.inventoryItems)
+    .where(and(eq(schema.inventoryItems.storeId, req.session!.storeId), inArray(schema.inventoryItems.id, body.data.ids), inArray(schema.inventoryItems.kind, ['part', 'accessory']), ne(schema.inventoryItems.status, 'removed')));
+  for (const item of targets) {
+    await db
+      .update(schema.inventoryItems)
+      .set({
+        costCents: body.data.cost ? applyChange(item.costCents, body.data.cost) : item.costCents,
+        priceCents: body.data.price ? applyChange(item.priceCents, body.data.price) : item.priceCents,
+      })
+      .where(eq(schema.inventoryItems.id, item.id));
+  }
+  await audit(db, req, 'inventory.bulk_price', undefined, undefined, { ids: targets.length, cost: body.data.cost ?? null, price: body.data.price ?? null });
+  res.json({ updated: targets.length });
+});
+
 inventoryRouter.post('/:id/adjust', requireRole('manager'), async (req, res) => {
   const body = z.object({ deltaQty: z.number().int(), reason: z.string().min(2).max(300) }).safeParse(req.body);
   if (!body.success) {

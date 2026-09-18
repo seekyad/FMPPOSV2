@@ -68,6 +68,7 @@ const TAG_FIELDS: Array<{ key: keyof TagPrefs; label: string }> = [
   { key: 'promise', label: 'Promised time' },
   { key: 'barcode', label: 'Barcode (ticket number)' },
   { key: 'price', label: 'Price and paid status' },
+  { key: 'rotate', label: 'Rotate 90° — printer feeds the tag sideways' },
 ];
 
 const DEVICE_FIELDS: Array<{ key: keyof DeviceLabelPrefs; label: string }> = [
@@ -77,12 +78,14 @@ const DEVICE_FIELDS: Array<{ key: keyof DeviceLabelPrefs; label: string }> = [
   { key: 'barcode', label: 'Barcode (IMEI)' },
   { key: 'imei', label: 'IMEI / serial number' },
   { key: 'price', label: 'Price' },
+  { key: 'rotate', label: 'Rotate 90° — printer feeds the label sideways' },
 ];
 
 const INVENTORY_FIELDS: Array<{ key: keyof InventoryLabelPrefs; label: string }> = [
   { key: 'sku', label: 'SKU' },
   { key: 'barcode', label: 'Barcode (SKU)' },
   { key: 'price', label: 'Price' },
+  { key: 'rotate', label: 'Rotate 90° — printer feeds the label sideways' },
 ];
 
 /** Preview-scale render of the real Code 128 bars the label will print. */

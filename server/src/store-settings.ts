@@ -10,9 +10,9 @@ export const publicSettingsSchema = z.object({
   printing: z.object({ autoPrintReceipt: z.boolean().optional(), labelNote: z.string().max(1000).optional() }).optional(),
   print: z.object({
     receipt: flags(['store', 'customer', 'footer', 'terms', 'kickDrawer']).extend({ paper: z.union([z.literal(58), z.literal(80)]).optional(), termsText: z.string().max(2000).optional() }).optional(),
-    tag: flags(['date', 'ticket', 'customer', 'phone', 'device', 'repair', 'passcode', 'notes', 'promise', 'barcode', 'price']).optional(),
-    device: flags(['carrier', 'storage', 'condition', 'barcode', 'imei', 'price']).optional(),
-    inventory: flags(['sku', 'barcode', 'price']).optional(),
+    tag: flags(['date', 'ticket', 'customer', 'phone', 'device', 'repair', 'passcode', 'notes', 'promise', 'barcode', 'price', 'rotate']).optional(),
+    device: flags(['carrier', 'storage', 'condition', 'barcode', 'imei', 'price', 'rotate']).optional(),
+    inventory: flags(['sku', 'barcode', 'price', 'rotate']).optional(),
   }).optional(),
 });
 

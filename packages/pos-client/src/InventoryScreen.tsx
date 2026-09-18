@@ -15,6 +15,7 @@ interface Item {
   conditionGrade: 'A' | 'B' | 'C' | null;
   carrier: string | null;
   fromTradeIn: boolean;
+  modelId: number | null;
   qty: number;
   costCents: number;
   priceCents: number;
@@ -56,6 +57,7 @@ export function InventoryScreen() {
   const [storeName, setStoreName] = useState('');
   const [adding, setAdding] = useState(false);
   const [adjusting, setAdjusting] = useState<Item | null>(null);
+  const [bulkOpen, setBulkOpen] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
   const isManager = session.user?.role === 'manager';
 
@@ -235,6 +237,11 @@ export function InventoryScreen() {
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
+          {(tab === 'parts' || tab === 'accessories') && (
+            <Button variant="secondary" disabled={!isManager} title={isManager ? undefined : 'Manager only'} onClick={() => setBulkOpen(true)}>
+              <i className="bi bi-arrow-repeat" /> Bulk price update
+            </Button>
+          )}
           <Button variant="secondary" onClick={() => searchRef.current?.focus()}>
             <i className="bi bi-upc-scan" /> Scan in
           </Button>
@@ -271,6 +278,7 @@ export function InventoryScreen() {
 
       <AddItemModal open={adding} onClose={() => setAdding(false)} onSaved={() => void load()} defaultKind={tab === 'parts' ? 'part' : tab === 'accessories' ? 'accessory' : 'device'} />
       <AdjustModal item={adjusting} onClose={() => setAdjusting(null)} onSaved={() => void load()} />
+      <BulkPriceModal open={bulkOpen} items={rows} onClose={() => setBulkOpen(false)} onDone={() => void load()} />
     </div>
   );
 }
@@ -479,6 +487,149 @@ function AdjustModal({ item, onClose, onSaved }: { item: Item | null; onClose: (
           <Button variant="ghost" onClick={close}>Cancel</Button>
           {item?.kind !== 'device' && <Button variant="primary" onClick={() => void adjust()}>Apply adjustment</Button>}
         </div>
+      </div>
+    </Modal>
+  );
+}
+
+type PriceMode = 'keep' | 'set' | 'add' | 'percent';
+
+/**
+ * Bulk cost / price update. Narrow the tab's rows by device model and by words in the name
+ * (for example "Soft OLED"), see how many match, then set, add to, or scale cost and price.
+ */
+function BulkPriceModal({ open, items, onClose, onDone }: { open: boolean; items: Item[]; onClose: () => void; onDone: () => void }) {
+  const [models, setModels] = useState<Array<{ id: number; brand: string; name: string }>>([]);
+  const [modelId, setModelId] = useState<number | 'all'>('all');
+  const [words, setWords] = useState('');
+  const [costMode, setCostMode] = useState<PriceMode>('keep');
+  const [costValue, setCostValue] = useState('');
+  const [priceMode, setPriceMode] = useState<PriceMode>('keep');
+  const [priceValue, setPriceValue] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [done, setDone] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    setDone(null);
+    setError('');
+    void api<Array<{ id: number; brand: string; name: string }>>('/api/catalog/models').then(setModels).catch(() => setModels([]));
+  }, [open]);
+
+  const usedModelIds = useMemo(() => new Set(items.map((i) => i.modelId).filter((id): id is number => id != null)), [items]);
+  const modelOptions = models.filter((m) => usedModelIds.has(m.id));
+  const terms = words.toLowerCase().split(/\s+/).filter(Boolean);
+  const matched = items.filter(
+    (i) => (modelId === 'all' || i.modelId === modelId) && terms.every((t) => i.name.toLowerCase().includes(t)),
+  );
+
+  const change = (mode: PriceMode, value: string) => {
+    if (mode === 'keep') return undefined;
+    const n = mode === 'percent' ? Number(value) : parseDollars(value);
+    if (n == null || Number.isNaN(n)) return null;
+    return { mode, value: n };
+  };
+  const cost = change(costMode, costValue);
+  const price = change(priceMode, priceValue);
+  const valid = matched.length > 0 && cost !== null && price !== null && (cost || price);
+
+  async function apply() {
+    if (!valid) return;
+    setBusy(true);
+    setError('');
+    try {
+      const r = await api<{ updated: number }>('/api/inventory/bulk-price', {
+        method: 'POST',
+        body: JSON.stringify({ ids: matched.map((i) => i.id), cost: cost ?? undefined, price: price ?? undefined }),
+      });
+      setDone(r.updated);
+      onDone();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Update failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const modeRow = (label: string, mode: PriceMode, setMode: (m: PriceMode) => void, value: string, setValue: (v: string) => void) => (
+    <div style={{ marginTop: 14 }}>
+      <div style={{ font: '600 12px Inter, sans-serif', color: 'var(--ink-4)', letterSpacing: '0.06em' }}>{label}</div>
+      <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
+        {(
+          [
+            ['keep', 'Leave as is'],
+            ['set', 'Set to $'],
+            ['add', 'Add $'],
+            ['percent', 'Change by %'],
+          ] as const
+        ).map(([m, text]) => (
+          <button
+            key={m}
+            type="button"
+            onClick={() => setMode(m)}
+            style={{
+              padding: '8px 12px',
+              borderRadius: 999,
+              border: '1px solid var(--line)',
+              background: mode === m ? 'var(--navy)' : 'var(--card)',
+              color: mode === m ? '#fff' : 'var(--ink-2)',
+              font: '600 12.5px Inter, sans-serif',
+            }}
+          >
+            {text}
+          </button>
+        ))}
+        {mode !== 'keep' && (
+          <input
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            inputMode="decimal"
+            placeholder={mode === 'percent' ? 'e.g. 10 or -5' : mode === 'add' ? 'e.g. 5 or -2.50' : 'e.g. 45'}
+            style={{ width: 120, padding: '8px 10px', borderRadius: 10, border: '1px solid var(--line)', fontSize: 14 }}
+          />
+        )}
+      </div>
+    </div>
+  );
+
+  return (
+    <Modal open={open} onClose={onClose} width={520}>
+      <h2 style={{ margin: 0, font: '700 20px Inter, sans-serif' }}>Bulk price update</h2>
+      <p style={{ color: 'var(--ink-3)', fontSize: 14, marginTop: 4 }}>Pick which parts to change, then how cost and price move.</p>
+      <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+        <select
+          value={modelId}
+          onChange={(e) => setModelId(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+          style={{ flex: '1 1 200px', padding: '9px 10px', borderRadius: 10, border: '1px solid var(--line)', fontSize: 14, background: 'var(--card)' }}
+        >
+          <option value="all">Every model</option>
+          {modelOptions.map((m) => (
+            <option key={m.id} value={m.id}>
+              {m.name}
+            </option>
+          ))}
+        </select>
+        <input
+          value={words}
+          onChange={(e) => setWords(e.target.value)}
+          placeholder="Name contains — e.g. Soft OLED"
+          style={{ flex: '1 1 200px', padding: '9px 10px', borderRadius: 10, border: '1px solid var(--line)', fontSize: 14 }}
+        />
+      </div>
+      <div style={{ marginTop: 8, fontSize: 13.5, color: matched.length ? 'var(--ink-2)' : 'var(--red)' }}>
+        {matched.length} of {items.length} on this tab match
+        {matched.length > 0 && matched.length <= 6 && <span style={{ color: 'var(--ink-4)' }}> · {matched.map((i) => i.name).join(', ')}</span>}
+      </div>
+      {modeRow('COST', costMode, setCostMode, costValue, setCostValue)}
+      {modeRow('PRICE', priceMode, setPriceMode, priceValue, setPriceValue)}
+      {error && <div role="alert" style={{ color: 'var(--red)', fontSize: 14, marginTop: 10 }}>{error}</div>}
+      {done != null && <div style={{ color: 'var(--green)', fontSize: 14, marginTop: 10 }}>Updated {done} items.</div>}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+        <Button variant="ghost" onClick={onClose}>{done != null ? 'Close' : 'Cancel'}</Button>
+        <Button variant="primary" disabled={!valid || busy} onClick={() => void apply()}>
+          {busy ? 'Updating…' : `Update ${matched.length} item${matched.length === 1 ? '' : 's'}`}
+        </Button>
       </div>
     </Modal>
   );

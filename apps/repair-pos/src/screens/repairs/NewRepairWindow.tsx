@@ -438,10 +438,7 @@ export function NewRepairWindow({
       setError('Every device needs a model.');
       return false;
     }
-    if (devices.some((d) => d.powersOn === null)) {
-      setError('Tap Powers on or Dead on arrival for every device.');
-      return false;
-    }
+    // condition is optional: an untouched device is saved as powering on
     return true;
   }
 
@@ -731,7 +728,7 @@ export function NewRepairWindow({
               </button>
             </div>
 
-            <div className={`${sectionCls} mt-5`}>2 · CONDITION *</div>
+            <div className={`${sectionCls} mt-5`}>2 · CONDITION</div>
             <div className="mt-3 flex overflow-hidden rounded-[10px] border border-line">
               {(
                 [

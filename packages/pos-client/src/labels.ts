@@ -18,6 +18,8 @@ export interface TagPrefs {
   promise?: boolean;
   barcode?: boolean;
   price?: boolean;
+  /** printer feeds the stock sideways: render the label turned 90° on a landscape page */
+  rotate?: boolean;
 }
 
 /** Serialized device price label — always 50 × 30 mm. */
@@ -28,6 +30,7 @@ export interface DeviceLabelPrefs {
   barcode?: boolean;
   imei?: boolean;
   price?: boolean;
+  rotate?: boolean;
 }
 
 /** Parts / accessories price label — always 50 × 30 mm. */
@@ -35,6 +38,7 @@ export interface InventoryLabelPrefs {
   sku?: boolean;
   barcode?: boolean;
   price?: boolean;
+  rotate?: boolean;
 }
 
 export interface LabelPrefs {
@@ -55,6 +59,7 @@ export const TAG_DEFAULTS: Required<TagPrefs> = {
   promise: false,
   barcode: true,
   price: true,
+  rotate: false,
 };
 
 export const DEVICE_LABEL_DEFAULTS: Required<DeviceLabelPrefs> = {
@@ -64,12 +69,14 @@ export const DEVICE_LABEL_DEFAULTS: Required<DeviceLabelPrefs> = {
   barcode: true,
   imei: true,
   price: true,
+  rotate: false,
 };
 
 export const INVENTORY_LABEL_DEFAULTS: Required<InventoryLabelPrefs> = {
   sku: true,
   barcode: true,
   price: true,
+  rotate: false,
 };
 
 let prefs: LabelPrefs = {};
@@ -148,10 +155,14 @@ function barcodeHtml(data: string, heightMm: number): string {
 }
 
 /** The self-contained page a label prints from: @page sizes it, the script prints it on load. */
-function labelDocument(title: string, sizeH: '30mm' | '80mm', style: string, bodyHtml: string): string {
+function labelDocument(title: string, sizeH: '30mm' | '80mm', style: string, bodyHtml: string, rotate = false): string {
+  // rotated: a landscape page with the 46 mm-wide label turned a quarter turn to lie along it
+  const page = rotate ? `${sizeH} 50mm` : `50mm ${sizeH}`;
+  const turn = rotate ? 'body { transform-origin: 0 0; transform: translateY(46mm) rotate(-90deg); }' : '';
   return `<!doctype html><html><head><title>${esc(title)}</title><style>
-    @page { size: 50mm ${sizeH}; margin: 2mm; }
+    @page { size: ${page}; margin: 2mm; }
     body { font-family: -apple-system, 'Segoe UI', sans-serif; margin: 0; width: 46mm; color: #000; }
+    ${turn}
     ${style}
   </style></head><body>
     ${bodyHtml}
@@ -159,10 +170,10 @@ function labelDocument(title: string, sizeH: '30mm' | '80mm', style: string, bod
   </body></html>`;
 }
 
-function openLabelWindow(title: string, sizeH: '30mm' | '80mm', style: string, bodyHtml: string): boolean {
+function openLabelWindow(title: string, sizeH: '30mm' | '80mm', style: string, bodyHtml: string, rotate = false): boolean {
   const w = window.open('', '_blank', 'width=420,height=320');
   if (!w) return false;
-  w.document.write(labelDocument(title, sizeH, style, bodyHtml));
+  w.document.write(labelDocument(title, sizeH, style, bodyHtml, rotate));
   w.document.close();
   return true;
 }
@@ -202,10 +213,10 @@ interface LabelLog {
  * printer sits on the store PC), otherwise through this browser's print dialog.
  * Returns false only when the dialog could not open.
  */
-function printLabelDoc(title: string, sizeH: '30mm' | '80mm', style: string, bodyHtml: string, log: LabelLog | null): boolean {
+function printLabelDoc(title: string, sizeH: '30mm' | '80mm', style: string, bodyHtml: string, log: LabelLog | null, rotate = false): boolean {
   if (Date.now() - bridgeCheckedAt > 30_000) void refreshBridgeStatus();
   if (bridgeOnline) {
-    const html = labelDocument(title, sizeH, style, bodyHtml);
+    const html = labelDocument(title, sizeH, style, bodyHtml, rotate);
     void api<{ printed: boolean }>('/api/print/label', {
       method: 'POST',
       body: JSON.stringify({ name: log?.name ?? title, detail: log?.detail ?? null, html, payload: log?.payload ?? null }),
@@ -214,15 +225,15 @@ function printLabelDoc(title: string, sizeH: '30mm' | '80mm', style: string, bod
         if (r.printed) return;
         // the bridge dropped between checks: fall back to the dialog (may be blocked outside a tap)
         bridgeOnline = false;
-        if (openLabelWindow(title, sizeH, style, bodyHtml) && log) logLabel(log.name, log.detail, log.payload);
+        if (openLabelWindow(title, sizeH, style, bodyHtml, rotate) && log) logLabel(log.name, log.detail, log.payload);
       })
       .catch(() => {
         bridgeOnline = false;
-        if (openLabelWindow(title, sizeH, style, bodyHtml) && log) logLabel(log.name, log.detail, log.payload);
+        if (openLabelWindow(title, sizeH, style, bodyHtml, rotate) && log) logLabel(log.name, log.detail, log.payload);
       });
     return true;
   }
-  const opened = openLabelWindow(title, sizeH, style, bodyHtml);
+  const opened = openLabelWindow(title, sizeH, style, bodyHtml, rotate);
   if (opened && log) logLabel(log.name, log.detail, log.payload);
   return opened;
 }
@@ -303,6 +314,7 @@ export function printTicketLabel(fields: TicketLabelFields, opts?: { skipLog?: b
     `,
     rows.join('\n'),
     opts?.skipLog ? null : { name: `Claim tag — ${fields.number}`, detail: '50 × 80 mm', payload: { type: 'tag', ...fields } },
+    on('rotate'),
   );
 }
 
@@ -347,6 +359,7 @@ export function printDeviceLabel(fields: DeviceLabelFields, opts?: { skipLog?: b
     `,
     rows.join('\n'),
     opts?.skipLog ? null : { name: `Device label — ${fields.name}`, detail: '50 × 30 mm', payload: { type: 'device', ...fields } },
+    on('rotate'),
   );
 }
 
@@ -382,6 +395,7 @@ export function printInventoryLabel(fields: InventoryLabelFields, opts?: { skipL
     `,
     rows.join('\n'),
     opts?.skipLog ? null : { name: `Price label — ${fields.name}`, detail: '50 × 30 mm', payload: { type: 'inventory', ...fields } },
+    on('rotate'),
   );
 }
 
