@@ -18,11 +18,14 @@ import { terminalRouter } from './routes/terminal';
 import { timeclockRouter } from './routes/timeclock';
 import { tradeinRouter } from './routes/tradein';
 import { transactionsRouter } from './routes/transactions';
+import { importsRouter } from './routes/imports';
 
 /** Express app without the HTTP listener so tests can drive it with supertest. */
 export function createApp() {
   const app = express();
   app.use(cors());
+  // the legacy importer parses its own, larger bodies; it must sit ahead of the 1 MB app-wide parser
+  app.use('/api/imports', importsRouter);
   app.use(express.json({ limit: '1mb' }));
   app.use('/api', (_req, res, next) => { res.set('Cache-Control', 'no-store'); next(); });
 

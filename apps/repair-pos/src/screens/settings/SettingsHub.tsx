@@ -4,6 +4,7 @@ import { PricebookTab } from './PricebookTab';
 import { PrintCenterTab } from './PrintCenterTab';
 import { StaffTab } from './StaffTab';
 import { TimeClockTab } from './TimeClockTab';
+import { ImportTab } from './ImportTab';
 import { PaymentsSection, ReceiptsPrintingSection, StoreProfileSection, TaxesSection } from './StoreSections';
 
 const SECTIONS = [
@@ -16,6 +17,7 @@ const SECTIONS = [
   { id: 'staff', label: 'Users & PINs', icon: 'bi-person-badge' },
   { id: 'timeclock', label: 'Time clock', icon: 'bi-clock-history' },
   { id: 'pricebook', label: 'Trade-in pricebook', icon: 'bi-arrow-left-right' },
+  { id: 'import', label: 'Import from old app', icon: 'bi-box-arrow-in-down' },
 ] as const;
 
 type SectionId = (typeof SECTIONS)[number]['id'];
@@ -81,6 +83,7 @@ export function SettingsHub() {
         {section === 'staff' && <StaffTab />}
         {section === 'timeclock' && <TimeClockTab />}
         {section === 'pricebook' && <PricebookTab />}
+        {section === 'import' && <ImportTab />}
       </div>
     </div>
   );
