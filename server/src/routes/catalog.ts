@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { getDb, schema } from '../db/index';
 import { requireAuth, requireRole } from '../auth';
 import { audit } from '../util';
+import { compareDeviceModels } from '@fmp/shared';
 import { requireStoreReferences } from '../store-scope';
 
 /** Settings: device models + the service catalog (services with price tiers). */
@@ -12,7 +13,8 @@ catalogRouter.use(requireAuth);
 
 catalogRouter.get('/models', async (_req, res) => {
   const db = await getDb();
-  res.json(await db.select().from(schema.deviceModels).orderBy(asc(schema.deviceModels.brand), asc(schema.deviceModels.name)));
+  const models = await db.select().from(schema.deviceModels);
+  res.json(models.sort(compareDeviceModels));
 });
 
 catalogRouter.post('/models', requireRole('manager'), async (req, res) => {

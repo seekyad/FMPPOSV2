@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { computeTotals, formatCents } from '@fmp/shared';
+import { compareDeviceModels, computeTotals, formatCents } from '@fmp/shared';
 import { Keypad } from '@fmp/ui';
 import { api, CodeField, formatPhoneInput, MoneyKeypadSheet, SecretField, session } from '@fmp/pos-client';
 import type { CartCustomer } from '@fmp/pos-client';
@@ -244,7 +244,7 @@ export function NewRepairWindow({
       if (activeFamily) list = list.filter((m) => (m.family ?? 'Other') === activeFamily);
       else if (!activeBrand) list = [];
     }
-    return [...list].sort((a, b) => (b.releaseYear ?? 0) - (a.releaseYear ?? 0) || a.name.localeCompare(b.name, undefined, { numeric: true }));
+    return [...list].sort(compareDeviceModels);
   }, [meta, deviceQuery, activeBrand, activeFamily]);
 
   function chooseModel(m: RepairMeta['models'][number]) {
