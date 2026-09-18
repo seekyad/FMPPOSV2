@@ -7,6 +7,7 @@ export interface ReceiptData {
   ticketNumber: string;
   cashier: string;
   customer?: string | null;
+  customerPhone?: string | null;
   createdAt: Date;
   lines: Array<{ description: string; qty: number; totalCents: number }>;
   subtotalCents: number;
@@ -26,6 +27,7 @@ export interface ReceiptData {
 const widthOf = (r: ReceiptData) => (r.paperWidth === 58 ? 32 : 42);
 
 function row(width: number, left: string, right: string): string {
+  if (left.length + right.length + 1 > width) return [...wrap(width,left), ...wrap(width,right)].join('\n');
   const space = Math.max(1, width - left.length - right.length);
   return left + ' '.repeat(space) + right;
 }
@@ -47,10 +49,12 @@ function wrap(width: number, text: string): string[] {
     }
   }
   if (line) out.push(line);
-  return out;
+  return out.flatMap(line => line.match(new RegExp('.{1,' + width + '}', 'g')) ?? []);
 }
 
 /** Plain-text body shared by the browser fallback and the ESC/POS job. */
+const PAYMENT_LABELS: Record<string, string> = { store_credit: 'Store credit', zelle: 'Zelle', cash_app: 'Cash App', tap: 'Tap' };
+
 export function receiptText(r: ReceiptData): string {
   const W = widthOf(r);
   const out: string[] = [];
@@ -64,6 +68,7 @@ export function receiptText(r: ReceiptData): string {
   out.push(row(W, `${r.refund ? 'REFUND ' : ''}Ticket #${r.ticketNumber}`, r.createdAt.toLocaleDateString('en-US')));
   out.push(row(W, `Cashier: ${r.cashier}`, r.createdAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })));
   if (r.customer) out.push(row(W, 'Customer:', r.customer));
+  if (r.customer && r.customerPhone) out.push(row(W, 'Phone:', r.customerPhone));
   out.push('-'.repeat(W));
   for (const line of r.lines) {
     const desc = line.qty > 1 ? `${line.qty} x ${line.description}` : line.description;
@@ -76,22 +81,37 @@ export function receiptText(r: ReceiptData): string {
   out.push(row(W, 'TOTAL', formatCents(r.totalCents)));
   out.push('');
   for (const p of r.payments) {
-    const label = p.method === 'store_credit' ? 'Store credit' : p.method[0]!.toUpperCase() + p.method.slice(1);
+    const label = PAYMENT_LABELS[p.method] ?? p.method[0]!.toUpperCase() + p.method.slice(1);
     out.push(row(W, label, formatCents(p.amountCents)));
     if (p.method === 'cash' && p.tenderedCents != null) {
       out.push(row(W, '  Tendered', formatCents(p.tenderedCents)));
       out.push(row(W, '  Change', formatCents(p.changeCents ?? 0)));
     }
   }
-  if (r.terms) {
+  if (r.terms || r.footer) {
     out.push('');
-    out.push(...wrap(W, r.terms));
+    out.push(NOTES_RULE.repeat(W));
   }
+  if (r.terms) out.push(...wrap(W, r.terms));
   if (r.footer) {
-    out.push('');
+    if (r.terms) out.push('');
     pushCentered(r.footer);
   }
   return out.join('\n');
+}
+
+/** The receipt's notes (terms + footer) follow a dotted rule; screens render them in a readable face. */
+export const NOTES_RULE = '.';
+export function splitReceiptNotes(text: string): { body: string; notes: string | null } {
+  const lines = text.split('\n');
+  const at = lines.findIndex((l) => l.length >= 10 && /^\.+$/.test(l));
+  if (at < 0) return { body: text, notes: null };
+  return { body: lines.slice(0, at).join('\n').replace(/\n+$/, ''), notes: lines.slice(at + 1).join('\n').trim() };
+}
+
+/** ESC/POS job (base64) that only pulses the cash drawer open — nothing is printed. */
+export function drawerKickEscpos(): string {
+  return Buffer.from([0x1b, 0x40, 0x1b, 0x70, 0x00, 0x19, 0xfa]).toString('base64');
 }
 
 /** ESC/POS byte stream (base64) for the Rongta: init, text, feed, cut, optional drawer kick. */
@@ -105,7 +125,22 @@ export function receiptEscpos(r: ReceiptData, kickDrawer: boolean): string {
   push(ESC, 0x40); // init
   if (kickDrawer) push(ESC, 0x70, 0x00, 0x19, 0xfa); // drawer pulse on pin 2
   push(ESC, 0x61, 0x00); // left align (we pre-format columns)
-  for (const line of receiptText(r).split('\n')) text(line);
+  const W = widthOf(r);
+  for (const line of receiptText({ ...r, terms: null, footer: null }).split('\n')) text(line);
+  if (r.terms || r.footer) {
+    text('');
+    if (r.terms) {
+      push(ESC, 0x21, 0x18); // emphasized + double height: the notes read apart from the columns
+      for (const line of wrap(W, r.terms)) text(line);
+      push(ESC, 0x21, 0x00);
+    }
+    if (r.footer) {
+      if (r.terms) text('');
+      push(ESC, 0x61, 0x01, ESC, 0x21, 0x08); // centered, emphasized
+      for (const line of wrap(W, r.footer)) text(line);
+      push(ESC, 0x21, 0x00, ESC, 0x61, 0x00);
+    }
+  }
   push(0x0a, 0x0a, 0x0a);
   push(GS, 0x56, 0x42, 0x00); // partial cut
   return Buffer.from(bytes).toString('base64');

@@ -1,10 +1,11 @@
-import { Router } from 'express';
+import { createRouter as Router } from '../http';
 import { and, desc, eq, ilike, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { getDb, schema } from '../db/index';
 import { requireAuth } from '../auth';
 import { audit, emitStore, nextTicketNumber } from '../util';
 import { getOpenDrawer } from './drawer';
+import { requireStoreReferences } from '../store-scope';
 
 /** Retail/carrier POS: activations and bill payments, on shared customers + inventory. */
 export const retailRouter = Router();
@@ -74,6 +75,7 @@ retailRouter.post('/activations', async (req, res) => {
     return;
   }
   const db = await getDb();
+  await requireStoreReferences(db, req.session!.storeId, { inventoryIds: [body.data.deviceItemId] });
   let customerId = body.data.customerId ?? null;
   if (!customerId && body.data.newCustomer) {
     const [c] = await db
@@ -113,7 +115,7 @@ retailRouter.patch('/activations/:id', async (req, res) => {
   const [row] = await db
     .update(schema.activations)
     .set(body.data)
-    .where(eq(schema.activations.id, Number(req.params.id)))
+    .where(and(eq(schema.activations.id, Number(req.params.id)), eq(schema.activations.storeId, req.session!.storeId)))
     .returning();
   if (!row) {
     res.status(404).json({ error: 'Activation not found' });
@@ -183,7 +185,7 @@ retailRouter.post('/bill-payments', async (req, res) => {
       accountNumber: z.string().min(1).max(60),
       amountCents: z.number().int().min(1),
       feeCents: z.number().int().min(0).default(0),
-      method: z.enum(['cash', 'card', 'tap']),
+      method: z.enum(['cash', 'card', 'tap', 'zelle', 'cash_app']),
       tenderedCents: z.number().int().optional().nullable(),
     })
     .safeParse(req.body);

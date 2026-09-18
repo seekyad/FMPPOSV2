@@ -1,5 +1,6 @@
-import { Router } from 'express';
-import { and, desc, eq, ilike, isNull, or, sql } from 'drizzle-orm';
+import { HttpError } from '../http';
+import { createRouter as Router } from '../http';
+import { and, desc, eq, ilike, inArray, isNull, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { getDb, schema } from '../db/index';
 import { requireAuth } from '../auth';
@@ -34,15 +35,15 @@ customersRouter.get('/', async (req, res) => {
       vip: c.vip,
       storeCreditCents: c.storeCreditCents,
       createdAt: c.createdAt,
-      visits: sql<number>`(select count(*) from sales s where s.customer_id = ${c.id} and s.status = 'completed')`,
-      lifetimeCents: sql<number>`coalesce((select sum(s.total_cents) from sales s where s.customer_id = ${c.id} and s.status = 'completed'), 0)`,
+      visits: sql<number>`(select count(*) from sales s where s.refund_of_sale_id is null and s.status != 'voided' and s.customer_id = ${c.id} and (s.status in ('completed','refunded') or (s.status = 'voided' and exists (select 1 from sales reversal where reversal.refund_of_sale_id = s.id))) and s.completed_at is not null)`,
+      lifetimeCents: sql<number>`coalesce((select sum(s.total_cents) from sales s where s.customer_id = ${c.id} and (s.status in ('completed','refunded') or (s.status = 'voided' and exists (select 1 from sales reversal where reversal.refund_of_sale_id = s.id))) and s.completed_at is not null), 0)`,
       openTickets: sql<number>`(select count(*) from repair_tickets t where t.customer_id = ${c.id} and t.status in ('open','in_progress','waiting_part','completed'))`,
-      balanceDueCents: sql<number>`coalesce((select sum(t.total_cents) - coalesce(sum((select sum(p.amount_cents) from payments p where p.ticket_id = t.id)), 0) from repair_tickets t where t.customer_id = ${c.id} and t.status in ('open','in_progress','waiting_part','completed')), 0)`,
+      balanceDueCents: sql<number>`coalesce((select sum(t.total_cents) - coalesce(sum((coalesce((select sum(p.amount_cents) from payments p where p.ticket_id = t.id),0) + coalesce((select sum(a.amount_cents) from ticket_allocations a where a.ticket_id = t.id),0))), 0) from repair_tickets t where t.customer_id = ${c.id} and t.status in ('open','in_progress','waiting_part','completed')), 0)`,
       lastSeen: sql<string | null>`(select max(s.created_at) from sales s where s.customer_id = ${c.id})`,
     })
     .from(c)
     .where(where)
-    .orderBy(desc(sql`coalesce((select sum(s.total_cents) from sales s where s.customer_id = ${c.id} and s.status = 'completed'), 0)`))
+    .orderBy(desc(sql`coalesce((select sum(s.total_cents) from sales s where s.customer_id = ${c.id} and (s.status in ('completed','refunded') or (s.status = 'voided' and exists (select 1 from sales reversal where reversal.refund_of_sale_id = s.id))) and s.completed_at is not null), 0)`))
     .limit(200);
   res.json(rows);
 });
@@ -72,7 +73,7 @@ customersRouter.get('/:id', async (req, res) => {
       createdAt: schema.sales.createdAt,
     })
     .from(schema.sales)
-    .where(and(eq(schema.sales.customerId, id), eq(schema.sales.status, 'completed')))
+    .where(and(eq(schema.sales.customerId, id), sql`${schema.sales.completedAt} is not null`, sql`(${schema.sales.status} in ('completed','refunded') or (${schema.sales.status} = 'voided' and exists (select 1 from sales reversal where reversal.refund_of_sale_id = ${schema.sales.id})))`))
     .orderBy(desc(schema.sales.createdAt))
     .limit(50);
   const credit = await db
@@ -81,8 +82,12 @@ customersRouter.get('/:id', async (req, res) => {
     .where(eq(schema.storeCreditLedger.customerId, id))
     .orderBy(desc(schema.storeCreditLedger.createdAt))
     .limit(20);
-  const visits = saleHistory.length;
-  const lifetimeCents = saleHistory.reduce((sum, s) => sum + s.totalCents, 0);
+  const [summary] = await db.select({
+    visits: sql<number>`count(*) filter (where ${schema.sales.refundOfSaleId} is null and ${schema.sales.status} != 'voided')`,
+    lifetimeCents: sql<number>`coalesce(sum(${schema.sales.totalCents}),0)`,
+  }).from(schema.sales).where(and(eq(schema.sales.customerId,id),sql`${schema.sales.completedAt} is not null`, sql`(${schema.sales.status} in ('completed','refunded') or (${schema.sales.status} = 'voided' and exists (select 1 from sales reversal where reversal.refund_of_sale_id = ${schema.sales.id})))`));
+  const visits = Number(summary?.visits ?? 0);
+  const lifetimeCents = Number(summary?.lifetimeCents ?? 0);
   res.json({ customer: { ...customer, visits, lifetimeCents }, devices, tickets, saleHistory, credit });
 });
 
@@ -139,35 +144,23 @@ customersRouter.post('/:id/devices', async (req, res) => {
 });
 
 /** Merge `duplicateId` into this customer: repoint sales/tickets/devices/credit, keep both names searchable via note. */
-customersRouter.post('/:id/merge', async (req, res) => {
-  const keepId = Number(req.params.id);
-  const dupId = Number(req.body?.duplicateId);
-  if (!dupId || dupId === keepId) {
-    res.status(400).json({ error: 'duplicateId required' });
-    return;
-  }
-  const db = await getDb();
-  const [dup] = await db.select().from(schema.customers).where(eq(schema.customers.id, dupId));
-  if (!dup) {
-    res.status(404).json({ error: 'Duplicate customer not found' });
-    return;
-  }
-  await db.update(schema.sales).set({ customerId: keepId }).where(eq(schema.sales.customerId, dupId));
-  await db.update(schema.repairTickets).set({ customerId: keepId }).where(eq(schema.repairTickets.customerId, dupId));
-  await db.update(schema.customerDevices).set({ customerId: keepId }).where(eq(schema.customerDevices.customerId, dupId));
-  await db.update(schema.storeCreditLedger).set({ customerId: keepId }).where(eq(schema.storeCreditLedger.customerId, dupId));
-  const [kept] = await db.select().from(schema.customers).where(eq(schema.customers.id, keepId));
-  await db
-    .update(schema.customers)
-    .set({
-      mergedInto: keepId,
-      storeCreditCents: 0,
-    })
-    .where(eq(schema.customers.id, dupId));
-  await db
-    .update(schema.customers)
-    .set({ storeCreditCents: (kept?.storeCreditCents ?? 0) + dup.storeCreditCents })
-    .where(eq(schema.customers.id, keepId));
-  await audit(db, req, 'customer.merge', 'customer', keepId, { duplicateId: dupId });
-  res.json({ ok: true });
+
+customersRouter.post('/:id/merge', async (req,res)=>{
+  const keepId=Number(req.params.id),dupId=Number(req.body?.duplicateId);
+  if (!Number.isSafeInteger(keepId)||!Number.isSafeInteger(dupId)||keepId<1||dupId<1||keepId===dupId) throw new HttpError(400,'Choose two different customers');
+  const db=await getDb();
+  await db.transaction(async tx=>{
+    // A shared customer can own transactions in either store. Match store-before-customer lock order.
+    await tx.select({id:schema.stores.id}).from(schema.stores).orderBy(schema.stores.id).for('update');
+    const customers=await tx.select().from(schema.customers).where(inArray(schema.customers.id,[keepId,dupId])).orderBy(schema.customers.id).for('update');
+    const kept=customers.find(c=>c.id===keepId),dup=customers.find(c=>c.id===dupId);
+    if(!kept||!dup||kept.mergedInto||dup.mergedInto)throw new HttpError(409,'Both customers must be active, unmerged profiles');
+    for(const table of [schema.sales,schema.repairTickets,schema.customerDevices,schema.storeCreditLedger,schema.activations,schema.billPayments]) {
+      await tx.update(table).set({customerId:keepId}).where(eq(table.customerId,dupId));
+    }
+    await tx.update(schema.customers).set({mergedInto:keepId,storeCreditCents:0}).where(eq(schema.customers.id,dupId));
+    await tx.update(schema.customers).set({storeCreditCents:kept.storeCreditCents+dup.storeCreditCents}).where(eq(schema.customers.id,keepId));
+    await audit(tx as unknown as Awaited<ReturnType<typeof getDb>>,req,'customer.merge','customer',keepId,{duplicateId:dupId,transferredCreditCents:dup.storeCreditCents});
+  });
+  res.json({ok:true});
 });

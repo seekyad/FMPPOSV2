@@ -1,5 +1,5 @@
-import { Router } from 'express';
-import { and, desc, eq, gte, isNull } from 'drizzle-orm';
+import { createRouter as Router } from '../http';
+import { and, desc, eq, gte, inArray, isNull } from 'drizzle-orm';
 import { z } from 'zod';
 import { getDb, schema } from '../db/index';
 import { requireAuth, requireRole } from '../auth';
@@ -115,7 +115,8 @@ timeclockRouter.patch('/:id', requireRole('manager'), async (req, res) => {
       editNote: body.data.editNote,
       flagged: false,
     })
-    .where(eq(schema.timeEntries.id, id))
+    .where(and(eq(schema.timeEntries.id, id), inArray(schema.timeEntries.userId,
+      db.select({ id: schema.users.id }).from(schema.users).where(eq(schema.users.storeId, req.session!.storeId)))))
     .returning();
   if (!row) {
     res.status(404).json({ error: 'Entry not found' });

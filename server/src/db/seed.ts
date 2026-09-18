@@ -1,4 +1,5 @@
 import bcrypt from 'bcryptjs';
+import { isProduction } from '../security-config';
 import { and, count, eq } from 'drizzle-orm';
 import type { Db } from './index';
 import {
@@ -79,6 +80,7 @@ const DEVICE_MODELS: Array<[string, string, 'phone' | 'tablet' | 'watch' | 'lapt
 
 /** Idempotent: seeds only when the database is empty. */
 export async function seedIfEmpty(db: Db) {
+  if (isProduction()) throw new Error('Demo seeding is disabled in production');
   const [row] = await db.select({ n: count() }).from(stores);
   if (row && row.n > 0) return false;
 

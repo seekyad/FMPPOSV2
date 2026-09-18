@@ -57,6 +57,55 @@
       "when": 1788912209930,
       "tag": "0007_loving_wasp",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1788971112320,
+      "tag": "0008_noisy_hemingway",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1788972754416,
+      "tag": "0009_premium_thunderbolt_ross",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1788981120143,
+      "tag": "0010_ambitious_red_ghost",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1789496233644,
+      "tag": "0011_outstanding_doctor_strange",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1789501414458,
+      "tag": "0012_steady_stature",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1789504207359,
+      "tag": "0013_heavy_fixer",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1789504752422,
+      "tag": "0014_legal_james_howlett",
+      "breakpoints": true
     }
   ]
 }

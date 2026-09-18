@@ -1,5 +1,5 @@
-import { Router } from 'express';
-import { and, eq, gte, inArray, isNotNull, lt, sql } from 'drizzle-orm';
+import { createRouter as Router } from '../http';
+import { and, desc, eq, gte, inArray, isNotNull, isNull, lt, sql } from 'drizzle-orm';
 import { getDb, schema } from '../db/index';
 import { requireAuth } from '../auth';
 import { drawerExpectation, getOpenDrawer } from './drawer';
@@ -30,21 +30,23 @@ reportsRouter.get('/summary', async (req, res) => {
   const completedIn = (from: Date, to?: Date) =>
     and(
       eq(schema.sales.storeId, storeId),
-      inArray(schema.sales.status, ['completed', 'refunded']),
+      sql`(${schema.sales.status} in ('completed','refunded') or (${schema.sales.status} = 'voided' and exists (select 1 from sales reversal where reversal.refund_of_sale_id = ${schema.sales.id})))`,
       isNotNull(schema.sales.completedAt),
       gte(schema.sales.completedAt, from),
       to ? lt(schema.sales.completedAt, to) : undefined,
     );
 
+  // deposits ride on sales but are held as store credit, so they are not revenue until spent
+  const depositOnSale = sql`coalesce((select sum(l.net_cents + l.tax_cents) from sale_lines l where l.sale_id = ${schema.sales.id} and l.kind = 'deposit'), 0)`;
   const [gross] = await db
     .select({
-      total: sql<number>`coalesce(sum(${schema.sales.totalCents}), 0)`,
-      positives: sql<number>`count(*) filter (where ${schema.sales.totalCents} > 0)`,
+      total: sql<number>`coalesce(sum(${schema.sales.totalCents} - ${depositOnSale}), 0)`,
+      positives: sql<number>`count(*) filter (where ${schema.sales.totalCents} - ${depositOnSale} > 0)`,
     })
     .from(schema.sales)
     .where(completedIn(start));
   const [prevGross] = await db
-    .select({ total: sql<number>`coalesce(sum(${schema.sales.totalCents}), 0)` })
+    .select({ total: sql<number>`coalesce(sum(${schema.sales.totalCents} - ${depositOnSale}), 0)` })
     .from(schema.sales)
     .where(completedIn(prevStart, start));
 
@@ -59,7 +61,7 @@ reportsRouter.get('/summary', async (req, res) => {
 
   const [outstanding] = await db
     .select({
-      balance: sql<number>`coalesce(sum(${schema.repairTickets.totalCents} - coalesce((select sum(p.amount_cents) from payments p where p.ticket_id = ${schema.repairTickets.id}), 0)), 0)`,
+      balance: sql<number>`coalesce(sum(${schema.repairTickets.totalCents} - (coalesce((select sum(p.amount_cents) from payments p where p.ticket_id = ${schema.repairTickets.id}),0) + coalesce((select sum(a.amount_cents) from ticket_allocations a where a.ticket_id = ${schema.repairTickets.id}),0))), 0)`,
       count: sql<number>`count(*)`,
     })
     .from(schema.repairTickets)
@@ -74,7 +76,7 @@ reportsRouter.get('/summary', async (req, res) => {
     .select({
       kind: schema.saleLines.kind,
       itemKind: schema.inventoryItems.kind,
-      revenue: sql<number>`coalesce(sum(${schema.saleLines.qty} * ${schema.saleLines.unitCents} - ${schema.saleLines.discountCents}), 0)`,
+      revenue: sql<number>`coalesce(sum(coalesce(${schema.saleLines.netCents}, ${schema.saleLines.qty} * ${schema.saleLines.unitCents} - ${schema.saleLines.discountCents})), 0)`,
     })
     .from(schema.saleLines)
     .innerJoin(schema.sales, eq(schema.saleLines.saleId, schema.sales.id))
@@ -84,6 +86,7 @@ reportsRouter.get('/summary', async (req, res) => {
   const revenueByCategory = { repairs: 0, devices: 0, accessories: 0, other: 0 };
   for (const row of categoryRows) {
     const r = Number(row.revenue);
+    if (row.kind === 'deposit') continue; // held as store credit, not revenue yet
     if (row.kind === 'repair') revenueByCategory.repairs += r;
     else if (row.kind === 'product' && row.itemKind === 'device') revenueByCategory.devices += r;
     else if (row.kind === 'product') revenueByCategory.accessories += r;
@@ -173,4 +176,135 @@ reportsRouter.get('/summary', async (req, res) => {
       openedAt: drawerSession.openedAt,
     },
   });
+});
+
+export interface ReportTxn {
+  at: string;
+  number: string;
+  customer: string | null;
+  description: string;
+  method: string | null;
+  /** money in is positive; money out (refunds, payouts, trade-ins, credit spent) is negative */
+  amountCents: number;
+  note: string | null;
+}
+
+/**
+ * Every line behind the summary, grouped the way the shop thinks about the day:
+ * repairs (ticket payments and deposits), sales (devices and custom items),
+ * accessories (parts and accessories sold), payouts (register cash out and in),
+ * trade-ins (cash or credit), and credits (every store-credit movement).
+ */
+reportsRouter.get('/transactions', async (req, res) => {
+  const db = await getDb();
+  const storeId = req.session!.storeId;
+  const { start } = rangeBounds(String(req.query.range ?? 'today'));
+  const groups: Record<'repairs' | 'sales' | 'accessories' | 'payouts' | 'tradeins' | 'credits', ReportTxn[]> = {
+    repairs: [], sales: [], accessories: [], payouts: [], tradeins: [], credits: [],
+  };
+
+  // sale lines: each item on a completed sale or refund, with the sale's tenders
+  const l = schema.saleLines;
+  const t = schema.sales;
+  const lines = await db
+    .select({
+      line: l,
+      number: t.ticketNumber,
+      at: t.completedAt,
+      refund: t.refundOfSaleId,
+      customer: schema.customers.name,
+      itemKind: schema.inventoryItems.kind,
+      methods: sql<string | null>`(select string_agg(distinct p.method, ', ') from payments p where p.sale_id = ${t.id})`,
+    })
+    .from(l)
+    .innerJoin(t, eq(l.saleId, t.id))
+    .leftJoin(schema.customers, eq(t.customerId, schema.customers.id))
+    .leftJoin(schema.inventoryItems, eq(l.inventoryItemId, schema.inventoryItems.id))
+    .where(and(eq(t.storeId, storeId), inArray(t.status, ['completed', 'refunded']), isNotNull(t.completedAt), gte(t.completedAt, start)))
+    .orderBy(desc(t.completedAt));
+  for (const r of lines) {
+    const net = r.line.netCents ?? r.line.qty * r.line.unitCents - r.line.discountCents;
+    const row: ReportTxn = {
+      at: r.at!.toISOString(),
+      number: r.number,
+      customer: r.customer,
+      description: (r.line.qty > 1 ? `${r.line.qty} × ` : '') + r.line.description,
+      method: r.methods,
+      amountCents: net + (r.line.taxCents ?? 0),
+      note: r.refund != null ? 'Refund' : null,
+    };
+    if (r.line.kind === 'repair') groups.repairs.push(row);
+    else if (r.line.kind === 'deposit') groups.credits.push({ ...row, note: 'Deposit held as store credit' });
+    else if (r.line.kind === 'product' && (r.itemKind === 'accessory' || r.itemKind === 'part')) groups.accessories.push(row);
+    else groups.sales.push(row);
+  }
+
+  // repair deposits and deposit refunds taken straight on a ticket
+  const p = schema.payments;
+  const deposits = await db
+    .select({ p, number: schema.repairTickets.number, customer: schema.customers.name })
+    .from(p)
+    .innerJoin(schema.repairTickets, eq(p.ticketId, schema.repairTickets.id))
+    .leftJoin(schema.customers, eq(schema.repairTickets.customerId, schema.customers.id))
+    .where(and(eq(schema.repairTickets.storeId, storeId), isNull(p.saleId), gte(p.createdAt, start)))
+    .orderBy(desc(p.createdAt));
+  for (const r of deposits) {
+    groups.repairs.push({
+      at: r.p.createdAt.toISOString(), number: r.number, customer: r.customer,
+      description: r.p.amountCents < 0 ? 'Repair deposit refunded' : 'Repair deposit', method: r.p.method, amountCents: r.p.amountCents, note: null,
+    });
+  }
+
+  // register cash movements
+  const m = schema.cashMovements;
+  const moves = await db
+    .select({ m })
+    .from(m)
+    .innerJoin(schema.drawerSessions, eq(m.drawerSessionId, schema.drawerSessions.id))
+    .where(and(eq(schema.drawerSessions.storeId, storeId), inArray(m.kind, ['paid_in', 'paid_out', 'tradein_payout', 'drop']), gte(m.createdAt, start)))
+    .orderBy(desc(m.createdAt));
+  for (const { m: r } of moves) {
+    const row: ReportTxn = {
+      at: r.createdAt.toISOString(),
+      number: r.number ?? 'CASH-' + String(r.id).padStart(4, '0'),
+      customer: null,
+      description: r.kind === 'paid_out' ? 'Cash paid out' : r.kind === 'paid_in' ? 'Cash paid in' : r.kind === 'drop' ? 'Cash drop to safe' : 'Trade-in paid in cash',
+      method: 'cash',
+      amountCents: r.kind === 'paid_in' ? r.amountCents : -r.amountCents,
+      note: [r.reason, r.source === 'back_office' ? 'from back office' : null].filter(Boolean).join(' · ') || null,
+    };
+    if (r.kind === 'tradein_payout') groups.tradeins.push(row);
+    else groups.payouts.push(row);
+  }
+
+  // store credit: every movement, and trade-ins paid as credit also count as trade-ins
+  const c = schema.storeCreditLedger;
+  const credits = await db
+    .select({ c, customer: schema.customers.name })
+    .from(c)
+    .innerJoin(schema.customers, eq(c.customerId, schema.customers.id))
+    .innerJoin(schema.users, eq(c.userId, schema.users.id))
+    .where(and(eq(schema.users.storeId, storeId), gte(c.createdAt, start)))
+    .orderBy(desc(c.createdAt));
+  for (const r of credits) {
+    const row: ReportTxn = {
+      at: r.c.createdAt.toISOString(),
+      number: r.c.number ?? 'CREDIT-' + String(r.c.id).padStart(4, '0'),
+      customer: r.customer,
+      description: r.c.reason,
+      method: 'store_credit',
+      amountCents: r.c.deltaCents,
+      note: r.c.deltaCents >= 0 ? 'Credit issued' : 'Credit spent',
+    };
+    groups.credits.push(row);
+    if (r.c.reason.startsWith('Trade-in') && r.c.saleId == null) {
+      groups.tradeins.push({ ...row, description: 'Trade-in paid as store credit', note: r.c.reason, amountCents: -r.c.deltaCents });
+    }
+  }
+
+  for (const key of Object.keys(groups) as Array<keyof typeof groups>) groups[key].sort((a, b) => b.at.localeCompare(a.at));
+  const totals = Object.fromEntries(
+    (Object.keys(groups) as Array<keyof typeof groups>).map((k) => [k, { count: groups[k].length, cents: groups[k].reduce((s, r) => s + r.amountCents, 0) }]),
+  );
+  res.json({ range: String(req.query.range ?? 'today'), groups, totals });
 });

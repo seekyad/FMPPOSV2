@@ -9,7 +9,9 @@
     "start": "tsx src/index.ts",
     "test": "vitest run",
     "db:generate": "drizzle-kit generate",
-    "db:seed": "tsx src/db/seed-cli.ts"
+    "db:seed": "tsx src/db/seed-cli.ts",
+    "setup:store": "tsx src/admin-cli.ts",
+    "device:pair": "tsx src/admin-cli.ts"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.2.14",

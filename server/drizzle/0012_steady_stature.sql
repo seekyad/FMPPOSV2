@@ -1,0 +1,1 @@
+ALTER TABLE "cash_movements" ADD COLUMN "source" text DEFAULT 'drawer' NOT NULL;

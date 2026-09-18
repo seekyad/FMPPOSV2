@@ -3,8 +3,9 @@
 export type Role = 'employee' | 'manager';
 
 export type SaleStatus = 'open' | 'parked' | 'completed' | 'voided' | 'refunded';
-export type SaleLineKind = 'product' | 'repair' | 'custom' | 'tradein' | 'payout';
-export type PaymentMethod = 'cash' | 'card' | 'tap' | 'store_credit';
+/** `deposit`: money taken up front and held as the customer's store credit until it is used */
+export type SaleLineKind = 'product' | 'repair' | 'custom' | 'tradein' | 'payout' | 'deposit';
+export type PaymentMethod = 'cash' | 'card' | 'tap' | 'zelle' | 'cash_app' | 'store_credit';
 
 export type TicketStatus =
   | 'open'

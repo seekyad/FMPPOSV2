@@ -1,10 +1,12 @@
-import { Router } from 'express';
-import { and, asc, eq, sql } from 'drizzle-orm';
+import { financialTransaction } from '../finance';
+import { HttpError } from '../http';
+import { createRouter as Router } from '../http';
+import { and, asc, eq, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { DEFAULT_TRADEIN_CONFIG, tradeInOffer, type TradeInCondition, type TradeInPayout } from '@fmp/shared';
 import { getDb, schema } from '../db/index';
 import { requireAuth, requireRole } from '../auth';
-import { audit, emitStore } from '../util';
+import { audit, emitStore, nextTicketNumber } from '../util';
 import { getOpenDrawer } from './drawer';
 
 export const tradeinRouter = Router();
@@ -80,18 +82,20 @@ tradeinRouter.post('/', async (req, res) => {
     res.status(400).json({ error: 'Invalid trade-in', detail: body.error.flatten() });
     return;
   }
-  const db = await getDb();
+  const result = await financialTransaction(req.session!.storeId, async db => {
   const data = body.data;
+  if(data.customerId) {
+    const [customer] = await db.select().from(schema.customers).where(and(eq(schema.customers.id,data.customerId),isNull(schema.customers.mergedInto))).for('update');
+    if(!customer)throw new HttpError(409,'Select an active customer');
+  }
 
   if (data.payout === 'credit' && !data.customerId) {
-    res.status(400).json({ error: 'Store credit needs a customer' });
-    return;
+    throw new HttpError(400, 'Store credit needs a customer');
   }
 
   const [model] = await db.select().from(schema.deviceModels).where(eq(schema.deviceModels.id, data.modelId));
   if (!model) {
-    res.status(404).json({ error: 'Unknown device model' });
-    return;
+    throw new HttpError(404, 'Unknown device model');
   }
   const [book] = await db
     .select()
@@ -107,8 +111,7 @@ tradeinRouter.post('/', async (req, res) => {
     : null;
   const offer = data.manualOfferCents ?? suggested;
   if (offer == null || offer <= 0) {
-    res.status(400).json({ error: 'No pricebook value for this device — enter a manual offer' });
-    return;
+    throw new HttpError(400, 'No pricebook value for this device — enter a manual offer');
   }
 
   const grade = data.condition === 'good' ? 'A' : data.condition === 'fair' ? 'B' : 'C';
@@ -138,11 +141,13 @@ tradeinRouter.post('/', async (req, res) => {
     userId: req.session!.id,
   });
 
+  const number = await nextTicketNumber(db, req.session!.storeId);
   if (data.payout === 'cash') {
     const session = await getOpenDrawer(db, req.session!.storeId, req.session!.id);
     await db.insert(schema.cashMovements).values({
       drawerSessionId: session.id,
       kind: 'tradein_payout',
+      number,
       amountCents: offer,
       reason: `Trade-in ${model.name} ${data.storage}${data.imei ? ` · IMEI …${data.imei.slice(-5)}` : ''}`,
       userId: req.session!.id,
@@ -155,6 +160,7 @@ tradeinRouter.post('/', async (req, res) => {
     await db.insert(schema.storeCreditLedger).values({
       customerId: data.customerId!,
       deltaCents: offer,
+      number,
       reason: `Trade-in ${model.name} ${data.storage} (incl. credit bonus)`,
       userId: req.session!.id,
     });
@@ -167,6 +173,8 @@ tradeinRouter.post('/', async (req, res) => {
     condition: data.condition,
     payout: data.payout,
   });
-  emitStore(req, 'drawer-changed');
-  res.json({ item, offerCents: offer, suggestedCents: suggested, manual: data.manualOfferCents != null });
+  return { item, offerCents: offer, suggestedCents: suggested, manual: data.manualOfferCents != null };
+  });
+  emitStore(req,'drawer-changed');
+  res.json(result);
 });

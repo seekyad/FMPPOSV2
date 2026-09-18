@@ -1,9 +1,10 @@
-import { Router } from 'express';
+import { createRouter as Router } from '../http';
 import { and, desc, eq, ilike, ne, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { getDb, schema } from '../db/index';
 import { requireAuth, requireRole } from '../auth';
 import { audit } from '../util';
+import { requireStoreReferences } from '../store-scope';
 
 export const inventoryRouter = Router();
 inventoryRouter.use(requireAuth);
@@ -103,7 +104,7 @@ inventoryRouter.post('/', async (req, res) => {
 });
 
 inventoryRouter.patch('/:id', async (req, res) => {
-  const body = itemBody.partial().safeParse(req.body);
+  const body = itemBody.omit({ qty: true, kind: true }).partial().strict().safeParse(req.body);
   if (!body.success) {
     res.status(400).json({ error: 'Invalid fields' });
     return;
@@ -112,12 +113,13 @@ inventoryRouter.patch('/:id', async (req, res) => {
   const [row] = await db
     .update(schema.inventoryItems)
     .set(body.data)
-    .where(eq(schema.inventoryItems.id, Number(req.params.id)))
+    .where(and(eq(schema.inventoryItems.id, Number(req.params.id)), eq(schema.inventoryItems.storeId, req.session!.storeId)))
     .returning();
   if (!row) {
     res.status(404).json({ error: 'Item not found' });
     return;
   }
+  await audit(db, req, 'inventory.update', 'inventory_item', row.id, body.data);
   res.json(row);
 });
 
@@ -130,7 +132,7 @@ inventoryRouter.post('/:id/adjust', requireRole('manager'), async (req, res) => 
   }
   const db = await getDb();
   const id = Number(req.params.id);
-  const [item] = await db.select().from(schema.inventoryItems).where(eq(schema.inventoryItems.id, id));
+  const [item] = await db.select().from(schema.inventoryItems).where(and(eq(schema.inventoryItems.id, id), eq(schema.inventoryItems.storeId, req.session!.storeId)));
   if (!item) {
     res.status(404).json({ error: 'Item not found' });
     return;
@@ -143,7 +145,7 @@ inventoryRouter.post('/:id/adjust', requireRole('manager'), async (req, res) => 
   const [row] = await db
     .update(schema.inventoryItems)
     .set({ qty: newQty })
-    .where(eq(schema.inventoryItems.id, id))
+    .where(and(eq(schema.inventoryItems.id, id), eq(schema.inventoryItems.storeId, req.session!.storeId)))
     .returning();
   await db.insert(schema.inventoryMovements).values({
     itemId: id,
@@ -168,7 +170,7 @@ inventoryRouter.post('/:id/remove', requireRole('manager'), async (req, res) => 
   const [row] = await db
     .update(schema.inventoryItems)
     .set({ status: 'removed' })
-    .where(eq(schema.inventoryItems.id, id))
+    .where(and(eq(schema.inventoryItems.id, id), eq(schema.inventoryItems.storeId, req.session!.storeId)))
     .returning();
   if (!row) {
     res.status(404).json({ error: 'Item not found' });
@@ -208,6 +210,10 @@ inventoryRouter.post('/receive', async (req, res) => {
     return;
   }
   const db = await getDb();
+  await requireStoreReferences(db, req.session!.storeId, { inventoryIds: body.data.items.map(item => item.itemId) });
+  if (body.data.items.some(item => Boolean(item.itemId) === Boolean(item.new))) {
+    res.status(400).json({ error: 'Each received line needs an existing item or a new item' }); return;
+  }
   let totalCost = 0;
   const [purchase] = await db
     .insert(schema.purchases)
@@ -232,7 +238,7 @@ inventoryRouter.post('/receive', async (req, res) => {
     await db
       .update(schema.inventoryItems)
       .set({ qty: sql`${schema.inventoryItems.qty} + ${line.qty}`, costCents: line.unitCostCents })
-      .where(eq(schema.inventoryItems.id, itemId));
+      .where(and(eq(schema.inventoryItems.id, itemId), eq(schema.inventoryItems.storeId, req.session!.storeId)));
     await db.insert(schema.inventoryMovements).values({
       itemId,
       deltaQty: line.qty,

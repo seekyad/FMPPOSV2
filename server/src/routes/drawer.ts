@@ -1,10 +1,11 @@
-import { Router } from 'express';
+import { createRouter as Router } from '../http';
 import { and, desc, eq, gte, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import type { Db } from '../db/index';
 import { getDb, schema } from '../db/index';
 import { requireAuth, requireRole } from '../auth';
-import { audit, emitStore } from '../util';
+import { audit, emitBridge, emitStore, nextTicketNumber } from '../util';
+import { drawerKickEscpos } from '../receipts';
 
 export const drawerRouter = Router();
 drawerRouter.use(requireAuth);
@@ -52,8 +53,9 @@ export async function drawerExpectation(db: Db, storeId: number, session: typeof
     .from(schema.cashMovements)
     .where(eq(schema.cashMovements.drawerSessionId, session.id));
   const paidIn = movements.filter((m) => m.kind === 'paid_in').reduce((s, m) => s + m.amountCents, 0);
+  // back-office payouts never touched the drawer, so they don't count against it
   const paidOut = movements
-    .filter((m) => m.kind === 'paid_out' || m.kind === 'tradein_payout' || m.kind === 'drop')
+    .filter((m) => (m.kind === 'paid_out' || m.kind === 'tradein_payout' || m.kind === 'drop') && m.source !== 'back_office')
     .reduce((s, m) => s + m.amountCents, 0);
   const cashSales = Number(cashRow?.cashIn ?? 0);
   const cashRefunds = Number(cashRow?.cashOut ?? 0);
@@ -82,6 +84,8 @@ drawerRouter.post('/movement', async (req, res) => {
       kind: z.enum(['paid_in', 'paid_out', 'no_sale_open', 'drop']),
       amountCents: z.number().int().min(0),
       reason: z.string().min(2).max(300),
+      /** payouts: cash from the register drawer (default, kicks it open) or from the back office (drawer stays shut) */
+      source: z.enum(['drawer', 'back_office']).default('drawer'),
     })
     .safeParse(req.body);
   if (!body.success) {
@@ -90,13 +94,19 @@ drawerRouter.post('/movement', async (req, res) => {
   }
   const db = await getDb();
   const session = await getOpenDrawer(db, req.session!.storeId, req.session!.id);
+  const number = await nextTicketNumber(db, req.session!.storeId);
   const [row] = await db
     .insert(schema.cashMovements)
-    .values({ drawerSessionId: session.id, ...body.data, userId: req.session!.id })
+    .values({ drawerSessionId: session.id, ...body.data, number, userId: req.session!.id })
     .returning();
   await audit(db, req, `drawer.${body.data.kind}`, 'cash_movement', row!.id, body.data);
   emitStore(req, 'drawer-changed');
-  res.json(row);
+  // cash leaving or entering the register drawer: pop it open on the receipt printer
+  const drawerOpened =
+    body.data.source === 'drawer' && ['paid_out', 'paid_in', 'no_sale_open'].includes(body.data.kind)
+      ? emitBridge(req, { kind: 'receipt', escposBase64: drawerKickEscpos() })
+      : false;
+  res.json({ ...row, drawerOpened });
 });
 
 /** Close the drawer: counted vs expected, then clear leftover parked sales. */

@@ -29,6 +29,7 @@ export const stores = pgTable('stores', {
 });
 
 export const terminals = pgTable('terminals', {
+  kind: text('kind', { enum: ['pos', 'bridge'] }).notNull().default('pos'),
   id: serial('id').primaryKey(),
   storeId: integer('store_id').notNull().references(() => stores.id),
   name: text('name').notNull(),
@@ -39,6 +40,7 @@ export const terminals = pgTable('terminals', {
 });
 
 export const users = pgTable('users', {
+  sessionVersion: integer('session_version').notNull().default(0),
   id: serial('id').primaryKey(),
   storeId: integer('store_id').notNull().references(() => stores.id),
   name: text('name').notNull(),
@@ -98,6 +100,8 @@ export const storeCreditLedger = pgTable('store_credit_ledger', {
   id: serial('id').primaryKey(),
   customerId: integer('customer_id').notNull().references(() => customers.id),
   deltaCents: integer('delta_cents').notNull(),
+  /** transaction number for entries that are transactions in their own right (credit trade-ins) */
+  number: text('number'),
   reason: text('reason').notNull(),
   saleId: integer('sale_id'),
   userId: integer('user_id').references(() => users.id),
@@ -282,6 +286,8 @@ export const sales = pgTable(
       .notNull()
       .default('open'),
     parkedNote: text('parked_note'),
+    checkoutKey: text('checkout_key'),
+    checkoutHash: text('checkout_hash'),
     subtotalCents: integer('subtotal_cents').notNull().default(0),
     discountCents: integer('discount_cents').notNull().default(0),
     taxCents: integer('tax_cents').notNull().default(0),
@@ -294,13 +300,14 @@ export const sales = pgTable(
   (t) => [
     index('sales_store_status_idx').on(t.storeId, t.status),
     uniqueIndex('sales_ticket_number_idx').on(t.ticketNumber),
+    uniqueIndex('sales_checkout_key_idx').on(t.storeId, t.checkoutKey),
   ],
 );
 
 export const saleLines = pgTable('sale_lines', {
   id: serial('id').primaryKey(),
   saleId: integer('sale_id').notNull().references(() => sales.id),
-  kind: text('kind', { enum: ['product', 'repair', 'custom', 'tradein', 'payout'] }).notNull(),
+  kind: text('kind', { enum: ['product', 'repair', 'custom', 'tradein', 'payout', 'deposit'] }).notNull(),
   description: text('description').notNull(),
   qty: integer('qty').notNull().default(1),
   unitCents: integer('unit_cents').notNull(),
@@ -308,6 +315,8 @@ export const saleLines = pgTable('sale_lines', {
   taxable: boolean('taxable').notNull().default(true),
   inventoryItemId: integer('inventory_item_id').references(() => inventoryItems.id),
   ticketLineId: integer('ticket_line_id'),
+  netCents: integer('net_cents'),
+  taxCents: integer('tax_cents'),
   /** repair lines: the ticket whose balance this line pays down */
   ticketId: integer('ticket_id').references(() => repairTickets.id),
 });
@@ -316,7 +325,7 @@ export const payments = pgTable('payments', {
   id: serial('id').primaryKey(),
   saleId: integer('sale_id').references(() => sales.id),
   ticketId: integer('ticket_id'),
-  method: text('method', { enum: ['cash', 'card', 'tap', 'store_credit'] }).notNull(),
+  method: text('method', { enum: ['cash', 'card', 'tap', 'zelle', 'cash_app', 'store_credit'] }).notNull(),
   amountCents: integer('amount_cents').notNull(),
   tenderedCents: integer('tendered_cents'),
   changeCents: integer('change_cents'),
@@ -343,6 +352,10 @@ export const repairTickets = pgTable(
       .notNull()
       .default('open'),
     callFlag: boolean('call_flag').notNull().default(false),
+    /** parts for this job still need to be ordered */
+    partsFlag: boolean('parts_flag').notNull().default(false),
+    /** heads-up: check the notes on this repair or customer before touching it */
+    alertFlag: boolean('alert_flag').notNull().default(false),
     technicianId: integer('technician_id').references(() => users.id),
     promisedAt: timestamp('promised_at'),
     totalCents: integer('total_cents').notNull().default(0),
@@ -415,6 +428,10 @@ export const cashMovements = pgTable('cash_movements', {
   drawerSessionId: integer('drawer_session_id').notNull().references(() => drawerSessions.id),
   kind: text('kind', { enum: ['paid_in', 'paid_out', 'tradein_payout', 'no_sale_open', 'drop'] }).notNull(),
   amountCents: integer('amount_cents').notNull(),
+  /** where the cash came from: the register drawer (kicked open) or the back office (drawer stays shut, not counted against it) */
+  source: text('source', { enum: ['drawer', 'back_office'] }).notNull().default('drawer'),
+  /** transaction number from the store series (S1-000123); older rows have none */
+  number: text('number'),
   reason: text('reason'),
   userId: integer('user_id').references(() => users.id),
   createdAt: timestamp('created_at').notNull().defaultNow(),
@@ -481,3 +498,56 @@ export const auditLog = pgTable(
   },
   (t) => [index('audit_store_action_idx').on(t.storeId, t.action, t.createdAt)],
 );
+
+export const terminalPairings = pgTable('terminal_pairings', {
+  id: serial('id').primaryKey(),
+  storeId: integer('store_id').notNull().references(() => stores.id),
+  kind: text('kind', { enum: ['pos', 'bridge'] }).notNull(),
+  codeHash: text('code_hash').notNull().unique(),
+  expiresAt: timestamp('expires_at').notNull(),
+  usedAt: timestamp('used_at'),
+  createdBy: integer('created_by').references(() => users.id),
+});
+
+export const authThrottle = pgTable('auth_throttle', {
+  key: text('key').primaryKey(),
+  attempts: integer('attempts').notNull(),
+  expiresAt: timestamp('expires_at').notNull(),
+});
+
+/** Numbers are allocated by PostgreSQL, independently of document row counts. */
+export const documentCounters = pgTable('document_counters', {
+  key: text('key').primaryKey(),
+  value: integer('value').notNull(),
+});
+
+/** Repair receivable allocations are not additional money received. */
+export const ticketAllocations = pgTable('ticket_allocations', {
+  id: serial('id').primaryKey(),
+  saleId: integer('sale_id').notNull().references(() => sales.id),
+  saleLineId: integer('sale_line_id').references(() => saleLines.id),
+  ticketId: integer('ticket_id').notNull().references(() => repairTickets.id),
+  amountCents: integer('amount_cents').notNull(),
+  legacyPayment: jsonb('legacy_payment'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+});
+
+/** A line can be returned once; current UI refunds whole lines, including their full quantity. */
+export const refundAllocations = pgTable('refund_allocations', {
+  id: serial('id').primaryKey(),
+  originalLineId: integer('original_line_id').notNull().references(() => saleLines.id),
+  refundSaleId: integer('refund_sale_id').notNull().references(() => sales.id),
+  amountCents: integer('amount_cents').notNull(),
+}, t => [uniqueIndex('refund_original_line_idx').on(t.originalLineId)]);
+
+/** Recovery decisions also fence off a delayed checkout request that has not committed. */
+export const checkoutRecoveries = pgTable('checkout_recoveries', {
+  id: serial('id').primaryKey(),
+  storeId: integer('store_id').notNull().references(() => stores.id),
+  terminalId: integer('terminal_id').notNull().references(() => terminals.id),
+  key: text('key').notNull(),
+  saleId: integer('sale_id').references(() => sales.id),
+  acknowledgedAt: timestamp('acknowledged_at'),
+  createdBy: integer('created_by').notNull().references(() => users.id),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+}, t => [uniqueIndex('checkout_recovery_store_key_idx').on(t.storeId,t.key)]);

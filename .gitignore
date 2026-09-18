@@ -7,3 +7,6 @@ dist/
 pgdata/
 *.log
 .DS_Store
+
+bridge/config.json
+server/pgdata*/

@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { createRouter as Router } from '../http';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import crypto from 'node:crypto';
@@ -43,7 +43,7 @@ terminalRouter.post('/charge', async (req, res) => {
       approved: result.approved,
       message: result.responseMessage,
     });
-    res.json(result);
+    res.json({ approved: result.approved, refId: result.refId, responseMessage: result.responseMessage });
   } catch (err) {
     res.status(502).json({
       error: `Terminal unreachable: ${err instanceof Error ? err.message : 'unknown'} — confirm manually if the terminal approved`,

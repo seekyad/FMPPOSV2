@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { createRouter as Router } from '../http';
 import type { Request } from 'express';
 import { desc, eq } from 'drizzle-orm';
 import { z } from 'zod';
@@ -54,6 +54,7 @@ export function applyReceiptPrefs(r: ReceiptData, prefs: ReceiptPrefs | undefine
     address: p.store === false ? null : r.address,
     phone: p.store === false ? null : r.phone,
     customer: p.customer === false ? null : r.customer,
+    customerPhone: p.customer === false ? null : r.customerPhone,
     footer: p.footer === false ? null : r.footer,
     terms: p.terms && p.termsText ? p.termsText : null,
     paperWidth: p.paper === 58 ? 58 : 80,
@@ -168,6 +169,37 @@ printRouter.post('/log', async (req, res) => {
   res.json({ ok: true });
 });
 
+/**
+ * Print a label on the store PC's label printer through the bridge. The client sends the
+ * same self-contained page it would open in the browser dialog; when no bridge is online
+ * it gets `printed: false` and falls back to that dialog.
+ */
+printRouter.post('/label', async (req, res) => {
+  const body = z
+    .object({
+      name: z.string().min(1).max(200),
+      detail: z.string().max(200).optional().nullable(),
+      html: z.string().min(1).max(200_000),
+      payload: z.record(z.unknown()).optional().nullable(),
+    })
+    .safeParse(req.body);
+  if (!body.success) {
+    res.status(400).json({ error: 'name and html required' });
+    return;
+  }
+  const printed = emitBridge(req, { kind: 'label', name: body.data.name, html: body.data.html });
+  if (printed) {
+    await logPrintJob(req, {
+      kind: 'label',
+      name: body.data.name,
+      detail: body.data.detail ? `${body.data.detail} · bridge` : 'bridge',
+      printed: true,
+      payload: body.data.payload ?? null,
+    });
+  }
+  res.json({ printed });
+});
+
 /** Sample receipt preview honoring the settings passed in (unsaved edits included). */
 printRouter.post('/preview', async (req, res) => {
   const prefs = (req.body?.receipt ?? {}) as ReceiptPrefs;
@@ -205,6 +237,7 @@ function sampleReceipt(store: typeof schema.stores.$inferSelect | undefined): Re
     ticketNumber: 'TEST-000',
     cashier: 'Print center',
     customer: 'Sample Customer',
+    customerPhone: '(512) 555-0142',
     createdAt: new Date(),
     lines: [
       { description: 'Screen replacement — iPhone 13', qty: 1, totalCents: 14999 },

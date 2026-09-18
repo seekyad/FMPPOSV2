@@ -1,3 +1,4 @@
+import { issuePairing } from './pairing';
 import { beforeAll, describe, expect, it } from 'vitest';
 import request from 'supertest';
 import type { Express } from 'express';
@@ -23,8 +24,8 @@ beforeAll(async () => {
   const stores = await request(app).get('/api/auth/stores');
   const reg = await request(app)
     .post('/api/auth/terminal/register')
-    .send({ storeId: stores.body[0].id, name: 'Retail terminal' });
-  const staff = await request(app).get('/api/auth/staff').query({ deviceToken: reg.body.deviceToken });
+    .send({ pairingCode: (await issuePairing(await getDb(), stores.body[0].id, 'pos')).pairingCode, name: 'Retail terminal' });
+  const staff = await request(app).get('/api/auth/staff').set('X-Device-Token', reg.body.deviceToken);
   const sara = staff.body.staff.find((s: { name: string }) => s.name === 'Sara R.');
   token = (
     await request(app).post('/api/auth/pin').send({ deviceToken: reg.body.deviceToken, userId: sara.id, pin: '2345' })

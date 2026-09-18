@@ -1,0 +1,1 @@
+ALTER TABLE "repair_tickets" ADD COLUMN "alert_flag" boolean DEFAULT false NOT NULL;

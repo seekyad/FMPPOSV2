@@ -1,3 +1,4 @@
+import { issuePairing } from './pairing';
 import { beforeAll, describe, expect, it } from 'vitest';
 import request from 'supertest';
 import type { Express } from 'express';
@@ -35,20 +36,20 @@ describe('health & auth flow', () => {
     const stores = await request(app).get('/api/auth/stores');
     const res = await request(app)
       .post('/api/auth/terminal/register')
-      .send({ storeId: stores.body[0].id, name: 'Front counter' });
+      .send({ pairingCode: (await issuePairing(await getDb(), stores.body[0].id, 'pos')).pairingCode, name: 'Front counter' });
     expect(res.status).toBe(200);
     expect(res.body.deviceToken).toHaveLength(48);
     deviceToken = res.body.deviceToken;
   });
 
   it('lists staff for the PIN pad', async () => {
-    const res = await request(app).get('/api/auth/staff').query({ deviceToken });
+    const res = await request(app).get('/api/auth/staff').set('X-Device-Token', deviceToken);
     expect(res.status).toBe(200);
     expect(res.body.staff.map((s: { name: string }) => s.name)).toContain('Mike K.');
   });
 
   it('rejects a wrong PIN', async () => {
-    const staff = await request(app).get('/api/auth/staff').query({ deviceToken });
+    const staff = await request(app).get('/api/auth/staff').set('X-Device-Token', deviceToken);
     const mike = staff.body.staff.find((s: { name: string }) => s.name === 'Mike K.');
     const res = await request(app)
       .post('/api/auth/pin')
@@ -57,7 +58,7 @@ describe('health & auth flow', () => {
   });
 
   it('signs in with the right PIN and returns a manager session', async () => {
-    const staff = await request(app).get('/api/auth/staff').query({ deviceToken });
+    const staff = await request(app).get('/api/auth/staff').set('X-Device-Token', deviceToken);
     const mike = staff.body.staff.find((s: { name: string }) => s.name === 'Mike K.');
     const res = await request(app)
       .post('/api/auth/pin')

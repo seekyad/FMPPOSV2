@@ -5,7 +5,8 @@
   "type": "module",
   "description": "FMP store print bridge — runs on the always-on store PC; connects outbound to the POS server and drives the Rongta receipt printer and Niimbot label printer. Built out in Phase 1-2.",
   "scripts": {
-    "dev": "node src/index.js"
+    "dev": "node src/index.js",
+    "pair": "node src/pair.js"
   },
   "dependencies": {
     "socket.io-client": "^4.8.3"

@@ -2,19 +2,27 @@ import { and, count, eq, gte, sql } from 'drizzle-orm';
 import type { Server as SocketServer } from 'socket.io';
 import type { Request } from 'express';
 import type { Db } from './db/index';
-import { auditLog, sales } from './db/schema';
+import { auditLog, documentCounters } from './db/schema';
 
-/** Sale ticket numbers look like the design's "#0901-014": MMDD-<seq of the day>. */
+
+/** Store/year-qualified identifiers use an atomic database counter and a UTC date. */
+/** Every receipt, repair ticket, payout and trade-in in a store shares one series: S<store>-00001, S<store>-00002, … */
+export const formatTransactionNumber = (storeId: number, value: number) => `S${storeId}-${String(value).padStart(5, '0')}`;
+const transactionCounterKey = (storeId: number) => `TXN-${storeId}`;
+
+/** Reserve the next transaction number for the store (atomic counter bump). */
 export async function nextTicketNumber(db: Db, storeId: number): Promise<string> {
-  const now = new Date();
-  const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const [row] = await db
-    .select({ n: count() })
-    .from(sales)
-    .where(and(eq(sales.storeId, storeId), gte(sales.createdAt, dayStart)));
-  const mmdd = `${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
-  const seq = String((row?.n ?? 0) + 1).padStart(3, '0');
-  return `${mmdd}-${seq}`;
+  const key = transactionCounterKey(storeId);
+  const [row] = await db.insert(documentCounters).values({ key, value: 1 }).onConflictDoUpdate({
+    target: documentCounters.key, set: { value: sql`${documentCounters.value} + 1` },
+  }).returning();
+  return formatTransactionNumber(storeId, row!.value);
+}
+
+/** Peek at the number the next reservation would get, without taking it. */
+export async function peekTicketNumber(db: Db, storeId: number): Promise<string> {
+  const [row] = await db.select().from(documentCounters).where(eq(documentCounters.key, transactionCounterKey(storeId)));
+  return formatTransactionNumber(storeId, (row?.value ?? 0) + 1);
 }
 
 export async function audit(

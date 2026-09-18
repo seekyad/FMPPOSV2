@@ -27,7 +27,23 @@ export function parseDollars(input: string): Cents | null {
 /** Tax on a taxable subtotal, half-up rounding (matches receipt expectations). */
 export function taxCents(taxableSubtotal: Cents, rateBp: number): Cents {
   assertCents(taxableSubtotal);
-  return Math.round((taxableSubtotal * rateBp) / 10000);
+  return Math.sign(taxableSubtotal) * Math.round((Math.abs(taxableSubtotal) * rateBp) / 10000);
+}
+
+/**
+ * Net (pre-tax) price for a taxable line whose taxed total should land on `grossCents`,
+ * e.g. a repair balance rung up at the register. Tax rounding leaves some totals
+ * unreachable; those round up by a cent rather than leaving the ticket a cent unpaid.
+ */
+export function netFromGrossCents(grossCents: Cents, rateBp: number): Cents {
+  const guess = Math.round(grossCents / (1 + rateBp / 10000));
+  const total = (net: Cents) => net + taxCents(net, rateBp);
+  let best: Cents | null = null;
+  for (let net = guess - 2; net <= guess + 2; net++) {
+    if (total(net) === grossCents) return net;
+    if (total(net) > grossCents && (best === null || net < best)) best = net;
+  }
+  return best ?? guess;
 }
 
 export interface SaleLineInput {

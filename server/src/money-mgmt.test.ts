@@ -1,3 +1,4 @@
+import { issuePairing } from './pairing';
 import { beforeAll, describe, expect, it } from 'vitest';
 import request from 'supertest';
 import type { Express } from 'express';
@@ -26,8 +27,8 @@ beforeAll(async () => {
   const stores = await request(app).get('/api/auth/stores');
   const reg = await request(app)
     .post('/api/auth/terminal/register')
-    .send({ storeId: stores.body[0].id, name: 'Money test' });
-  const staff = await request(app).get('/api/auth/staff').query({ deviceToken: reg.body.deviceToken });
+    .send({ pairingCode: (await issuePairing(await getDb(), stores.body[0].id, 'pos')).pairingCode, name: 'Money test' });
+  const staff = await request(app).get('/api/auth/staff').set('X-Device-Token', reg.body.deviceToken);
   const mike = staff.body.staff.find((s: { name: string }) => s.name === 'Mike K.');
   const sara = staff.body.staff.find((s: { name: string }) => s.name === 'Sara R.');
   managerToken = (
@@ -100,6 +101,23 @@ describe('drawer', () => {
     expect(drawer.body.expectedCents).toBe(20000 - 31000 - 9000 - 2500);
   });
 
+  it('a back-office payout is logged but leaves the drawer expectation alone', async () => {
+    const before = (await request(app).get('/api/drawer').set(asEmployee())).body.expectedCents;
+    const res = await request(app)
+      .post('/api/drawer/movement')
+      .set(asEmployee())
+      .send({ kind: 'paid_out', amountCents: 4000, reason: 'Courier, paid from the safe', source: 'back_office' });
+    expect(res.status).toBe(200);
+    expect(res.body.source).toBe('back_office');
+    expect(res.body.drawerOpened).toBe(false);
+    const after = (await request(app).get('/api/drawer').set(asEmployee())).body.expectedCents;
+    expect(after).toBe(before);
+    const log = await request(app).get('/api/transactions?kind=payout').set(asEmployee());
+    const row = log.body.rows.find((r: { note: string | null }) => r.note?.startsWith('Courier'));
+    expect(row.amountCents).toBe(-4000);
+    expect(row.note).toContain('back office');
+  });
+
   it('close is manager-only, records over/short, and clears parked sales', async () => {
     await request(app)
       .post('/api/sales/park')
@@ -165,7 +183,7 @@ describe('settings & staff', () => {
     const stores = await request(app).get('/api/auth/stores');
     const reg = await request(app)
       .post('/api/auth/terminal/register')
-      .send({ storeId: stores.body[0].id, name: 'Second terminal' });
+      .send({ pairingCode: (await issuePairing(await getDb(), stores.body[0].id, 'pos')).pairingCode, name: 'Second terminal' });
     const login = await request(app)
       .post('/api/auth/pin')
       .send({ deviceToken: reg.body.deviceToken, userId: created.body.id, pin: '7788' });

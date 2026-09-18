@@ -6,5 +6,12 @@
     "host": "192.168.1.50",
     "port": 9100,
     "_or_": "for a USB Rongta shared in Windows as 'Rongta', use: { \"mode\": \"share\", \"shareName\": \"Rongta\" }"
+  },
+  "name": "Store print bridge",
+  "deviceToken": "",
+  "labelPrinter": {
+    "_note": "Labels print through Edge or Chrome (auto-detected) to the Windows DEFAULT printer on this PC. Set the Niimbot as the default printer. Optional overrides below.",
+    "browser": "",
+    "settleMs": 6000
   }
 }

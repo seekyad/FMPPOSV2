@@ -1,9 +1,10 @@
-import { Router } from 'express';
+import { createRouter as Router } from '../http';
 import { asc, eq, gte, inArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { getDb, schema } from '../db/index';
 import { requireAuth, requireRole } from '../auth';
 import { audit } from '../util';
+import { requireStoreReferences } from '../store-scope';
 
 /** Settings: device models + the service catalog (services with price tiers). */
 export const catalogRouter = Router();
@@ -103,6 +104,7 @@ catalogRouter.post('/services', requireRole('manager'), async (req, res) => {
     return;
   }
   const db = await getDb();
+  await requireStoreReferences(db, req.session!.storeId, { inventoryIds: [body.data.partItemId] });
   const { tiers, ...data } = body.data;
   const [row] = await db.insert(schema.services).values(data).returning();
   await writeTiers(db, row!.id, tiers);
@@ -118,6 +120,7 @@ catalogRouter.put('/services/:id', requireRole('manager'), async (req, res) => {
   }
   const db = await getDb();
   const id = Number(req.params.id);
+  await requireStoreReferences(db, req.session!.storeId, { inventoryIds: [body.data.partItemId] });
   const { tiers, ...data } = body.data;
   const [row] = await db.update(schema.services).set(data).where(eq(schema.services.id, id)).returning();
   if (!row) {
@@ -137,6 +140,7 @@ catalogRouter.post('/services/:id/duplicate', requireRole('manager'), async (req
     res.status(404).json({ error: 'Service not found' });
     return;
   }
+  await requireStoreReferences(db, req.session!.storeId, { inventoryIds: [original.partItemId] });
   const { id: _id, createdAt: _c, ...rest } = original;
   const [copy] = await db.insert(schema.services).values({ ...rest, name: `${original.name} (copy)` }).returning();
   const tiers = await db.select().from(schema.serviceTiers).where(eq(schema.serviceTiers.serviceId, id));

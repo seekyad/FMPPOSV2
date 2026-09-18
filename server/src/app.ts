@@ -1,4 +1,5 @@
 import cors from 'cors';
+import { HttpError } from './http';
 import express from 'express';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -16,12 +17,14 @@ import { settingsRouter } from './routes/settings';
 import { terminalRouter } from './routes/terminal';
 import { timeclockRouter } from './routes/timeclock';
 import { tradeinRouter } from './routes/tradein';
+import { transactionsRouter } from './routes/transactions';
 
 /** Express app without the HTTP listener so tests can drive it with supertest. */
 export function createApp() {
   const app = express();
   app.use(cors());
   app.use(express.json({ limit: '1mb' }));
+  app.use('/api', (_req, res, next) => { res.set('Cache-Control', 'no-store'); next(); });
 
   app.get('/api/health', (_req, res) => res.json({ ok: true, version: '2.0.0' }));
   app.use('/api/auth', authRouter);
@@ -32,6 +35,7 @@ export function createApp() {
   app.use('/api/catalog', catalogRouter);
   app.use('/api/drawer', drawerRouter);
   app.use('/api/tradein', tradeinRouter);
+  app.use('/api/transactions', transactionsRouter);
   app.use('/api/timeclock', timeclockRouter);
   app.use('/api/settings', settingsRouter);
   app.use('/api/print', printRouter);
@@ -52,5 +56,9 @@ export function createApp() {
     res.sendFile(path.join(repairDist, 'index.html'), (err) => (err ? next() : undefined));
   });
 
+  app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    const status = err instanceof HttpError ? err.status : (err as { status?: number })?.status === 400 ? 400 : 500;
+    res.status(status).json({ error: err instanceof HttpError ? err.message : status === 400 ? 'Invalid request' : 'Request could not be completed' });
+  });
   return app;
 }
