@@ -59,7 +59,7 @@ export const TAG_DEFAULTS: Required<TagPrefs> = {
   promise: false,
   barcode: true,
   price: true,
-  rotate: false,
+  rotate: true,
 };
 
 export const DEVICE_LABEL_DEFAULTS: Required<DeviceLabelPrefs> = {
@@ -69,14 +69,14 @@ export const DEVICE_LABEL_DEFAULTS: Required<DeviceLabelPrefs> = {
   barcode: true,
   imei: true,
   price: true,
-  rotate: false,
+  rotate: true,
 };
 
 export const INVENTORY_LABEL_DEFAULTS: Required<InventoryLabelPrefs> = {
   sku: true,
   barcode: true,
   price: true,
-  rotate: false,
+  rotate: true,
 };
 
 let prefs: LabelPrefs = {};
@@ -159,7 +159,7 @@ function labelDocument(title: string, sizeH: '30mm' | '80mm', style: string, bod
   // rotated: a landscape page with the 46 mm-wide label turned a quarter turn to lie along it
   const page = rotate ? `${sizeH} 50mm` : `50mm ${sizeH}`;
   const turn = rotate ? 'body { transform-origin: 0 0; transform: translateY(46mm) rotate(-90deg); }' : '';
-  return `<!doctype html><html><head><title>${esc(title)}</title><style>
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title><style>
     @page { size: ${page}; margin: 2mm; }
     body { font-family: -apple-system, 'Segoe UI', sans-serif; margin: 0; width: 46mm; color: #000; }
     ${turn}
